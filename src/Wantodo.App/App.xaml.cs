@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Windows;
 using Wantodo.Core;
@@ -13,6 +13,15 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         _startupWatch = Stopwatch.StartNew();
+
+        // 桌面常驻程序最怕「一声不响就没了」：任何未处理异常都要先落日志。
+        DispatcherUnhandledException += (_, args) =>
+        {
+            AppLog.Error("UI 线程未处理异常（已拦截，程序继续运行）", args.Exception);
+            args.Handled = true;
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+            AppLog.Error("后台线程未处理异常（进程即将退出）", args.ExceptionObject as Exception);
 
         base.OnStartup(e);
 

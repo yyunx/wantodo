@@ -23,6 +23,7 @@ public sealed class ColumnViewModel : ObservableObject
         Notes = new ObservableCollection<NoteViewModel>(
             model.Notes.Select(n => new NoteViewModel(n, OnNoteChanged, OnNoteDeleteRequested)));
         _noteCount = Notes.Count;
+        RefreshHidden();
 
         Notes.CollectionChanged += (_, _) => RefreshCount();
     }
@@ -73,7 +74,9 @@ public sealed class ColumnViewModel : ObservableObject
             return false;
         }
 
-        Notes.Add(new NoteViewModel(note, OnNoteChanged, OnNoteDeleteRequested));
+        var added = new NoteViewModel(note, OnNoteChanged, OnNoteDeleteRequested);
+        added.SetHideCompleted(_board.HideCompleted);
+        Notes.Add(added);
         DraftText = string.Empty;
         _board.RequestSave();
         return true;
@@ -111,6 +114,15 @@ public sealed class ColumnViewModel : ObservableObject
     }
 
     internal void RefreshCount() => NoteCount = Notes.Count;
+
+    /// <summary>把板级的「隐藏已完成」同步到本栏每个条目。</summary>
+    internal void RefreshHidden()
+    {
+        foreach (var note in Notes)
+        {
+            note.SetHideCompleted(_board.HideCompleted);
+        }
+    }
 
     private void OnNoteChanged(NoteViewModel note) => _board.RequestSave();
 

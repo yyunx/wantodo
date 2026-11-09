@@ -36,6 +36,47 @@ public sealed class BoardViewModel : ObservableObject
 
     public RelayCommand AddColumnCommand { get; }
 
+    /// <summary>隐藏已完成的条目（数据保留，只是不显示）。</summary>
+    public bool HideCompleted
+    {
+        get => Model.HideCompleted;
+        set
+        {
+            if (Model.HideCompleted == value)
+            {
+                return;
+            }
+
+            Model.HideCompleted = value;
+            foreach (var column in Columns)
+            {
+                column.RefreshHidden();
+            }
+
+            OnPropertyChanged();
+            RequestSave();
+        }
+    }
+
+    /// <summary>主题 / 色调变了：换掉全局画刷并落盘。</summary>
+    public void ApplyAppearance()
+    {
+        Appearance.ThemeService.Apply(Model);
+        RequestSave();
+    }
+
+    public void SetTheme(string theme)
+    {
+        Model.Theme = theme;
+        ApplyAppearance();
+    }
+
+    public void SetTone(double tone)
+    {
+        Model.Tone = Math.Clamp(tone, 0, 1);
+        ApplyAppearance();
+    }
+
     public bool CanAddColumn => Columns.Count < BoardEditor.MaxColumns;
 
     /// <summary>

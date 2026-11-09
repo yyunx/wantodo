@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Wantodo.Core;
 
 namespace Wantodo.App.ViewModels;
@@ -13,6 +13,7 @@ public sealed class NoteViewModel : ObservableObject
     private bool _isEditing;
     private string _editText = string.Empty;
     private bool _isDropBefore;
+    private bool _hideCompleted;
 
     public NoteViewModel(Note model, Action<NoteViewModel> onChanged, Action<NoteViewModel> onDeleteRequested)
     {
@@ -30,6 +31,9 @@ public sealed class NoteViewModel : ObservableObject
     public string Text => _model.Text;
 
     public bool IsCompleted => _model.Completed;
+
+    /// <summary>「隐藏已完成」打开时，已完成的条目不显示（数据还在，取消勾选就回来）。</summary>
+    public bool IsHidden => _hideCompleted && _model.Completed;
 
     /// <summary>拖拽时用来在目标行上方画一条落点线。</summary>
     public bool IsDropBefore
@@ -55,7 +59,20 @@ public sealed class NoteViewModel : ObservableObject
     {
         BoardEditor.SetCompleted(_model, !_model.Completed);
         OnPropertyChanged(nameof(IsCompleted));
+        OnPropertyChanged(nameof(IsHidden));
         _onChanged(this);
+    }
+
+    /// <summary>由板级设置驱动，切换「隐藏已完成」时刷新。</summary>
+    internal void SetHideCompleted(bool value)
+    {
+        if (_hideCompleted == value)
+        {
+            return;
+        }
+
+        _hideCompleted = value;
+        OnPropertyChanged(nameof(IsHidden));
     }
 
     public void BeginEdit()

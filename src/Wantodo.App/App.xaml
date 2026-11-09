@@ -3,6 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
+        <!--
+            这 7 个画刷是主题色，全部用 DynamicResource 引用；
+            换主题时由 Appearance/ThemeService 直接换掉这里的值，不用重建窗口。
+        -->
         <SolidColorBrush x:Key="WindowBackground" Color="#FF10151C" />
         <SolidColorBrush x:Key="CardBackground" Color="#FF161E28" />
         <SolidColorBrush x:Key="TextPrimary" Color="#FFE8EEF6" />
@@ -10,5 +14,43 @@
         <SolidColorBrush x:Key="TextMuted" Color="#FF6C7C90" />
         <SolidColorBrush x:Key="Divider" Color="#1AFFFFFF" />
         <SolidColorBrush x:Key="Accent" Color="#FF6FA8FF" />
+
+        <!-- 顶栏小按钮（主窗与设置窗共用） -->
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="Transparent" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#22FFFFFF" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.3" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+
+        <Style x:Key="HintText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
     </Application.Resources>
 </Application>

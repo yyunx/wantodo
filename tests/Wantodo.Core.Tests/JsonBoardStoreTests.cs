@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Wantodo.Core;
 
 namespace Wantodo.Core.Tests;
@@ -217,6 +217,30 @@ public sealed class JsonBoardStoreTests : IDisposable
 
         var reloaded = NewStore().Load();
         Assert.Equal(BoardLoadStatus.Loaded, reloaded.Status);
+    }
+
+    [Fact]
+    public void HideCompleted_DefaultsToFalseAndRoundTrips()
+    {
+        Assert.False(Board.CreateDefault().HideCompleted);
+
+        var board = Board.CreateDefault();
+        board.HideCompleted = true;
+        NewStore().Save(board);
+
+        var reloaded = NewStore().Load();
+        Assert.True(reloaded.Board.HideCompleted);
+    }
+
+    [Fact]
+    public void HideCompleted_MissingInFile_DefaultsToFalse()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(_dataPath, """{ "version": 1, "columns": [] }""");
+
+        var result = NewStore().Load();
+
+        Assert.False(result.Board.HideCompleted);
     }
 
     [Fact]

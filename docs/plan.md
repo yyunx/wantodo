@@ -1,4 +1,4 @@
-﻿# 分阶段开发计划
+# 分阶段开发计划
 
 ## 工作方式（比计划本身更重要）
 
@@ -191,7 +191,7 @@
 
 ---
 
-## Phase 4 — 托盘 / 设置 / 快捷键（1 个任务）
+## Phase 4 — 托盘 / 设置 / 快捷键 / 主题（✅ 2026-11-10 通过，证据见 `docs/verify/phase4.md`）
 
 - 托盘：左键显示隐藏、右键菜单（层级模式、栏数、主题、开机自启、退出）
 - 设置面板：栏数、主题、透明度、完成项处理方式、是否自启
@@ -199,10 +199,30 @@
 - 开机自启走 `HKCU\...\Run`，默认关，开关要能真正回滚
 
 **验收**
-- [ ] 隐藏后托盘左键能召回，且不夺焦点
-- [ ] 切换层级模式立即生效并写入配置
-- [ ] 自启开关打开 → 注销重进后自动出现；关掉 → 不再出现
-- [ ] 快速记一条：`Ctrl+Alt+Space` 唤出 → 输入 → 回车 → 30 秒内主窗能看到这一条
+- [x] 隐藏后托盘左键能召回，且不夺焦点（前台窗口仍是托盘溢出窗口，不是 wantodo）
+- [x] 切换层级模式立即生效并写入配置（`GW_OWNER` 从 `0x5029E` 变 `0x0` 再变回）
+- [~] 自启开关打开 → 注销重进后自动出现；关掉 → 不再出现（注册表写入/删除已验证，登录链路待人工确认）
+- [x] 快速记一条：`Ctrl+Alt+Space` 唤出 → 输入 → 回车 → 30 秒内主窗能看到这一条
+
+**做完的东西**
+
+- `Shell/TrayIcon.cs`：`NotifyIcon` + 右键菜单（显示/隐藏、设置、层级、外观、隐藏已完成、开机自启、退出），左键单击切换、双击开设置。
+- `Shell/Autostart.cs`：`HKCU\...\Run` 读写，写入带引号的 exe 绝对路径，关闭时删值。
+- `SettingsWindow`：层级 / 外观 / 色调强度 / 隐藏已完成 / 开机自启，改一个立即生效并落盘。
+- `QuickCaptureWindow` + `RegisterHotKey(Ctrl+Alt+Space)`：「快速记一条」记到当前激活栏。
+- `ThemePalette`（Core 纯函数）+ `ThemeService`（写 `Application.Resources`）：深/浅两套基色，色调强度只混背景，文字与强调色不动。
+- `Assets/wantodo.ico`：7 个尺寸的 DIB ICO；`app.manifest` PerMonitorV2；版本 0.4.0。
+
+**踩坑记录**
+
+1. PNG 压缩的 ICO 不能给 `System.Drawing.Icon` 用（`请求的范围扩展超过了数组的结尾`）→ 手写多尺寸 DIB ICO。
+2. `UseWindowsForms` 会把 WinForms / System.Drawing 塞进全局 using，`Application`/`TextBox`/`Point` 等立刻 `CS0104` → csproj 里 `<Using Remove="..."/>`。
+3. `ApplicationManifest` 指向不存在的文件 → `CS2001`，补 `app.manifest`。
+4. **真崩溃**：快速记一条回车后 `在窗口关闭期间……无法调用 Close`（`0xc000041d`），`Close()` 触发 `Deactivated` 再 `Close()` → `_closing` + `CloseOnce()`；顺手挂 `DispatcherUnhandledException` 兜底。
+5. **真 bug**：主题只在设置面板里生效，重启回到深色 → 构造函数里补 `ThemeService.Apply(board)`。
+6. 合成点击打偏 13px：勾选圆点在 `1135,222`，我按缩放截图估成 `1122` → 一律用 UIA 的 `BoundingRectangle` 定位。
+
+**偏离与取舍**：托盘菜单与设置面板都不放「栏数」（加栏在主窗有「＋ 栏」）；「透明度」按 D3 改成「色调强度」；「跟随系统」留到后续。
 
 ---
 

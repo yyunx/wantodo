@@ -74,6 +74,30 @@ internal static class NativeMethods
     [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
     internal static extern int DwmSetWindowAttribute(IntPtr hWnd, int attribute, ref int value, int size);
 
+    internal const uint WM_HOTKEY = 0x0312;
+    internal const uint MOD_ALT = 0x0001;
+    internal const uint MOD_CONTROL = 0x0002;
+    internal const uint MOD_NOREPEAT = 0x4000;
+    internal const uint VK_SPACE = 0x20;
+
+    /// <summary>全局快捷键「快速记一条」用的 id；一个窗口内唯一即可。</summary>
+    internal const int QuickCaptureHotKeyId = 0x1A70;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint virtualKey);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    internal const int SW_HIDE = 0;
+    internal const int SW_SHOWNOACTIVATE = 4;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    internal static extern bool ShowWindow(IntPtr hWnd, int command);
+
+    /// <summary>不抢焦点地把窗口显示出来（托盘召回时用）。</summary>
+    internal static void ShowWithoutActivating(IntPtr hWnd) => ShowWindow(hWnd, SW_SHOWNOACTIVATE);
+
     internal static string ClassNameOf(IntPtr hWnd)
     {
         if (hWnd == IntPtr.Zero)

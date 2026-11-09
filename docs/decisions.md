@@ -1,4 +1,4 @@
-﻿# 决策记录（ADR）
+# 决策记录（ADR）
 
 ## 环境实测（2026-11-09，本机）
 
@@ -228,10 +228,31 @@ Phase 1 实际落盘的是 `version` / `surface` / `theme` / `tone` / `placement
 代价：用户如果把窗口拖成「大半在主屏外」再重启，位置会变；可以接受。
 
 ---
+## D11 — Phase 4 的三个取舍：托盘用 WinForms、颜色算在 Core、自启直接写 Run
+
+- **托盘用 `System.Windows.Forms.NotifyIcon`，不引第三方库**。托盘图标本质是 Shell 接口
+  （`Shell_NotifyIcon`），WinForms 的封装是 Windows Desktop SDK 自带、最省事的一层；
+  WPF 没有等价控件。代价是 `UseWindowsForms` 会把 WinForms/System.Drawing 塞进全局 using，
+  与 WPF 的 `Application`/`TextBox`/`Point`/`KeyEventArgs` 撞名（`CS0104`），
+  所以 csproj 里 `<Using Remove="System.Windows.Forms" />` + `<Using Remove="System.Drawing" />`，
+  真要 WinForms 类型时用 `WinForms = System.Windows.Forms` 别名。这仍然不违反「第一版不引入第三方 NuGet」。
+- **颜色计算放 Core 的 `ThemePalette`（纯函数，8 个单测），App 侧只做「把颜色写进 Resources」**。
+  这样深浅色、色调混色、非法值夹取都能在没有 UI 的情况下测；`ThemeService` 只负责 `Freeze()` 和赋值。
+  画刷在 XAML 里一律 `DynamicResource`，否则改主题不会立即重绘。
+- **「透明度」按 D3 改成「色调强度」**。0 = 基色，1 = 背景往强调色混 18%（深色）/12%（浅色），
+  文字与强调色不参与混色——这样不会出现「越调越看不清字」。
+- **开机自启直接写 `HKCU\...\Run`，不用计划任务、不用服务**。单用户程序，Run 项能被用户在
+  「任务管理器 → 启动」里看到和禁用，出问题也容易回滚；写失败（权限/被杀软拦）时把勾选回滚并提示。
+- 托盘菜单与设置面板都**不放「栏数」**：加栏在主窗顶栏有「＋ 栏」，托盘里再放一份是重复入口。
+
+---
+
 ## 未决（需要产品决定，不阻塞下一步）
 
-- [ ] 完成项默认「划线保留」还是「划线后移到底部/隐藏」？
-- [ ] 栏数上限 4 还是无限？
-- [ ] 是否需要全局快捷键「快速记一条」（不弹出主窗口）？
-- [ ] 是否需要开机自启（默认关）？
+- [x] 完成项默认「划线保留」还是「隐藏」？→ 默认划线保留，设置面板可开「隐藏已完成的条目」（D11）
+- [x] 栏数上限 4 还是无限？→ 4（`BoardEditor.MaxColumns`）
+- [x] 是否需要全局快捷键「快速记一条」？→ 做，`Ctrl+Alt+Space`，记到当前激活栏
+- [x] 是否需要开机自启（默认关）？→ 做，默认关，写 `HKCU\...\Run`
 - [ ] 便签内容是否要支持 Markdown / 链接可点？
+- [ ] 是否需要「跟随系统」主题（要订阅 `UserPreferenceChanged`）？
+

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
@@ -8,7 +8,9 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using Wantodo.App.Interop;
+using Wantodo.App.Shell;
 using Wantodo.App.ViewModels;
+using Wantodo.App.Appearance;
 using Wantodo.Core;
 
 namespace Wantodo.App;
@@ -33,6 +35,11 @@ public partial class MainWindow : Window
 
     private IntPtr _hwnd;
     private ShellRestartWatcher? _shellRestartWatcher;
+    private HwndSource? _hwndSource;
+    private TrayIcon? _trayIcon;
+    private SettingsWindow? _settingsWindow;
+    private QuickCaptureWindow? _quickCapture;
+    private bool _hotKeyRegistered;
 
     private Point _dragStart;
     private NoteViewModel? _draggingNote;
@@ -47,6 +54,10 @@ public partial class MainWindow : Window
         }
 
         InitializeComponent();
+
+        // 启动时就要套用存下来的外观；只靠设置面板改主题的话，重启后又会退回默认深色
+        // （实测漏过这一步，见 docs/verify/phase4.md）。
+        ThemeService.Apply(board);
 
         _viewModel = new BoardViewModel(board, store);
         DataContext = _viewModel;
@@ -87,17 +98,165 @@ public partial class MainWindow : Window
         }
 
         HookSystemEvents();
+
+        _hwndSource = HwndSource.FromHwnd(_hwnd);
+        _hwndSource?.AddHook(WndProc);
+
+        _hotKeyRegistered = NativeMethods.RegisterHotKey(
+            _hwnd,
+            NativeMethods.QuickCaptureHotKeyId,
+            NativeMethods.MOD_CONTROL | NativeMethods.MOD_ALT | NativeMethods.MOD_NOREPEAT,
+            NativeMethods.VK_SPACE);
+
+        if (_hotKeyRegistered)
+        {
+            AppLog.Info("已注册全局快捷键 Ctrl+Alt+Space（快速记一条）");
+        }
+        else
+        {
+            AppLog.Warn($"全局快捷键 Ctrl+Alt+Space 注册失败 err={System.Runtime.InteropServices.Marshal.GetLastWin32Error()}（多半被别的程序占用）");
+        }
+
+        _trayIcon = new TrayIcon(this, _viewModel);
+        AppLog.Info("托盘图标已创建");
     }
 
     protected override void OnClosing(CancelEventArgs e)
     {
         UnhookSystemEvents();
+
+        if (_hotKeyRegistered && _hwnd != IntPtr.Zero)
+        {
+            _ = NativeMethods.UnregisterHotKey(_hwnd, NativeMethods.QuickCaptureHotKeyId);
+            _hotKeyRegistered = false;
+        }
+
+        _hwndSource?.RemoveHook(WndProc);
+        _hwndSource = null;
+
+        _trayIcon?.Dispose();
+        _trayIcon = null;
+
+        _quickCapture?.Close();
+        _settingsWindow?.Close();
+
         _shellRestartWatcher?.Dispose();
         _shellRestartWatcher = null;
 
         FlushPendingSave();
 
         base.OnClosing(e);
+    }
+
+    /// <summary>托盘左键：显示 / 隐藏。显示时不抢焦点（桌面物件不该把用户正在打的字打断）。</summary>
+    public void ToggleVisibility()
+    {
+        if (IsVisible)
+        {
+            Hide();
+            AppLog.Info("托盘：隐藏窗口");
+            return;
+        }
+
+        Show();
+
+        if (string.Equals(Board.Surface, DesktopLayer.SurfaceDesktop, StringComparison.OrdinalIgnoreCase))
+        {
+            _ = DesktopLayer.Attach(_hwnd, Board.Surface);
+        }
+
+        NativeMethods.ShowWithoutActivating(_hwnd);
+        AppLog.Info("托盘：显示窗口（不夺焦点）");
+    }
+
+    /// <summary>切换桌面层级：立即生效、写配置，并同步维护 Explorer 重启监听。</summary>
+    public void SetSurface(string surface)
+    {
+        var ok = DesktopLayer.Attach(_hwnd, surface);
+        Board.Surface = surface;
+        _viewModel.RequestSave();
+        ManageShellWatcher();
+        _trayIcon?.Refresh();
+        AppLog.Info($"层级切换为 {surface}（{(ok ? "成功" : "失败，已记录日志")}）");
+    }
+
+    public void SetTheme(string theme)
+    {
+        _viewModel.SetTheme(theme);
+        _trayIcon?.Refresh();
+        AppLog.Info($"主题切换为 {theme}");
+    }
+
+    public void SetAutostart(bool enabled)
+    {
+        _trayIcon?.Refresh();
+        AppLog.Info($"开机自启 = {enabled}");
+    }
+
+    public void ShowSettings()
+    {
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+
+        _settingsWindow = new SettingsWindow(this, _viewModel);
+        _settingsWindow.Show();
+        AppLog.Info("打开设置面板");
+    }
+
+    public void OnSettingsClosed()
+    {
+        _settingsWindow = null;
+        _trayIcon?.Refresh();
+    }
+
+    /// <summary>全局快捷键唤出「快速记一条」；没有活动栏时退到第一栏。</summary>
+    public void ShowQuickCapture()
+    {
+        if (_quickCapture is not null)
+        {
+            _quickCapture.Activate();
+            return;
+        }
+
+        var target = _viewModel.ActiveColumn ?? _viewModel.Columns.FirstOrDefault();
+        if (target is null)
+        {
+            AppLog.Warn("快速记一条：当前没有任何栏，忽略");
+            return;
+        }
+
+        _quickCapture = new QuickCaptureWindow(target);
+        _quickCapture.Closed += (_, _) => _quickCapture = null;
+        _quickCapture.Show();
+    }
+
+    private void ManageShellWatcher()
+    {
+        var isDesktop = string.Equals(Board.Surface, DesktopLayer.SurfaceDesktop, StringComparison.OrdinalIgnoreCase);
+
+        if (isDesktop && _shellRestartWatcher is null)
+        {
+            _shellRestartWatcher = ShellRestartWatcher.Install(_hwnd, OnShellRestarted);
+        }
+        else if (!isDesktop && _shellRestartWatcher is not null)
+        {
+            _shellRestartWatcher.Dispose();
+            _shellRestartWatcher = null;
+        }
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (message == (int)NativeMethods.WM_HOTKEY && wParam.ToInt64() == NativeMethods.QuickCaptureHotKeyId)
+        {
+            ShowQuickCapture();
+            handled = true;
+        }
+
+        return IntPtr.Zero;
     }
 
     /// <summary>把窗口位置写回模型并立刻落盘。关窗、注销、关机都会走这里。</summary>

@@ -14,6 +14,9 @@ public sealed class Board
     /// <summary>色调强度 0.0–1.0。注意：这是背景色阶，不是窗口透明度（见 decisions.md D3）。</summary>
     public double Tone { get; set; }
 
+    /// <summary>是否隐藏已完成的条目（数据仍保留，只是不显示）。</summary>
+    public bool HideCompleted { get; set; }
+
     public WindowPlacement Placement { get; set; } = new();
 
     public List<NoteColumn> Columns { get; set; } = new();

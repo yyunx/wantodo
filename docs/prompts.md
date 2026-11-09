@@ -1,4 +1,4 @@
-﻿# 给 Codex 的提示词（可直接复制）
+# 给 Codex 的提示词（可直接复制）
 
 > 用法：一次只贴一段。先贴「0. 开场」，再贴「1. Phase 0 计划」，它给出计划你点头后贴
 > 「2. Phase 0 实现」。之后每阶段套用「3. 阶段模板」。
@@ -188,6 +188,23 @@ Phase 1 的既成事实（直接用）：
 > 5. 位置兜底只在「整窗不在虚拟桌面内」时介入，且目标是**主屏工作区**（否则藏到任务栏底下）
 > 6. 可观测：启动日志打 `首帧 Nms；WS/private/线程`，退出日志打内存快照
 > 7. 验收见 `docs/verify/phase3.md`（含 4 项「需手动确认」的说明）
+## 2.9 Phase 4 托盘 / 设置 / 快捷键 / 主题（✅ 已完成 2026-11-10，留档）
+
+范围（实际做完的）：
+
+1. `Shell/TrayIcon.cs`：`NotifyIcon` + 右键菜单；左键单击切换显示/隐藏，双击开设置。
+2. `Shell/Autostart.cs`：`HKCU\...\Run` 读写，写失败时把勾选回滚并提示。
+3. `SettingsWindow`：层级 / 外观 / 色调强度 / 隐藏已完成 / 开机自启，改一个立即生效并落盘。
+4. `QuickCaptureWindow` + `RegisterHotKey(Ctrl+Alt+Space)`：记到当前激活栏。
+5. `Core/ThemePalette` + `App/Appearance/ThemeService`：调色纯函数 + DynamicResource 写画刷。
+6. 图标（7 尺寸 DIB ICO）、`app.manifest`（PerMonitorV2）、版本 0.4.0、`AssemblyName=Wantodo`。
+
+当轮踩到的坑（已写进 verify）：PNG-in-ICO 读不出来、`UseWindowsForms` 的 `CS0104`、
+`ApplicationManifest` 文件缺失、`Close()` 触发 `Deactivated` 再 `Close()` 崩进程、
+主题没在启动时套用、合成点击按缩放截图估坐标误差 13px。
+
+---
+
 ## 3. 阶段模板（Phase 2 起每阶段套用）
 
 ```

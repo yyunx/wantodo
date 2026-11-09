@@ -8,9 +8,10 @@
         ResizeMode="CanResize"
         AllowsTransparency="False"
         ShowInTaskbar="False"
+        ShowActivated="False"
         WindowStartupLocation="Manual"
-        Background="{StaticResource WindowBackground}"
-        Foreground="{StaticResource TextPrimary}"
+        Background="{DynamicResource WindowBackground}"
+        Foreground="{DynamicResource TextPrimary}"
         FontFamily="Microsoft YaHei UI, Segoe UI"
         FontSize="13"
         UseLayoutRounding="True"
@@ -35,8 +36,8 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="0" />
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-            <Setter Property="CaretBrush" Value="{StaticResource TextPrimary}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimary}" />
             <Setter Property="SelectionBrush" Value="#556FA8FF" />
             <Setter Property="FontSize" Value="12.5" />
             <Setter Property="TextWrapping" Value="Wrap" />
@@ -46,36 +47,10 @@
 
         <!-- 栏尾输入框 -->
         <Style x:Key="DraftBox" TargetType="TextBox" BasedOn="{StaticResource InlineEditBox}">
-            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
             <Setter Property="AcceptsReturn" Value="False" />
             <Setter Property="Margin" Value="0,6,0,0" />
             <Setter Property="Padding" Value="2,4" />
-        </Style>
-
-        <!-- 顶栏小按钮 -->
-        <Style x:Key="IconButton" TargetType="Button">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Chrome" Background="Transparent" CornerRadius="6">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#22FFFFFF" />
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.3" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
         </Style>
 
         <!-- 勾选圆点：点击热区 18×18，视觉 13×13 -->
@@ -89,7 +64,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Dot" Width="14" Height="14" CornerRadius="4"
                                 BorderThickness="1.2"
-                                BorderBrush="{StaticResource TextMuted}"
+                                BorderBrush="{DynamicResource TextMuted}"
                                 Background="Transparent"
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Center">
@@ -104,11 +79,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Dot" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter TargetName="Dot" Property="BorderBrush" Value="{DynamicResource Accent}" />
                             </Trigger>
                             <DataTrigger Binding="{Binding IsCompleted}" Value="True">
-                                <Setter TargetName="Dot" Property="Background" Value="{StaticResource Accent}" />
-                                <Setter TargetName="Dot" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter TargetName="Dot" Property="Background" Value="{DynamicResource Accent}" />
+                                <Setter TargetName="Dot" Property="BorderBrush" Value="{DynamicResource Accent}" />
                                 <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
                             </DataTrigger>
                         </ControlTemplate.Triggers>
@@ -130,7 +105,7 @@
                        Margin="14,0,0,0"
                        VerticalAlignment="Center"
                        FontSize="11.5"
-                       Foreground="{StaticResource TextMuted}" />
+                       Foreground="{DynamicResource TextMuted}" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0">
                 <Button Style="{StaticResource IconButton}"
@@ -167,7 +142,7 @@
 
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Background="{StaticResource CardBackground}"
+                        <Border Background="{DynamicResource CardBackground}"
                                 CornerRadius="10"
                                 Margin="4,0"
                                 Width="{Binding ColumnWidth, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -180,7 +155,7 @@
                                     <Setter Property="BorderBrush" Value="Transparent" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
-                                            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -202,7 +177,7 @@
                                                FontWeight="SemiBold"
                                                TextTrimming="CharacterEllipsis"
                                                VerticalAlignment="Center"
-                                               Foreground="{StaticResource TextPrimary}">
+                                               Foreground="{DynamicResource TextPrimary}">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Style.Triggers>
@@ -237,7 +212,7 @@
                                            FontSize="11"
                                            Margin="6,0"
                                            VerticalAlignment="Center"
-                                           Foreground="{StaticResource TextMuted}" />
+                                           Foreground="{DynamicResource TextMuted}" />
 
                                 <Button Grid.Column="2"
                                         Style="{StaticResource IconButton}"
@@ -253,7 +228,7 @@
                             <Grid DockPanel.Dock="Bottom" Margin="0,4,0,0">
                                 <TextBlock Text="＋ 添加一条，回车确认"
                                            FontSize="12.5"
-                                           Foreground="{StaticResource TextMuted}"
+                                           Foreground="{DynamicResource TextMuted}"
                                            Margin="2,4,0,0"
                                            IsHitTestVisible="False">
                                     <TextBlock.Style>
@@ -294,6 +269,15 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type vm:NoteViewModel}">
                                             <Grid>
+                                                <Grid.Style>
+                                                    <Style TargetType="Grid">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsHidden}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Grid.Style>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="Auto" />
@@ -303,7 +287,7 @@
                                                 <Border Grid.Row="0"
                                                         Height="2"
                                                         Margin="0,0,0,1"
-                                                        Background="{StaticResource Accent}"
+                                                        Background="{DynamicResource Accent}"
                                                         Visibility="{Binding IsDropBefore, Converter={StaticResource BoolToVis}}" />
 
                                                 <Grid Grid.Row="1"
@@ -334,11 +318,11 @@
                                                                Margin="0,2">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
-                                                                <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding IsCompleted}" Value="True">
                                                                         <Setter Property="TextDecorations" Value="Strikethrough" />
-                                                                        <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+                                                                        <Setter Property="Foreground" Value="{DynamicResource TextMuted}" />
                                                                     </DataTrigger>
                                                                     <DataTrigger Binding="{Binding IsEditing}" Value="True">
                                                                         <Setter Property="Visibility" Value="Collapsed" />

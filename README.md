@@ -1,15 +1,14 @@
-﻿# wantodo
+# wantodo
 
 贴在 Windows 桌面上的便签板 —— 像手机主屏的小组件，默认两栏：「要做的事情」「突然想到的问题」。
 
 ## 现状
 
-**Phase 3 已通过**（2026-11-10）：在 Phase 2 / 2.5 的交互之上补了健壮性——写盘按 400ms 合并、
-关闭/关机强制落盘、强杀最多丢 0.4s 的输入且不会写出坏 JSON、窗口跑到屏幕外会自动拉回主屏工作区、
-Explorer 重启与解锁/唤醒后保持桌面层、启动耗时和内存都记进日志。
-证据见 [`docs/verify/phase3.md`](docs/verify/phase3.md)
-（Phase 2 / 2.5 的证据在 [`phase2.md`](docs/verify/phase2.md)、[`phase2.5.md`](docs/verify/phase2.5.md)；
-截图 `docs/verify/phase2-window.png`、`phase2.5-four.png`、`phase2.5-narrow.png`）。
+**Phase 4 已通过**（2026-11-10）：托盘常驻（左键显示/隐藏、右键菜单）、无边框设置面板
+（层级 / 深色浅色 / 色调强度 / 隐藏已完成 / 开机自启）、全局快捷键 `Ctrl+Alt+Space`「快速记一条」、
+自绘图标与版本号。证据见 [`docs/verify/phase4.md`](docs/verify/phase4.md)
+（Phase 3 在 [`phase3.md`](docs/verify/phase3.md)；2 / 2.5 在 [`phase2.md`](docs/verify/phase2.md)、
+[`phase2.5.md`](docs/verify/phase2.5.md)）。
 
 已能用的操作：
 
@@ -19,6 +18,9 @@ Explorer 重启与解锁/唤醒后保持桌面层、启动耗时和内存都记�
 - 条目拖到另一栏或同栏其它位置 → 落点线提示
 - 顶栏「＋ 栏」插在最近操作的那栏右边，最多 4 栏；栏标题旁 ✕ 删栏（栏里有内容会先确认）
 - 每栏最窄 190 DIP，窗口放不下就横向滚动，不会把文字挤成一条缝
+- 托盘左键：显示/隐藏（召回不夺焦点）；托盘右键：设置、层级、外观、隐藏已完成、开机自启、退出
+- `Ctrl+Alt+Space`：贴屏幕上方弹出「快速记一条」，回车入库、Esc 取消
+- 设置面板：桌面层/普通窗口/置顶、深色/浅色、色调强度、隐藏已完成、开机自启（写 `HKCU\...\Run`，可回滚）
 
 已验证的窗口语义：`SetWindowLongPtr(GWLP_HWNDPARENT, Progman)` 设 owner 即可贴在桌面图标层，
 Win+D 不受影响，Explorer 重启后靠 `TaskbarCreated` 重挂，全程不需要分层窗口
@@ -29,7 +31,7 @@ Win+D 不受影响，Explorer 重启后靠 `TaskbarCreated` 重挂，全程不�
 $env:DOTNET_ROOT="$env:LOCALAPPDATA\Microsoft\dotnet"; $env:PATH="$env:DOTNET_ROOT;$env:PATH"
 dotnet build Wantodo.slnx -warnaserror
 dotnet test tests\Wantodo.Core.Tests\Wantodo.Core.Tests.csproj
-Start-Process src\Wantodo.App\bin\Debug\net10.0-windows\Wantodo.App.exe
+Start-Process src\Wantodo.App\bin\Debug\net10.0-windows\Wantodo.exe
 ```
 
 数据在 `%APPDATA%\wantodo\data.json`（可直接手改，改完重启生效；日志在同目录 `app.log`）。
@@ -58,5 +60,5 @@ Start-Process src\Wantodo.App\bin\Debug\net10.0-windows\Wantodo.App.exe
 - [x] Phase 2 交互（增删改、勾选划线、拖拽排序、栏操作）—— 见 `docs/verify/phase2.md`
 - [x] Phase 2.5 布局优化（加栏插在当前栏右边、最小栏宽 190 DIP、窄了横向滚动）—— 见 `docs/verify/phase2.5.md`
 - [x] Phase 3 健壮性（写盘节流、位置兜底、系统事件、启动开销）—— 见 `docs/verify/phase3.md`
-- [ ] Phase 4 托盘 / 设置 / 快捷键
+- [x] Phase 4 托盘 / 设置 / 快捷键 / 主题 —— 见 `docs/verify/phase4.md`
 - [ ] Phase 5 打包
