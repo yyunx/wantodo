@@ -46,45 +46,52 @@
 
 ## 数据模型
 
+以**已实现的结构**为准（Phase 1–2 落盘字段，`JsonBoardStore.Normalize` 负责补缺省）：
+
 ```jsonc
 {
-  "schemaVersion": 1,
-  "window": {
-    "left": 120, "top": 80, "width": 760, "height": 420,
-    "mode": "Desktop",            // Desktop | Normal | Topmost
-    "tone": 0.0,                  // 色调强度 0..1（背景明暗微调，不是窗口透明度）
-    "theme": "System"             // System | Light | Dark
+  "version": 1,
+  "surface": "Desktop",           // Desktop | Normal | Topmost
+  "theme": "Dark",                // Dark | Light
+  "tone": 0,                      // 色调强度 0..1（背景明暗微调，不是窗口透明度）
+  "placement": {
+    "left": 730, "top": 80,       // 可空；首次启动没有位置时按主屏右上角算
+    "width": 600.67, "height": 360
   },
-  "columns": [
-    { "id": "c_todo", "title": "要做的事情", "order": 0 },
-    { "id": "c_idea", "title": "突然想到的问题", "order": 1 }
-  ],
-  "items": [
+  "columns": [                    // 数组顺序就是显示顺序
     {
-      "id": "i_7f3a",
-      "columnId": "c_todo",
-      "text": "把 WorkerW 探针跑通",
-      "completed": false,
-      "order": 0,
-      "createdAt": "2026-11-09T22:00:00+08:00",
-      "updatedAt": "2026-11-09T22:00:00+08:00",
-      "completedAt": null
+      "id": "col-a",
+      "title": "要做的事情",
+      "notes": [                  // 数组顺序就是条目顺序
+        {
+          "id": "n1",
+          "text": "把这块便签拖到顺手的位置",
+          "completed": false,
+          "completedAt": null,    // 勾选时间；取消勾选时清空
+          "createdAt": "2026-11-09T22:00:00+08:00",
+          "updatedAt": "2026-11-09T22:00:00+08:00"
+        }
+      ]
     }
   ]
 }
 ```
 
 约定：
+- 条目内联在栏里（`columns[].notes[]`），不用 `order` 稀疏整数：几百条数据量下顺序就是数组顺序，移动即 `List.Move`。
 - `completed` 与「是否隐藏」是两个独立概念，绝不把状态编码进 `text`。
-- `order` 是稀疏整数（步长 1024），插入时取中值，避免每次全量重排。
 - 所有时间用 ISO 8601 带偏移；反序列化必须容忍字段缺失（向前兼容）。
+- `left`/`top` 用可空类型表示「没存过」，**不能**用 `NaN`（`System.Text.Json` 会直接抛异常）。
+- 序列化必须用 `JavaScriptEncoder.UnsafeRelaxedJsonEscaping`，否则中文会写成 `\uXXXX`。
 - 写盘节流 300–500ms 合并；**关闭窗口与退出前必须强制落盘一次**。
 
 ## 交互细节（容易被做错的地方）
 
 - 回车 = 提交并新建下一条（保持输入焦点在同一栏），不是「提交后失焦」。
+- 条目内换行用 `Shift+Enter`：WPF `TextBox` 只认不带 Ctrl 的 Enter，`Ctrl+Enter` 换不了行。
 - 勾选框的点击热区要够大；划线的动画短于 120ms。
 - 拖动排序要有落点提示，不能是「松手后跳变」。
 - 窗口拖拽只认标题空白区，不能和条目拖拽冲突。
 - 缩放热区 6px，窗口最小尺寸要限制，否则两栏会挤爆。
 - 失焦**不隐藏**窗口（它是桌面物件，不是弹窗）。
+- 加栏不能永远追加到最右边，也不能把每栏压到只剩一条缝（见 Phase 2.5）。

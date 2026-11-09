@@ -9,6 +9,8 @@ public sealed class Note
 
     public bool Completed { get; set; }
 
+    public DateTimeOffset? CompletedAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.Now;

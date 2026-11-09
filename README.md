@@ -4,10 +4,17 @@
 
 ## 现状
 
-**Phase 1 已通过**（2026-11-09）：能看、能存、能读的两栏小组件已经跑在桌面层上。
-证据见 [`docs/verify/phase1.md`](docs/verify/phase1.md)（含窗口截图 `docs/verify/phase1-window.png`）。
-当前版本**只能看，不能编辑**——增删改、勾选、拖拽排序是 Phase 2，提示词见
-[`docs/prompts.md`](docs/prompts.md) 的「2.6 Phase 2 实现」。
+**Phase 2 已通过**（2026-11-09）：桌面层小组件现在能增删改、勾选划线、跨栏拖拽、加栏删栏。
+证据见 [`docs/verify/phase2.md`](docs/verify/phase2.md)（截图 `docs/verify/phase2-window.png`、
+`docs/verify/phase2-desktop.png`）。
+
+已能用的操作：
+
+- 栏尾输入框回车 → 加一条并保持焦点；`Shift+Enter` 条目内换行
+- 双击条目/栏标题 → 就地编辑；`Esc` 取消，`Enter` 提交
+- 点勾选圆点或选中行按 `Space` → 划线；`↑/↓` 在条目间移动焦点
+- 条目拖到另一栏或同栏其它位置 → 落点线提示
+- 顶栏「＋ 栏」加到 4 栏为止，栏标题旁 ✕ 删栏（栏里有内容会先确认）
 
 已验证的窗口语义：`SetWindowLongPtr(GWLP_HWNDPARENT, Progman)` 设 owner 即可贴在桌面图标层，
 Win+D 不受影响，Explorer 重启后靠 `TaskbarCreated` 重挂，全程不需要分层窗口
@@ -44,7 +51,8 @@ Start-Process src\Wantodo.App\bin\Debug\net10.0-windows\Wantodo.App.exe
 
 - [x] Phase 0 桌面层探针（Progman owner / Win+D / Explorer 重启）—— 见 `docs/verify/phase0.md`
 - [x] Phase 1 骨架 + 两栏界面（只读、能存能读、数据驱动）—— 见 `docs/verify/phase1.md`
-- [ ] Phase 2 交互
+- [x] Phase 2 交互（增删改、勾选划线、拖拽排序、栏操作）—— 见 `docs/verify/phase2.md`
+- [ ] Phase 2.5 布局优化（加栏位置、最小栏宽、横向滚动）
 - [ ] Phase 3 健壮性（持久化、DPI、多显示器）
 - [ ] Phase 4 托盘 / 设置 / 快捷键
 - [ ] Phase 5 打包

@@ -223,6 +223,12 @@ public sealed class JsonBoardStore
             {
                 note.Id = string.IsNullOrWhiteSpace(note.Id) ? Guid.NewGuid().ToString("n") : note.Id;
                 note.Text ??= string.Empty;
+
+                // 手改文件可能出现「未完成却有完成时间」，以 Completed 为准，避免脏数据继续传下去
+                if (!note.Completed)
+                {
+                    note.CompletedAt = null;
+                }
             }
         }
     }

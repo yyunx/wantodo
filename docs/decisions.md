@@ -179,6 +179,25 @@ UI 用 WPF `UniformGrid.Columns` 绑定配置值（1–4）。窗口变窄时按
 
 ---
 
+## D8 — 以「已实现的数据结构」为准，回改 spec（Phase 2 收尾）
+
+`docs/spec.md` 最初画的是 `schemaVersion` / `window.*` / `items[]` 平铺 + `order` 稀疏整数，
+Phase 1 实际落盘的是 `version` / `surface` / `theme` / `tone` / `placement` / `columns[].notes[]`
+内联。**决定以实现为准，改 spec**，理由：
+
+- 条目内联后，跨栏拖动 = 两个 `List<T>` 的一次 Remove + Insert，不需要维护全局 `order`。
+- `order` 稀疏整数是为「大量条目 + 频繁重排」设计的；这里一个栏里最多几十条，数组顺序足够。
+- 已经跑过 12 个存储用例（含损坏回退、字段缺失补默认），换结构等于把验证过的代码重写一遍。
+
+同一轮定下的两条交互规则：
+
+- **`Shift+Enter` 换行，`Enter` 提交**。WPF `TextBox`（`AcceptsReturn=True`）只认不带 Ctrl 的
+  Enter，`Ctrl+Enter` 既不上屏也不换行，所以最初写的 `Ctrl+Enter` 方案在真机上是坏的。
+- **列表的 `ScrollViewer` 必须 `Focusable="False"`**。它默认可聚焦，点击时会把键盘焦点从条目行
+  抢走，表现是「行看着被选中，按空格却没反应」。
+
+---
+
 ## 未决（需要产品决定，不阻塞下一步）
 
 - [ ] 完成项默认「划线保留」还是「划线后移到底部/隐藏」？

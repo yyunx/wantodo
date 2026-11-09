@@ -9,5 +9,6 @@
         <SolidColorBrush x:Key="TextSecondary" Color="#FF9FB0C5" />
         <SolidColorBrush x:Key="TextMuted" Color="#FF6C7C90" />
         <SolidColorBrush x:Key="Divider" Color="#1AFFFFFF" />
+        <SolidColorBrush x:Key="Accent" Color="#FF6FA8FF" />
     </Application.Resources>
 </Application>
