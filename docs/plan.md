@@ -8,6 +8,13 @@
 4. **人是唯一的视觉验收者**：Win+D、拖拽手感、文字是否发虚，Codex 无法自查，必须你肉眼确认后回一句「通过」。
 5. **要求它交证据**：每条验收对应一条命令或一个日志行，写进 `docs/verify/phaseN.md`。
 
+## 术语：阶段 vs 任务
+
+- **阶段（Phase）**是**门控单位**，也是验收单位：阶段内的验收项必须一次性全部通过。
+- **任务**是**交付粒度**：同一阶段可以拆成多次 Codex 会话/多个 commit（因此写「1–2 个任务」）。
+  拆任务只影响交付节奏，不放宽验收标准——阶段内任何一个任务完成后，都不算该阶段通过。
+- 一阶段拆成两个任务时，第一个任务结束后要先能构建、能跑，不留半截编译状态。
+
 ## 阶段总览
 
 | 阶段 | 主题 | 产出 | 风险 |
@@ -21,37 +28,44 @@
 
 ---
 
-## Phase 0 — 桌面层探针（最高风险，先做，1 个任务）
+## Phase 0 — 桌面层探针（✅ 2026-11-09 通过，证据见 `docs/verify/phase0.md`）
 
 **目的**：在写任何产品 UI 之前，先证明「窗口能挂在桌面图标层，且 Win+D 后还在」在你机器上成立。
-这一阶段写的是**一次性探针**，允许丑，允许全部放 `spike/`。
+这一阶段写的是一次性探针，放在 `spike/DesktopLayerProbe/`，允许丑。
 
-**任务内容**
-1. 装 .NET 10 SDK 到用户目录（非管理员）：
-   `dotnet-install.ps1 -Channel 10.0 -InstallDir "$env:LOCALAPPDATA\Microsoft\dotnet"`
-   并确认 `dotnet --version` 走的是 10.x。
-2. `spike/DesktopLayerProbe`：一个 700×200 的无边框窗口，内容只有一行大字 + 当前模式名。
-3. 实现 `DesktopLayerService`，三种模式 + 全局热键 `Ctrl+Alt+1/2/3` 现场切换。
-4. **拓扑探针**：枚举 `Progman` 及其子窗口，打印层级树（类名、标题、句柄、是否含
-   `SHELLDLL_DefView`、`WorkerW` 个数）到 `%TEMP%\wantodo-probe.log`。
-5. 发 `0x052C` 前后各打印一次拓扑，做对比。
-6. 监听 `TaskbarCreated`，Explorer 重启后自动重挂，并记录耗时。
+**关于 P/Invoke 的规则落位**：探针的互操作代码在 `spike/DesktopLayerProbe/Interop/`，
+命名空间 `DesktopLayerProbe.Interop`；到 Phase 1 时整目录搬进 `src/Wantodo.App/Interop/`。
+不许在 `spike/` 和 `src/` 各留一份长期并存。
 
-**验收（逐条打勾，写进 `docs/verify/phase0.md`）**
-- [ ] `dotnet --version` 输出 10.x，且是用户目录里的 SDK
-- [ ] 探针日志能清楚显示：`0x052C` 前后 WorkerW 数量的变化、`SHELLDLL_DefView` 的父窗口是谁
-- [ ] `Ctrl+Alt+1` → 窗口位于桌面图标层：打开浏览器，浏览器盖住它
-- [ ] 在该模式下按 **Win+D**：窗口仍然可见（这一条是项目生死线）
-- [ ] `Ctrl+Alt+3` → 置顶，能盖住浏览器
-- [ ] `Ctrl+Alt+2` → 普通窗口，出现在 Alt+Tab 里
-- [ ] 任务管理器里结束 `explorer.exe` → 重启后 30 秒内自动回到桌面层
-- [ ] 窗口拖动到 125% / 150% 缩放的第二块屏（如有）后文字不糊、位置正确（无第二屏则跳过并注明）
-- [ ] `docs/verify/phase0.md` 记录：用了哪种 owner 方案、Win+D 是否被自动拦截、若无拦截做了什么补偿
+**实测结论（这几条直接决定 Phase 1 怎么写）**
 
-**如果 Win+D 这条挂了**：不要绕过去继续写产品，先在小范围里试三种补偿（拦
-`WM_WINDOWPOSCHANGING` 的 `SWP_HIDEWINDOW` / 收到 `WM_SYSCOMMAND` 后
-`ShowWindow(SW_SHOWNOACTIVATE)` / 注册为 `WS_EX_TOOLWINDOW` 且 owner 为 `Progman`），
-把各自结果写进 `docs/verify/phase0.md`，选一个，再往下走。
+| 问题 | 答案 |
+|---|---|
+| 挂到哪一层？ | `SetWindowLongPtr(GWLP_HWNDPARENT, Progman)`，owner 关系，`GetParent()=0` |
+| 本机有 WorkerW 壁纸层吗？ | 没有。`SHELLDLL_DefView` 直接在 Progman 下，23 个顶层 WorkerW 都不持有它，`0x052C` 无效果 |
+| 要 `SetParent` 吗？ | 不要。owner 已满足全部语义，且不破坏几何/DPI/合成 |
+| Win+D 会隐藏它吗？ | 不会，`hideEvents=0`，窗口始终可见 → **不需要**任何抢回补丁 |
+| 普通窗口盖得住吗？ | 能盖住（用户确认）→ 满足「不抢镜」 |
+| 硬件加速保住了吗？ | 保住了，`exstyle=0x0`（无 `WS_EX_LAYERED`/`TOPMOST`/`TOOLWINDOW`），文字清晰、拖动跟手 |
+| Explorer 重启怎么办？ | 监听 `TaskbarCreated`，重新取 Progman 句柄后重设 owner；300/1500/4000ms 三次幂等重挂有效，不必重建窗口 |
+
+**验收**
+
+- [x] `dotnet --version` → `10.0.403`，SDK 在 `%LOCALAPPDATA%\Microsoft\dotnet`（非管理员安装）
+- [x] 探针日志显示 `0x052C` 前后拓扑一致、`SHELLDLL_DefView` 的父窗口是 `Progman`
+- [x] `Ctrl+Alt+1`（桌面层）→ 浏览器能盖住它
+- [x] 桌面层模式按 **Win+D** 后仍可见（项目生死线，已过）
+- [x] `Ctrl+Alt+3` 置顶 / `Ctrl+Alt+4` 普通窗口 两个对照组行为符合预期
+- [x] 结束 `explorer.exe` → 自动重挂回桌面层（日志证明 owner 换到新 Progman）
+- [x] 150% 缩放下 `860×340` DIP → `1290×510` px，PerMonitorV2 清单生效
+- [ ] 第二块屏 / 混合 DPI：本机只有一块屏，无法测，留待补
+- [ ] DWM 材质（Acrylic/Mica）在桌面层窗口上是否生效：未测，属 P1，不阻塞
+- [x] `docs/verify/phase0.md` 记录了 owner 方案、Win+D 是否被拦截（未拦截）、重挂策略
+
+**踩坑记录（给后续阶段省时间）**
+- SDK 装在用户目录时，直接双击 `bin\Debug\net10.0-windows\*.exe` 会弹出同名错误框
+  （apphost 只认 `Program Files\dotnet`）。必须 `$env:DOTNET_ROOT = "$env:LOCALAPPDATA\Microsoft\dotnet"`。
+- `Ctrl+Alt+R` 在本机被别的程序占用，`RegisterHotKey` 返回 false；热键注册失败必须记日志，不能静默。
 
 ---
 
@@ -60,7 +74,11 @@
 - 建解决方案：`src/Wantodo.Core`（无 WPF 依赖，可单测）、`src/Wantodo.App`、`tests/`
 - `Wantodo.Core`：模型 + JSON 仓储（原子写 + bak 回退 + 损坏隔离），**先写单测**
 - `Wantodo.App`：无边框窗口、两栏 `UniformGrid`、绑定数据、加载即显示
-- 从 Phase 0 的探针里搬逻辑进 `Interop/`，删掉 spike 里的重复实现
+- 从 Phase 0 的探针里搬逻辑进 `src/Wantodo.App/Interop/`，删掉 spike 里的重复实现。
+  产品只需要三样：`FindDesktopHost()`（Progman 优先、WorkerW 兜底）、`AttachToDesktopLayer(hwnd)`、
+  `ShellRestartWatcher`（`TaskbarCreated` → 重挂）。
+  **不要搬**：`Topmost`/`Normal`/`HWND_BOTTOM` 三个对照模式、`WM_SHOWWINDOW` 抢回逻辑、
+  完整拓扑 dump（换成一条 INFO）。
 
 **验收**
 - [ ] `dotnet test` 通过，覆盖：首次无文件、正常读写、损坏文件回退 bak、字段缺失兼容

@@ -54,32 +54,49 @@
 
 ---
 
-## D2 — 桌面层 = WorkerW 作为 owner，不是 Topmost
+## D2 — 桌面层 = 把「桌面宿主窗口」设为 owner（Progman 优先，WorkerW 兜底）
 
-**决策**：「固定在桌面」实现为「把 WorkerW 设为窗口 owner」，并保留三档可切换：
+> **2026-11-09 Phase 0 实测修正**：本机（Win11 26200）`SHELLDLL_DefView` 直接挂在 **Progman** 下，
+> 23 个顶层 `WorkerW` 没有一个持有 DefView，`0x052C` 无效果。所以「WorkerW owner」在本机没有对象可挂，
+> 实际生效的是 **Progman owner**，且它同时满足「普通窗口盖得住」和「Win+D 仍在」。
+> 详见 `docs/verify/phase0.md`。
+
+**决策**：「固定在桌面」实现为「把桌面宿主窗口设为窗口 owner」，宿主按 **Progman → WorkerW** 顺序探测：
 
 | 模式 | 实现 | 语义 |
 |---|---|---|
-| `Desktop`（默认） | `SetWindowLongPtr(GWLP_HWNDPARENT, workerW)` | 在桌面图标之上、普通窗口之下；Win+D 后仍在 |
+| `Desktop`（默认） | `SetWindowLongPtr(GWLP_HWNDPARENT, 宿主)`，宿主 = 持有 `SHELLDLL_DefView` 的窗口，没有就用 `Progman` | 在桌面图标之上、普通窗口之下；Win+D 后仍在 |
 | `Normal` | 普通无边框窗口 | 会被任何窗口盖住 |
-| `Topmost` | `SetWindowPos(HWND_TOPMOST)` | 永远最前，会干扰工作 |
+| `Topmost` | `SetWindowPos(HWND_TOPMOST)` | 永远最前，会干扰工作；本产品不作默认 |
 
-**为什么不是 `SetParent`**：`SetParent` 会把窗口变成 WorkerW 的**子窗口**，坐标变相对父窗口、
+**为什么不是 `SetParent`**：`SetParent` 会把窗口变成宿主的**子窗口**，坐标变相对父窗口、
 透明/DWM 合成容易出问题、且窗口生命周期被父窗口牵连。设 **owner** 只影响 Z 序分组，几何与消息
-仍是顶层窗口语义。这是 PermaNotes 明确踩过并改掉的点。
+仍是顶层窗口语义。这是 PermaNotes 明确踩过并改掉的点。**实测确认**：owner 方式下 `GetParent()=0`、
+`exstyle=0`、DPI 缩放正确，不需要 `SetParent`。
 
 **为什么不做「点击穿透」**：便签要能编辑，穿透了就点不到。改为「面板只占自己那块区域」。
 
-**已知不确定性（必须在 Phase 0 用探针证明，不许假设）**：
-1. Win11 25H2 上 `0x052C` 消息是否仍能催生出 WorkerW；WorkerW 数量（旧版两个、新版可能一个）；
-2. 「显示桌面图标」开/关时，`SHELLDLL_DefView` 挂在 `Progman` 下还是某个 `WorkerW` 下
-   —— 两种拓扑都要覆盖枚举；
-3. Win+D 之后窗口是被隐藏还是只是被盖住 —— 决定要不要拦 `WM_WINDOWPOSCHANGING` /
-   响应后 `ShowWindow(SW_SHOWNOACTIVATE)`；
-4. Explorer 重启后 owner 句柄失效 —— 需要监听 `TaskbarCreated` 消息并重新挂接。
+**已知不确定性 → 已由 Phase 0 回答的问题**（原清单保留，答案见括号）：
 
-**退化策略**：WorkerW 完全不可用时，退到 `SetParent(Progman)`，再退到 `Topmost + WS_EX_TOOLWINDOW`，
-并把降级原因写入日志和设置页。
+1. `0x052C` 是否仍能催生 WorkerW → **不能，本机调用返回成功但拓扑不变**。产品代码不要依赖它成功。
+2. `SHELLDLL_DefView` 挂 Progman 还是 WorkerW → **两种都要枚举**；本机在 Progman 下。
+3. Win+D 后窗口是被隐藏还是被盖住 → **本机根本不触发隐藏**（`hideEvents=0`，窗口始终可见），
+   因此**不需要**拦 `WM_WINDOWPOSCHANGING`，也不需要 `ShowWindow(SW_SHOWNOACTIVATE)` 抢回。
+4. Explorer 重启后 owner 失效 → **必须**监听 `TaskbarCreated` 并重挂（实测新 Progman 换了句柄）；
+   300/1500/4000ms 三次幂等重挂有效，不必重建窗口。
+
+**退化策略与验收口径（已按实测更新）**：
+
+| 落到哪一档 | 是否通过 Phase 0 | 说明 |
+|---|---|---|
+| Progman owner | **通过**（本机实际路径） | 桌面层、普通窗口可覆盖、Win+D 仍在，全部满足 |
+| 持有 DefView 的 WorkerW owner | **通过**（旧版 Windows 的路径） | 同上；仅为跨版本兼容保留 |
+| `SetParent` 到 Progman/WorkerW | **不通过** | 子窗口会改几何/DPI/合成语义，本机不需要，不要用 |
+| `Topmost` | **不通过** | 违背「不抢镜」的核心设定（普通窗口盖不住它），只是「程序还能启动」的兜底 |
+
+落到只可能用 `Topmost` 的机器时，Codex 必须停下、报告、交回产品决策，**不得自行判定 Phase 0 通过**。
+此时可讨论的产品退路（需要用户拍板）：`Topmost` + 失焦自动降级；或改为「普通窗口 + 全局快捷键呼出」。
+
 
 ---
 
@@ -92,13 +109,37 @@
 **理由**：WPF 的 `AllowsTransparency=True` 走分层窗口，**会关闭硬件加速**，文字发虚、常驻时
 CPU 明显上升。一个全天挂着的便签不能付这个代价。调研里「半透明背景」的建议在常驻场景下是错的。
 
+**「透明度」在这个产品里到底指什么（消除 spec 与 decisions 的表面冲突）**：
+
+- **能做**：面板背景色的半透明感（不透明度可调）——但注意 WPF 里 `Window.Opacity < 1`
+  **同样会触发分层窗口**，必须一并禁止。所以「背景半透明」只能靠**不透明底色 + 更浅/更深的色阶**
+  来模拟，视觉上是「磨砂卡片」而不是「看穿桌面」。
+- **能做**：DWM 材质（`DWMWA_SYSTEMBACKDROP_TYPE`：Mica / Acrylic）。模糊由 DWM 合成器完成，
+  硬件加速，不触发分层窗口。**但它能否作用于桌面层窗口，是未验证的**——列为 Phase 0 的探针项，
+  失败就降级为纯色，不算缺陷。
+- **不做**：真正逐像素看穿桌面（窗口后面能看见壁纸内容）。这必须有 `WS_EX_LAYERED`，代价就是
+  软件渲染，与「常驻低耗」直接冲突。
+
+因此 spec 里「透明度原样回来」应理解为：**背景色/不透明度档位这个设置值被持久化**，而不是
+「窗口是透明的」。P1 的条目改名为「外观（浅色/深色/磨砂/纯色 + 色调强度）」。
+
+
 ---
 
 ## D4 — 数据：单文件 JSON + 原子写
 
 **决策**：`%APPDATA%\wantodo\data.json`（单文件，含所有栏与条目）。
-写入：`data.json.tmp` → `FileStream.Flush(true)` → `File.Replace(data.json, data.bak)`。
+写入：`data.json.tmp` → `FileStream.Flush(true)` → 替换。**替换分三支**（首次保存必须走第二支，
+否则 `File.Replace` 会因目标不存在而抛 `FileNotFoundException`）：
+
+| 情形 | 做法 |
+|---|---|
+| `data.json` 已存在 | `File.Replace(tmp, data.json, data.bak)` |
+| `data.json` 不存在（首次） | `File.Move(tmp, data.json)` |
+| `File.Replace` 抛 `IOException`（被占用/不支持） | `File.Copy(data.json, data.bak, true)` + `File.Move(tmp, data.json, true)`，记 WARN |
+
 读取：解析失败则回退 `data.bak`，再失败则备份为 `data.corrupt-<时间戳>.json` 并起空白库。
+
 
 **为什么不是 SQLite**：数据量是几百条，SQLite 引入原生依赖与迁移负担，收益为零。
 **为什么要 bak + corrupt 兜底**：便签最不可接受的失败是「打开发现内容没了」。

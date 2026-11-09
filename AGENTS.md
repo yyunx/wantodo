@@ -28,11 +28,19 @@ docs/                        规格 spec.md / 计划 plan.md / 决策 decisions.
 ## 硬性规则
 
 1. **P/Invoke 只在 `Interop/`**：视图与 ViewModel 不得直接 `DllImport`。
+   - 作用范围是 `src/` 下的产品代码；探针在 `spike/<Project>/Interop/` 下镜像同样的结构。
+   - 探针代码晋升为产品代码时，**整个 `Interop/` 目录搬进 `src/Wantodo.App/Interop/`**，
+     不允许边搬边改命名空间以外的逻辑。spike 里的实现与产品实现不得长期并存两份。
 2. **每次交付必须绿**：`dotnet build -warnaserror` 与 `dotnet test` 全过，输出贴进
    `docs/verify/phaseN.md`。不许为了编译通过而注释掉报错代码。
 3. **禁止 `async void`**（UI 事件处理器除外，且内部必须 try/catch 并落日志）。
-4. **落盘必须原子**：写 `*.tmp` → `Flush(true)` → `File.Replace`；启动时容忍半截文件并回退
-   `*.bak`；再失败则隔离为 `*.corrupt-<ts>.json` 后起空白库。退出前强制落盘一次。
+4. **落盘必须原子**：写 `*.tmp` → `Flush(true)` → 替换。替换分两支：
+   - 目标 `data.json` **已存在** → `File.Replace(tmp, data.json, data.bak)`（同一目录，原子换名 + 留 bak）；
+   - 目标**不存在**（首次保存）→ `File.Move(tmp, data.json)`，不调用 `File.Replace`；
+   - `File.Replace` 抛 `IOException`（被占用/不支持）→ 降级 `File.Copy(data.json → data.bak)` +
+     `File.Move(tmp, data.json, overwrite: true)`，并记一条 WARN 到日志。
+   启动时容忍半截文件并回退 `*.bak`；再失败则隔离为 `*.corrupt-<ts>.json` 后起空白库。
+   退出前强制落盘一次。
 5. **禁止 `AllowsTransparency="True"`**：WPF 分层窗口会关闭硬件加速，常驻小组件不能付这个
    代价。圆角/材质用 DWM（`DwmSetWindowAttribute`），不支持时降级为纯色。
 6. **不改系统设置**：注册表 `Run` 项只允许通过设置页的显式开关写入，且开关必须能真正回滚。

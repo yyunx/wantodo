@@ -31,7 +31,7 @@
 
 ---
 
-## 1. Phase 0 计划（只要计划，不要代码）
+## 1. Phase 0 计划（✅ 已完成 2026-11-09，留档）
 
 ```
 执行 docs/plan.md 里的 Phase 0，但这一轮只输出计划，不改任何文件。
@@ -52,7 +52,7 @@
 
 ---
 
-## 2. Phase 0 实现
+## 2. Phase 0 实现（✅ 已完成 2026-11-09，留档）
 
 ```
 按你上面的计划实现 Phase 0。范围严格限制在：
@@ -78,7 +78,63 @@
 
 ---
 
-## 3. 阶段模板（Phase 1 起每阶段套用）
+## 2.5 Phase 1 实现（👉 现在这一轮贴这段）
+
+```
+Phase 0 已经通过，不要再重测桌面层，也不要重新论证技术栈。
+
+先读这三个文件：
+- docs/verify/phase0.md   ← 实测结论，尤其是「已通过」的那些项
+- docs/plan.md            ← 只做 Phase 1 那一节
+- AGENTS.md               ← 硬性规则
+
+Phase 0 的实测结论（直接用，别再验证）：
+- 挂载方式：SetWindowLongPtr(GWLP_HWNDPARENT, 宿主窗口)，owner 关系，不是 SetParent；
+- 本机（Win11 26200）SHELLDLL_DefView 直接挂在 Progman 下，没有可用的 WorkerW，0x052C 是空操作，
+  所以宿主按 Progman 优先、WorkerW 兜底来探测；
+- Win+D 不会隐藏它，不需要任何 WM_SHOWWINDOW 抢回逻辑；
+- Explorer 重启后监听 TaskbarCreated，重新取 Progman 句柄并重设 owner 即可，不用重建窗口。
+- 探针源码在 spike/DesktopLayerProbe/，可以搬可以删，但搬完之后 spike 里不许再留一份重复实现。
+
+本轮范围（只做这些）：
+1) 解决方案骨架：
+   - src/Wantodo.Core（net10.0，无 WPF 依赖，可单测）
+   - src/Wantodo.App（net10.0-windows，WPF）
+   - tests/Wantodo.Core.Tests（xUnit）
+   建 Wantodo.sln，三个工程都挂进去。
+2) Wantodo.Core：Board / Column / Note 模型 + JsonBoardStore
+   - 原子写三分支：目标存在走 File.Replace(tmp, data, bak)；目标不存在走 File.Move(tmp, data)；
+     File.Replace 抛 IOException 时降级 Copy+Move 并记 WARN；
+   - 启动时解析失败回退 data.bak，再失败隔离成 data.corrupt-<ts>.json 后起空白库；
+   - 测试必须覆盖：首次无文件、正常读写、损坏文件回退 bak、bak 也坏了、字段缺失兼容、
+     首次保存（目标不存在）。
+3) src/Wantodo.App/Interop/：把探针里的 FindDesktopHost / AttachToDesktopLayer / ShellRestartWatcher
+   搬过来（整目录搬，命名空间改成 Wantodo.App.Interop）。
+   不要搬：Topmost/Normal/HWND_BOTTOM 三个对照模式、WM_SHOWWINDOW 抢回、完整拓扑 dump。
+4) 主窗口：
+   - 无边框、无 AllowsTransparency（也不许 Window.Opacity<1）、深色底、圆角走 DWM 失败降级纯色；
+   - 两栏布局，但渲染必须遍历 columns 集合（默认 seed「要做的事情」「突然想到的问题」两栏），
+     不许在 XAML 里写死两个 ColumnDefinition；
+   - 启动即挂桌面层，位置尺寸从 data.json 读，关闭时落盘。
+5) 界面只做「显示」：能看、能拖窗口、能改大小；增删改条目留到 Phase 2。
+
+禁止：
+- 不要做条目增删改、勾选划线、拖拽排序（那是 Phase 2）；
+- 不要做置顶/普通模式切换的 UI（Phase 3）、不要做托盘和开机启动（Phase 4）；
+- 不要引入任何第三方 NuGet（xUnit/测试 SDK 除外）；
+- 不要因为编译报错就注释掉代码，编译错误要真修。
+
+完成后按这个格式回报：
+1) dotnet build -warnaserror 和 dotnet test 的结尾几行；
+2) 逐条对照 docs/plan.md 的 Phase 1 验收项：通过 / 未通过 / 需我肉眼确认；
+3) 需肉眼确认的项给我具体操作步骤；
+4) 你偏离计划的地方及原因；
+5) docs/verify/phase1.md 已写好，一个 commit，message 以 phase-1: 开头。
+```
+
+---
+
+## 3. 阶段模板（Phase 2 起每阶段套用）
 
 ```
 本轮阶段：Phase <N>（见 docs/plan.md）。
