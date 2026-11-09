@@ -154,7 +154,32 @@ UI 用 WPF `UniformGrid.Columns` 绑定配置值（1–4）。窗口变窄时按
 
 ---
 
-## 未决（需要产品决定，不阻塞 Phase 0）
+## D6 — 序列化的三条硬约束（Phase 1 踩出来的）
+
+**决策**：`data.json` 必须能被用户用记事本打开、改完再重启生效。为此：
+
+1. **不许出现 `NaN`/`Infinity`**：System.Text.Json 会直接抛
+   `ArgumentException: .NET number values such as positive and negative infinity cannot be written`。
+   「没存过位置」用 `double?` 的 `null`，不用 `NaN`。
+2. **派生属性必须 `[JsonIgnore]`**：`HasPosition => Left.HasValue && Top.HasValue` 这类计算属性
+   会被序列化进文件（`"hasPosition": true`），用户手改时是噪音也是陷阱。
+3. **中文不能被转义**：默认 encoder 写出 `\u8981\u505A`，必须用
+   `JavaScriptEncoder.UnsafeRelaxedJsonEscaping`；否则「手改 data.json」这条产品承诺等于没有。
+
+## D7 — 圆角与内存：Phase 1 实测结论（更新 D3 / 遗留项）
+
+- **`DWMWA_WINDOW_CORNER_PREFERENCE` 对 `WindowStyle="None"` 无效**：调用返回 `S_OK`，
+  但截图里窗口仍是方角。所以「圆角走 DWM、失败降级纯色」这条只在有标题栏的窗口上成立。
+  Phase 4 做外观时三选一：自绘圆角（内容层用 `Border CornerRadius` + 外层同色边距）、
+  用 1px 描边弱化直角、或直接接受方角。**不要**为此打开 `AllowsTransparency`。
+- **常驻内存：刚启动 113.1 MB 工作集 / 69.7 MB 私有；用了几分钟（含拖动缩放、Explorer 重启）
+  后涨到 177.5 / 117.4。** 私有内存初始已在 80 MB 目标内，工作集略超；关键未知是「会不会随
+  时间单调上涨」。Phase 3 要查：字体缓存、DWM 表面、`RenderCapability.Tier` 是否落到软件渲染、
+  以及长时间挂机后的曲线。在这些都排除前，不要拿「WPF 天生如此」当结论。
+
+---
+
+## 未决（需要产品决定，不阻塞下一步）
 
 - [ ] 完成项默认「划线保留」还是「划线后移到底部/隐藏」？
 - [ ] 栏数上限 4 还是无限？

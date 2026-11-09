@@ -69,22 +69,48 @@
 
 ---
 
-## Phase 1 — 骨架 + 两栏界面（1 个任务）
+## Phase 1 — 骨架 + 两栏界面（✅ 2026-11-09 通过，证据见 `docs/verify/phase1.md`）
 
-- 建解决方案：`src/Wantodo.Core`（无 WPF 依赖，可单测）、`src/Wantodo.App`、`tests/`
-- `Wantodo.Core`：模型 + JSON 仓储（原子写 + bak 回退 + 损坏隔离），**先写单测**
-- `Wantodo.App`：无边框窗口、两栏 `UniformGrid`、绑定数据、加载即显示
-- 从 Phase 0 的探针里搬逻辑进 `src/Wantodo.App/Interop/`，删掉 spike 里的重复实现。
-  产品只需要三样：`FindDesktopHost()`（Progman 优先、WorkerW 兜底）、`AttachToDesktopLayer(hwnd)`、
-  `ShellRestartWatcher`（`TaskbarCreated` → 重挂）。
-  **不要搬**：`Topmost`/`Normal`/`HWND_BOTTOM` 三个对照模式、`WM_SHOWWINDOW` 抢回逻辑、
-  完整拓扑 dump（换成一条 INFO）。
+**目的**：从「探针能跑」变成「能看、能存、能读的小组件」。交互留到 Phase 2，这一阶段只读。
+
+**做完的东西**
+
+- 解决方案 `Wantodo.slnx`：`src/Wantodo.Core`（net10.0，无 WPF 依赖）、`src/Wantodo.App`
+  （net10.0-windows/WPF）、`tests/Wantodo.Core.Tests`（xUnit）。
+- Core：`Board` / `NoteColumn` / `Note` / `WindowPlacement` + `JsonBoardStore`（三分支原子写、
+  bak 回退、损坏隔离、`Normalize()` 补默认）。
+- App：无边框窗口 + `WindowChrome`（`CaptionHeight=0`、`ResizeBorderThickness=6`）+ 自绘拖拽条，
+  `UniformGrid Columns="{Binding Columns.Count}"` 决定栏数，`ItemsControl` 绑定数据。
+- Interop：只搬 `DesktopHost.Find`（Progman 优先、WorkerW 兜底）、`DesktopLayer.Attach`
+  （`Desktop`/`Normal`/`Topmost` 三档，默认 Desktop）、`ShellRestartWatcher`（`TaskbarCreated`
+  → 300/1500/4000ms 三次幂等重挂）、`DesktopLayer.TryRoundCorners`（DWM 圆角，失败降级）。
+
+**实测结论**
+
+| 问题 | 答案 |
+|---|---|
+| 产品窗口还能挂桌面层吗？ | 能，`owner=Progman`、`GetParent()=0`、`layered=False`、`exstyle` 无 LAYERED/TOPMOST |
+| Win+D 后还在吗？ | 在，前后 `visible=True` 且 `rect` 不变，不需要抢回补丁 |
+| Explorer 重启呢？ | `TaskbarCreated` → 重挂到新 Progman（`0x204C4 → 0x30710`），三次重试全成功 |
+| 位置尺寸会记住吗？ | 会，用户拖动+放大后的 `600.67×360 @ 730,80` 被写回并原样恢复 |
+| 两栏是数据驱动的吗？ | 是，手改 `data.json` 的栏标题后重启，UI 标题跟着变 |
+| 常驻内存多少？ | 刚启动 113.1 MB 工作集 / 69.7 MB 私有；拖动缩放 + Explorer 重启后涨到 177.5 / 117.4，是否持续增长留到 Phase 3 观察 |
 
 **验收**
-- [ ] `dotnet test` 通过，覆盖：首次无文件、正常读写、损坏文件回退 bak、字段缺失兼容
-- [ ] 启动后看到两栏 + 预设条目，位置尺寸来自 `data.json`
-- [ ] 手动改 `data.json` 里某栏标题，重启后 UI 跟着变（证明是数据驱动，不是硬编码）
-- [ ] 全窗口无 `AllowsTransparency="True"`（grep 证明）
+- [x] `dotnet test` 通过 12/12：首次无文件、正常读写、损坏文件回退 bak、字段缺失兼容、未知字段忽略
+- [x] 启动后看到两栏 + 预设条目，位置尺寸来自 `data.json`
+- [x] 手动改 `data.json` 里某栏标题，重启后 UI 跟着变（证明是数据驱动，不是硬编码）
+- [x] 全窗口无 `AllowsTransparency="True"`（grep 只有显式的 `="False"`）
+- [x] `dotnet build -warnaserror` → 0 警告 0 错误；`DllImport` 只出现在 `Interop/`
+- [x] `docs/verify/phase1.md` 记录了日志、截图、外部核对方式
+
+**踩坑记录**
+- `double.NaN` 不能序列化进 JSON（`ArgumentException`），「没存过位置」必须用 `double?`。
+- 派生属性会跟着进 JSON（`"hasPosition": true`），要 `[JsonIgnore]`。
+- 默认 encoder 把中文转成 `\uXXXX`，要 `JavaScriptEncoder.UnsafeRelaxedJsonEscaping`，否则用户没法手改文件。
+- PowerShell 5.1 的 `Get-Content` 默认按 ANSI 读日志 → 看日志必须 `-Encoding utf8`（否则全是乱码，会误判成编码 bug）。
+- 非 DPI-aware 进程用 `GetWindowRect` + `PrintWindow` 截图会错位（表现为「右边那栏被裁掉」），要先 `SetProcessDPIAware()` 或按 `GetDpiForWindow` 换算。
+- `DwmSetWindowAttribute(DWMWA_WINDOW_CORNER_PREFERENCE)` 对 `WindowStyle="None"` 的窗口**不改变形状**（返回成功但仍是方角）。
 
 ---
 

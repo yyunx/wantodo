@@ -1,0 +1,13 @@
+<Application x:Class="Wantodo.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnMainWindowClose">
+    <Application.Resources>
+        <SolidColorBrush x:Key="WindowBackground" Color="#FF10151C" />
+        <SolidColorBrush x:Key="CardBackground" Color="#FF161E28" />
+        <SolidColorBrush x:Key="TextPrimary" Color="#FFE8EEF6" />
+        <SolidColorBrush x:Key="TextSecondary" Color="#FF9FB0C5" />
+        <SolidColorBrush x:Key="TextMuted" Color="#FF6C7C90" />
+        <SolidColorBrush x:Key="Divider" Color="#1AFFFFFF" />
+    </Application.Resources>
+</Application>

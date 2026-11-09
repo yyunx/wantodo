@@ -78,7 +78,7 @@
 
 ---
 
-## 2.5 Phase 1 实现（👉 现在这一轮贴这段）
+## 2.5 Phase 1 实现（✅ 已完成 2026-11-09，留档；当轮由会话内直接实现，未走 Codex）
 
 ```
 Phase 0 已经通过，不要再重测桌面层，也不要重新论证技术栈。
@@ -130,6 +130,39 @@ Phase 0 的实测结论（直接用，别再验证）：
 3) 需肉眼确认的项给我具体操作步骤；
 4) 你偏离计划的地方及原因；
 5) docs/verify/phase1.md 已写好，一个 commit，message 以 phase-1: 开头。
+```
+
+---
+
+## 2.6 Phase 2 实现（👉 下一轮贴这段）
+
+```
+Phase 1 已通过（证据 docs/verify/phase1.md），现在只做 Phase 2「交互」。
+
+先读：docs/verify/phase1.md、docs/spec.md（交互细节那一节）、docs/plan.md 的 Phase 2、AGENTS.md。
+
+Phase 1 的既成事实（直接用）：
+- 解决方案 Wantodo.slnx；Core 无 WPF 依赖，已有 JsonBoardStore（原子写/bak 回退/损坏隔离）+ 12 个单测；
+- 主窗口 MainWindow 已无边框 + WindowChrome(CaptionHeight=0, ResizeBorderThickness=6) + 自绘拖拽条；
+- 栏数由 columns 集合 + UniformGrid.Columns 绑定决定，没有写死两栏；
+- 窗口已挂桌面层；ShellRestartWatcher 监听 TaskbarCreated 重挂；
+- 目前条目是只读的 TextBlock（Completed=True 时显示删除线），没有输入框、没有命令。
+
+本轮范围（只做这些）：
+1) 条目编辑：回车新增并保持焦点；双击进入编辑；Backspace 删空后删除；Esc 取消编辑；
+2) 勾选划线：点击条目左侧圆点或按 Space 切换 Completed，UI 立刻变删除线；
+3) 拖拽排序 + 跨栏拖动，带落点指示；拖拽期间不改变 Completed/CreatedAt；
+4) 栏操作：加栏、删栏（删栏前确认「里面的 N 条会一起删」）、改栏标题（双击标题）；
+5) 键盘流：↑/↓ 在条目间移动、Enter 编辑、Space 勾选、Ctrl+Enter 条目内换行；
+6) 所有可变操作都改 Core 里的模型，UI 只做绑定；新增逻辑必须有单测。
+
+禁止：
+- 不要做托盘/开机启动/主题设置（Phase 4）、不要做安装包（Phase 5）；
+- 不要引入 MVVM 框架或第三方 NuGet；
+- 不要在 View 里写持久化逻辑，落盘仍然只经 JsonBoardStore；
+- 不要用 async void（事件处理器除外，且内部 try/catch + 落日志）。
+
+验收见 docs/plan.md 的 Phase 2；完成后写 docs/verify/phase2.md，message 以 phase-2: 开头。
 ```
 
 ---

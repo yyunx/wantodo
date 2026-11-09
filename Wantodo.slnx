@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Wantodo.App/Wantodo.App.csproj" />
+    <Project Path="src/Wantodo.Core/Wantodo.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Wantodo.Core.Tests/Wantodo.Core.Tests.csproj" />
+  </Folder>
+</Solution>
