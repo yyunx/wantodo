@@ -85,19 +85,30 @@ public partial class MainWindow : Window
         {
             _shellRestartWatcher = ShellRestartWatcher.Install(_hwnd, OnShellRestarted);
         }
+
+        HookSystemEvents();
     }
 
     protected override void OnClosing(CancelEventArgs e)
     {
+        UnhookSystemEvents();
         _shellRestartWatcher?.Dispose();
         _shellRestartWatcher = null;
 
-        var width = ActualWidth > 0 ? ActualWidth : Width;
-        var height = ActualHeight > 0 ? ActualHeight : Height;
-        _viewModel.SavePlacement(Left, Top, width, height);
-        AppLog.Info($"已保存布局 {width}×{height} @ {Left},{Top}");
+        FlushPendingSave();
 
         base.OnClosing(e);
+    }
+
+    /// <summary>把窗口位置写回模型并立刻落盘。关窗、注销、关机都会走这里。</summary>
+    public void FlushPendingSave()
+    {
+        var width = ActualWidth > 0 ? ActualWidth : Width;
+        var height = ActualHeight > 0 ? ActualHeight : Height;
+
+        _viewModel.SavePlacement(Left, Top, width, height);
+        _viewModel.FlushSave();
+        AppLog.Info($"已保存布局 {width}×{height} @ {Left},{Top}；" + MemorySnapshot());
     }
 
     private void OnShellRestarted()
@@ -129,7 +140,11 @@ public partial class MainWindow : Window
         ClampIntoVirtualScreen();
     }
 
-    /// <summary>显示器被拔掉 / 分辨率变了以后，别让窗口留在屏幕外找不回来。</summary>
+    /// <summary>
+    /// 显示器被拔掉 / 分辨率变了以后，别让窗口留在屏幕外找不回来。
+    /// 只在「整个窗口已经不在虚拟桌面内」时才动手：用户自己把便签卡在屏幕边缘是允许的。
+    /// 拉回的目标是主屏工作区而不是虚拟桌面，否则会藏到任务栏底下。
+    /// </summary>
     private void ClampIntoVirtualScreen()
     {
         var virtualLeft = SystemParameters.VirtualScreenLeft;
@@ -137,15 +152,131 @@ public partial class MainWindow : Window
         var virtualRight = virtualLeft + SystemParameters.VirtualScreenWidth;
         var virtualBottom = virtualTop + SystemParameters.VirtualScreenHeight;
 
-        var clampedLeft = Math.Clamp(Left, virtualLeft, Math.Max(virtualLeft, virtualRight - 80));
-        var clampedTop = Math.Clamp(Top, virtualTop, Math.Max(virtualTop, virtualBottom - 40));
-
-        if (Math.Abs(clampedLeft - Left) > 0.5 || Math.Abs(clampedTop - Top) > 0.5)
+        if (PlacementGuard.IsFullyInside(
+                Left, Top, Width, Height, virtualLeft, virtualTop, virtualRight, virtualBottom))
         {
-            AppLog.Warn($"保存的位置 {Left},{Top} 在屏幕外，已拉回到 {clampedLeft},{clampedTop}");
-            Left = clampedLeft;
-            Top = clampedTop;
+            return;
         }
+
+        var work = SystemParameters.WorkArea;
+        var (left, top) = PlacementGuard.Clamp(
+            Left, Top, Width, Height, work.Left, work.Top, work.Right, work.Bottom);
+
+        if (Math.Abs(left - Left) > 0.5 || Math.Abs(top - Top) > 0.5)
+        {
+            AppLog.Warn($"保存的位置 {Left},{Top} 在屏幕外，已拉回到 {left},{top}");
+            Left = left;
+            Top = top;
+        }
+    }
+
+    // ---------- 系统事件：锁屏解锁 / 改分辨率 / 休眠唤醒 后重新贴回桌面层 ----------
+
+    private bool _systemEventsHooked;
+
+    private void HookSystemEvents()
+    {
+        if (_systemEventsHooked)
+        {
+            return;
+        }
+
+        Microsoft.Win32.SystemEvents.SessionSwitch += OnSessionSwitch;
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        _systemEventsHooked = true;
+    }
+
+    private void UnhookSystemEvents()
+    {
+        if (!_systemEventsHooked)
+        {
+            return;
+        }
+
+        Microsoft.Win32.SystemEvents.SessionSwitch -= OnSessionSwitch;
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        _systemEventsHooked = false;
+    }
+
+    private void OnSessionSwitch(object sender, Microsoft.Win32.SessionSwitchEventArgs e)
+    {
+        if (e.Reason is not (Microsoft.Win32.SessionSwitchReason.SessionUnlock
+            or Microsoft.Win32.SessionSwitchReason.ConsoleConnect
+            or Microsoft.Win32.SessionSwitchReason.RemoteConnect))
+        {
+            return;
+        }
+
+        RunOnUi(nameof(OnSessionSwitch), () => ReattachDesktopLayer($"解锁（{e.Reason}）"));
+    }
+
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+        => RunOnUi(nameof(OnDisplaySettingsChanged), () =>
+        {
+            ClampIntoVirtualScreen();
+            UpdateColumnWidths();
+            ReattachDesktopLayer("显示设置变化");
+        });
+
+    private void OnPowerModeChanged(object sender, Microsoft.Win32.PowerModeChangedEventArgs e)
+    {
+        if (e.Mode != Microsoft.Win32.PowerModes.Resume)
+        {
+            return;
+        }
+
+        RunOnUi(nameof(OnPowerModeChanged), () => ReattachDesktopLayer("从休眠唤醒"));
+    }
+
+    private void RunOnUi(string reason, Action action)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(new Action(action));
+            return;
+        }
+
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error($"处理 {reason} 失败", ex);
+        }
+    }
+
+    /// <summary>把窗口重新挂到桌面层；只对 Desktop 模式生效（Normal/Topmost 本来就不该被挪）。</summary>
+    private void ReattachDesktopLayer(string reason)
+    {
+        if (!string.Equals(Board.Surface, DesktopLayer.SurfaceDesktop, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (_hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var ok = DesktopLayer.Attach(_hwnd, Board.Surface);
+        AppLog.Info($"{reason}：重挂桌面层 {(ok ? "成功" : "失败")}；" + DesktopLayer.Describe(_hwnd));
+    }
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+
+        AppLog.Info($"DPI 变化 {oldDpi.PixelsPerDip:F2} → {newDpi.PixelsPerDip:F2}，重算栏宽");
+        UpdateColumnWidths();
+    }
+
+    private static string MemorySnapshot()
+    {
+        using var process = System.Diagnostics.Process.GetCurrentProcess();
+        return $"内存 WS={process.WorkingSet64 / 1024 / 1024}MB private={process.PrivateMemorySize64 / 1024 / 1024}MB";
     }
 
     // ---------- 顶栏 ----------

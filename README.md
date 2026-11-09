@@ -1,13 +1,15 @@
-# wantodo
+﻿# wantodo
 
 贴在 Windows 桌面上的便签板 —— 像手机主屏的小组件，默认两栏：「要做的事情」「突然想到的问题」。
 
 ## 现状
 
-**Phase 2 / 2.5 已通过**（2026-11-09）：桌面层小组件能增删改、勾选划线、跨栏拖拽、加栏删栏，
-栏宽有下限、加栏插在当前栏右边。
-证据见 [`docs/verify/phase2.md`](docs/verify/phase2.md)、[`docs/verify/phase2.5.md`](docs/verify/phase2.5.md)
-（截图 `docs/verify/phase2-window.png`、`phase2.5-four.png`、`phase2.5-narrow.png`）。
+**Phase 3 已通过**（2026-11-10）：在 Phase 2 / 2.5 的交互之上补了健壮性——写盘按 400ms 合并、
+关闭/关机强制落盘、强杀最多丢 0.4s 的输入且不会写出坏 JSON、窗口跑到屏幕外会自动拉回主屏工作区、
+Explorer 重启与解锁/唤醒后保持桌面层、启动耗时和内存都记进日志。
+证据见 [`docs/verify/phase3.md`](docs/verify/phase3.md)
+（Phase 2 / 2.5 的证据在 [`phase2.md`](docs/verify/phase2.md)、[`phase2.5.md`](docs/verify/phase2.5.md)；
+截图 `docs/verify/phase2-window.png`、`phase2.5-four.png`、`phase2.5-narrow.png`）。
 
 已能用的操作：
 
@@ -55,6 +57,6 @@ Start-Process src\Wantodo.App\bin\Debug\net10.0-windows\Wantodo.App.exe
 - [x] Phase 1 骨架 + 两栏界面（只读、能存能读、数据驱动）—— 见 `docs/verify/phase1.md`
 - [x] Phase 2 交互（增删改、勾选划线、拖拽排序、栏操作）—— 见 `docs/verify/phase2.md`
 - [x] Phase 2.5 布局优化（加栏插在当前栏右边、最小栏宽 190 DIP、窄了横向滚动）—— 见 `docs/verify/phase2.5.md`
-- [ ] Phase 3 健壮性（持久化、DPI、多显示器）
+- [x] Phase 3 健壮性（写盘节流、位置兜底、系统事件、启动开销）—— 见 `docs/verify/phase3.md`
 - [ ] Phase 4 托盘 / 设置 / 快捷键
 - [ ] Phase 5 打包

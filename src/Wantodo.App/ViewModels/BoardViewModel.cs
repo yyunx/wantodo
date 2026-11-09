@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Wantodo.Core;
@@ -9,6 +9,8 @@ namespace Wantodo.App.ViewModels;
 public sealed class BoardViewModel : ObservableObject
 {
     private readonly JsonBoardStore _store;
+    private readonly System.Windows.Threading.DispatcherTimer _saveTimer;
+    private bool _dirty;
 
     public BoardViewModel(Board model, JsonBoardStore store)
     {
@@ -19,6 +21,13 @@ public sealed class BoardViewModel : ObservableObject
             model.Columns.Select(column => new ColumnViewModel(this, column)));
 
         AddColumnCommand = new RelayCommand(AddColumn, () => CanAddColumn);
+
+        _saveTimer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(400),
+        };
+        _saveTimer.Tick += (_, _) => FlushSave();
+        _saveTimer.Stop();
     }
 
     public Board Model { get; }
@@ -42,15 +51,37 @@ public sealed class BoardViewModel : ObservableObject
         }
     }
 
-    /// <summary>立即落盘。Phase 2 每条操作都存一次，节流留给 Phase 3。</summary>
-    public void SaveNow()
+    /// <summary>
+    /// 标记「有改动」，400ms 内合并成一次落盘（连续拖动、连敲几条不会每次都写盘）。
+    /// 关窗、系统注销时会走 <see cref="FlushSave"/> 立刻写。
+    /// 最坏情况：改完 400ms 内被强杀，丢最后一次改动——验收口径允许。
+    /// </summary>
+    public void RequestSave()
     {
+        _dirty = true;
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    /// <summary>立刻落盘，不管节流。关窗、注销、退出前必须调一次。</summary>
+    public void FlushSave()
+    {
+        _saveTimer.Stop();
+
+        if (!_dirty)
+        {
+            return;
+        }
+
+        _dirty = false;
+
         try
         {
             _store.Save(Model);
         }
         catch (Exception ex)
         {
+            _dirty = true;
             AppLog.Error("保存失败", ex);
         }
     }
@@ -69,7 +100,7 @@ public sealed class BoardViewModel : ObservableObject
         Columns.Insert(Math.Clamp(index, 0, Columns.Count), viewModel);
         SetActiveColumn(viewModel);
         AddColumnCommand.RaiseCanExecuteChanged();
-        SaveNow();
+        RequestSave();
         AppLog.Info($"加了第 {Columns.Count} 栏 id={column.Id}（插在下标 {index}）");
     }
 
@@ -83,7 +114,7 @@ public sealed class BoardViewModel : ObservableObject
 
         Columns.Remove(column);
         AddColumnCommand.RaiseCanExecuteChanged();
-        SaveNow();
+        RequestSave();
         AppLog.Info($"删了栏 {column.Title}，剩 {Columns.Count} 栏");
         return true;
     }
@@ -98,7 +129,7 @@ public sealed class BoardViewModel : ObservableObject
 
         BoardEditor.RemoveNote(Model, note.Model.Id);
         column.Notes.Remove(note);
-        SaveNow();
+        RequestSave();
     }
 
     /// <summary>
@@ -133,7 +164,7 @@ public sealed class BoardViewModel : ObservableObject
             }
         }
 
-        SaveNow();
+        RequestSave();
     }
 
     /// <summary>关窗前把窗口位置写回模型并落盘。</summary>
@@ -143,6 +174,6 @@ public sealed class BoardViewModel : ObservableObject
         Model.Placement.Top = top;
         Model.Placement.Width = width;
         Model.Placement.Height = height;
-        SaveNow();
+        RequestSave();
     }
 }

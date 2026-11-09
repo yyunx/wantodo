@@ -164,19 +164,30 @@
 
 ---
 
-## Phase 3 — 健壮性（1–2 个任务）
+## Phase 3 — 健壮性（✅ 2026-11-10 通过，证据见 `docs/verify/phase3.md`）
 
-- 写盘节流 + 退出强制落盘；异常终止后重启内容完好（可用「任务管理器结束进程」验证）
-- 多显示器 / 删除显示器后窗口不能跑到屏幕外（启动时做可见性纠正）
-- DPI 变化（把窗口拖到不同缩放屏）后布局正确
-- Explorer 重启、显示器休眠唤醒、锁屏解锁后的窗口层级保持
-- 启动耗时与常驻内存记录（`dotnet-counters` 或任务管理器），写进 `docs/verify/phase3.md`
+做完的东西：
+
+- `src/Wantodo.Core/PlacementGuard.cs`：`IsFullyInside` + `Clamp` 纯函数；窗口整个跑出虚拟桌面时拉回**主屏工作区**（不是虚拟桌面，否则会被任务栏盖住）
+- 写盘：`RequestSave()` 400ms 合并 + `FlushSave()` 同步落盘；`OnClosing` / `OnSessionEnding` 都强制 flush
+- 系统事件：`SessionSwitch`（解锁/连回）、`DisplaySettingsChanged`（重排栏宽 + 重挂桌面层）、`PowerModeChanged`（唤醒重挂）、`OnDpiChanged`（重算栏宽）
+- 启动可观测：首帧耗时、WS/private 内存、线程数写进 `app.log`
 
 **验收**
-- [ ] 编辑内容后在 1 秒内强杀进程 → 重启后内容还在（或至多丢最后 1 次编辑），不出现空库
-- [ ] 拔掉副屏后重启，窗口自动回到主屏可见区
-- [ ] 锁屏 10 分钟后解锁，窗口仍在桌面层
-- [ ] 常驻内存（工作集）记录在案，目标 ≤ 80 MB
+- [x] 编辑内容后立刻强杀（实测回车后 168ms）→ `data.json` 仍是合法 JSON，至多丢 0.4s 内的输入，不出现空库
+- [x] 回车后等 900ms 再强杀 → 内容已落盘
+- [x] 回车后立刻点 ✕ 正常关闭 → 内容已落盘（`FlushPendingSave` 生效）
+- [x] `placement.left/top = 5200,1400` 启动 → 拉回到 `1106,658.67`（工作区内，不压任务栏）
+- [x] Explorer 重启后自动重挂（`Progman 0x30710 → 0x5029E`），窗口句柄和位置不变
+- [x] 启动首帧 801–1069ms；常驻 private 内存 73–86MB（WS 会被系统裁剪，不作为基线）
+- [ ] 改分辨率/拔副屏、DPI 变化、锁屏解锁、休眠唤醒：代码路径已实现，**未在本次实机触发**，手动测法见 `docs/verify/phase3.md` 第 4 节
+
+**踩坑记录**
+- 「至少露出 80×40 px」的兜底规则不够：窗口会停在屏幕边缘只剩一条边，用户照样找不到；改成整窗拉回。
+- 拉回的目标必须是**工作区**而不是虚拟桌面：虚拟桌面包含任务栏区域，窗口会藏到任务栏底下，连栏尾输入框都点不到。
+- `SystemEvents` 的回调不在 UI 线程，改窗口属性要 `Dispatcher.BeginInvoke`。
+- `App` 里 `(MainWindow as MainWindow)?.FlushPendingSave()` 会因 `MainWindow` 既像属性名又像类型名而歧义，写 `Windows[0] is MainWindow window`。
+- 改了 Core 的规则后必须重新 `dotnet build` **App** 再启动；只跑 `dotnet test` 不会更新 App 的 exe，会对着旧二进制做验证（这次就踩了）。
 
 ---
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.ObjectModel;
 using Wantodo.Core;
 
@@ -75,7 +75,7 @@ public sealed class ColumnViewModel : ObservableObject
 
         Notes.Add(new NoteViewModel(note, OnNoteChanged, OnNoteDeleteRequested));
         DraftText = string.Empty;
-        _board.SaveNow();
+        _board.RequestSave();
         return true;
     }
 
@@ -101,7 +101,7 @@ public sealed class ColumnViewModel : ObservableObject
 
         BoardEditor.RenameColumn(Model, TitleDraft);
         OnPropertyChanged(nameof(Title));
-        _board.SaveNow();
+        _board.RequestSave();
     }
 
     public void CancelTitleEdit()
@@ -112,7 +112,7 @@ public sealed class ColumnViewModel : ObservableObject
 
     internal void RefreshCount() => NoteCount = Notes.Count;
 
-    private void OnNoteChanged(NoteViewModel note) => _board.SaveNow();
+    private void OnNoteChanged(NoteViewModel note) => _board.RequestSave();
 
     private void OnNoteDeleteRequested(NoteViewModel note) => _board.RemoveNote(note);
 }

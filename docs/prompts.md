@@ -177,6 +177,17 @@ Phase 1 的既成事实（直接用）：
 >    `UpdateColumnWidths()` 均分且保底 190；`GrowWindowForColumns()` 加栏先撑窗口
 > 5. 验收见 `docs/verify/phase2.5.md`（4 栏 280 DIP / 窄窗 190 DIP + 横向滚动）
 
+## 2.8 Phase 3 健壮性（✅ 已完成 2026-11-10，留档）
+
+> 同样是会话内直接实现。要复现的要点：
+> 1. `Wantodo.Core/PlacementGuard.cs`：`IsFullyInside` + `Clamp`，纯函数，先在单测里把边界定死
+> 2. 保存路径：`RequestSave()`（400ms `DispatcherTimer` 合并）+ `FlushSave()`（同步落盘，异常恢复脏标记）
+> 3. 退出路径：`OnClosing` 与 App 的 `OnSessionEnding` 都调 `FlushPendingSave()`
+> 4. 系统事件：`SessionSwitch` / `DisplaySettingsChanged` / `PowerModeChanged` 里回调要切回 UI 线程；
+>    `OnDpiChanged` 重算栏宽
+> 5. 位置兜底只在「整窗不在虚拟桌面内」时介入，且目标是**主屏工作区**（否则藏到任务栏底下）
+> 6. 可观测：启动日志打 `首帧 Nms；WS/private/线程`，退出日志打内存快照
+> 7. 验收见 `docs/verify/phase3.md`（含 4 项「需手动确认」的说明）
 ## 3. 阶段模板（Phase 2 起每阶段套用）
 
 ```
