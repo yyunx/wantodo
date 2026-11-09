@@ -29,6 +29,19 @@ public sealed class BoardViewModel : ObservableObject
 
     public bool CanAddColumn => Columns.Count < BoardEditor.MaxColumns;
 
+    /// <summary>
+    /// 最近操作过的栏。新栏插在它右边；没有的话（刚启动、还没点过任何栏）退化为追加到末尾。
+    /// </summary>
+    public ColumnViewModel? ActiveColumn { get; private set; }
+
+    public void SetActiveColumn(ColumnViewModel? column)
+    {
+        if (!ReferenceEquals(ActiveColumn, column))
+        {
+            ActiveColumn = column;
+        }
+    }
+
     /// <summary>立即落盘。Phase 2 每条操作都存一次，节流留给 Phase 3。</summary>
     public void SaveNow()
     {
@@ -44,16 +57,20 @@ public sealed class BoardViewModel : ObservableObject
 
     public void AddColumn()
     {
-        if (!BoardEditor.TryAddColumn(Model, "新栏", out var column) || column is null)
+        int index = ActiveColumn is null ? Columns.Count : Columns.IndexOf(ActiveColumn) + 1;
+
+        if (!BoardEditor.TryAddColumn(Model, BoardEditor.DefaultColumnTitle, index, out var column) || column is null)
         {
             AppLog.Warn($"加栏被拒绝：已经有 {Columns.Count} 栏（上限 {BoardEditor.MaxColumns}）");
             return;
         }
 
-        Columns.Add(new ColumnViewModel(this, column));
+        var viewModel = new ColumnViewModel(this, column);
+        Columns.Insert(Math.Clamp(index, 0, Columns.Count), viewModel);
+        SetActiveColumn(viewModel);
         AddColumnCommand.RaiseCanExecuteChanged();
         SaveNow();
-        AppLog.Info($"加了第 {Columns.Count} 栏 id={column.Id}");
+        AppLog.Info($"加了第 {Columns.Count} 栏 id={column.Id}（插在下标 {index}）");
     }
 
     public bool RemoveColumn(ColumnViewModel column)

@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
@@ -15,6 +16,18 @@ namespace Wantodo.App;
 public partial class MainWindow : Window
 {
     private const string NoteDataFormat = "wantodo/note";
+
+    /// <summary>一栏能压到的最窄宽度（DIP）。再窄就横向滚动，不让文字被剪成一条缝。</summary>
+    private const double MinColumnWidth = 190;
+
+    /// <summary>栏与栏之间的间距：模板里是 Margin="4,0"，左右各 4。</summary>
+    private const double ColumnGap = 8;
+
+    /// <summary>加栏时希望保住的舒适宽度；窗口放不下就先撑窗口，撑不动才退到最小宽度。</summary>
+    private const double PreferredColumnWidth = 280;
+
+    public static readonly DependencyProperty ColumnWidthProperty = DependencyProperty.Register(
+        nameof(ColumnWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(MinColumnWidth));
 
     private readonly BoardViewModel _viewModel;
 
@@ -38,8 +51,18 @@ public partial class MainWindow : Window
         _viewModel = new BoardViewModel(board, store);
         DataContext = _viewModel;
 
+        _viewModel.Columns.CollectionChanged += OnColumnsChanged;
+        Loaded += (_, _) => UpdateColumnWidths();
+        SizeChanged += (_, _) => UpdateColumnWidths();
 
         ApplyPlacement();
+    }
+
+    /// <summary>每栏宽度，由窗口可用宽度和栏数算出来；窄到放不下就保持最小宽度并横向滚动。</summary>
+    public double ColumnWidth
+    {
+        get => (double)GetValue(ColumnWidthProperty);
+        set => SetValue(ColumnWidthProperty, value);
     }
 
     private Board Board => _viewModel.Model;
@@ -148,9 +171,89 @@ public partial class MainWindow : Window
 
     // ---------- 栏 ----------
 
+    /// <summary>记住「现在在哪一栏操作」，新栏就插在它右边（见 decisions.md D9）。</summary>
+    private void OnColumnGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: ColumnViewModel column })
+        {
+            _viewModel.SetActiveColumn(column);
+        }
+    }
+
+    /// <summary>点栏里任意位置也算「在这一栏操作」，比只认键盘焦点稳。</summary>
+    private void OnColumnPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: ColumnViewModel column })
+        {
+            _viewModel.SetActiveColumn(column);
+        }
+    }
+
+    /// <summary>
+    /// 栏宽 = 可用宽度平均分；分到比 <see cref="MinColumnWidth"/> 还窄就停在最小宽度，
+    /// 让外层横向滚动顶出去，而不是把每栏压成一条缝。
+    /// </summary>
+    private void UpdateColumnWidths()
+    {
+        int count = _viewModel.Columns.Count;
+        if (count <= 0)
+        {
+            return;
+        }
+
+        double available = ColumnsScroller.ActualWidth;
+        if (available <= 0)
+        {
+            available = ActualWidth - 16;
+        }
+
+        double width = (available - ColumnGap * count) / count;
+        ColumnWidth = Math.Max(MinColumnWidth, width);
+    }
+
+    private void OnColumnsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == NotifyCollectionChangedAction.Add)
+        {
+            GrowWindowForColumns();
+        }
+
+        UpdateColumnWidths();
+    }
+
+    /// <summary>
+    /// 加栏时如果按最小宽度已经放不下，先把窗口往右撑（撑到屏幕边缘为止），
+    /// 实在放不下才交给横向滚动。窗口本来就更宽时不动它。
+    /// </summary>
+    private void GrowWindowForColumns()
+    {
+        int count = _viewModel.Columns.Count;
+        // 目标是一栏 PreferredColumnWidth 宽；窗口不够就撑窗口，撑到屏幕边界为止
+        double preferred = PreferredColumnWidth;
+        double needed = ColumnGap * count + preferred * count + ColumnGap;
+        double current = ActualWidth > 0 ? ActualWidth : Width;
+
+        if (current >= needed)
+        {
+            return;
+        }
+
+        var work = SystemParameters.WorkArea;
+        double width = Math.Min(needed, work.Width - ColumnGap);
+        double left = Left;
+
+        if (left + width > work.Right)
+        {
+            left = Math.Max(work.Left, work.Right - width);
+        }
+
+        AppLog.Info($"加栏后窗口加宽 {current:F0} → {width:F0} DIP @ {left:F0}");
+        Left = left;
+        Width = width;
+    }
+
     private void OnColumnTitleMouseDown(object sender, MouseButtonEventArgs e)
     {
-
         if (e.ClickCount != 2 || sender is not FrameworkElement { DataContext: ColumnViewModel column })
         {
             return;

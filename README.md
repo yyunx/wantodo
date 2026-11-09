@@ -4,9 +4,10 @@
 
 ## 现状
 
-**Phase 2 已通过**（2026-11-09）：桌面层小组件现在能增删改、勾选划线、跨栏拖拽、加栏删栏。
-证据见 [`docs/verify/phase2.md`](docs/verify/phase2.md)（截图 `docs/verify/phase2-window.png`、
-`docs/verify/phase2-desktop.png`）。
+**Phase 2 / 2.5 已通过**（2026-11-09）：桌面层小组件能增删改、勾选划线、跨栏拖拽、加栏删栏，
+栏宽有下限、加栏插在当前栏右边。
+证据见 [`docs/verify/phase2.md`](docs/verify/phase2.md)、[`docs/verify/phase2.5.md`](docs/verify/phase2.5.md)
+（截图 `docs/verify/phase2-window.png`、`phase2.5-four.png`、`phase2.5-narrow.png`）。
 
 已能用的操作：
 
@@ -14,7 +15,8 @@
 - 双击条目/栏标题 → 就地编辑；`Esc` 取消，`Enter` 提交
 - 点勾选圆点或选中行按 `Space` → 划线；`↑/↓` 在条目间移动焦点
 - 条目拖到另一栏或同栏其它位置 → 落点线提示
-- 顶栏「＋ 栏」加到 4 栏为止，栏标题旁 ✕ 删栏（栏里有内容会先确认）
+- 顶栏「＋ 栏」插在最近操作的那栏右边，最多 4 栏；栏标题旁 ✕ 删栏（栏里有内容会先确认）
+- 每栏最窄 190 DIP，窗口放不下就横向滚动，不会把文字挤成一条缝
 
 已验证的窗口语义：`SetWindowLongPtr(GWLP_HWNDPARENT, Progman)` 设 owner 即可贴在桌面图标层，
 Win+D 不受影响，Explorer 重启后靠 `TaskbarCreated` 重挂，全程不需要分层窗口
@@ -52,7 +54,7 @@ Start-Process src\Wantodo.App\bin\Debug\net10.0-windows\Wantodo.App.exe
 - [x] Phase 0 桌面层探针（Progman owner / Win+D / Explorer 重启）—— 见 `docs/verify/phase0.md`
 - [x] Phase 1 骨架 + 两栏界面（只读、能存能读、数据驱动）—— 见 `docs/verify/phase1.md`
 - [x] Phase 2 交互（增删改、勾选划线、拖拽排序、栏操作）—— 见 `docs/verify/phase2.md`
-- [ ] Phase 2.5 布局优化（加栏位置、最小栏宽、横向滚动）
+- [x] Phase 2.5 布局优化（加栏插在当前栏右边、最小栏宽 190 DIP、窄了横向滚动）—— 见 `docs/verify/phase2.5.md`
 - [ ] Phase 3 健壮性（持久化、DPI、多显示器）
 - [ ] Phase 4 托盘 / 设置 / 快捷键
 - [ ] Phase 5 打包

@@ -1,4 +1,4 @@
-# 给 Codex 的提示词（可直接复制）
+﻿# 给 Codex 的提示词（可直接复制）
 
 > 用法：一次只贴一段。先贴「0. 开场」，再贴「1. Phase 0 计划」，它给出计划你点头后贴
 > 「2. Phase 0 实现」。之后每阶段套用「3. 阶段模板」。
@@ -134,7 +134,7 @@ Phase 0 的实测结论（直接用，别再验证）：
 
 ---
 
-## 2.6 Phase 2 实现（👉 下一轮贴这段）
+## 2.6 Phase 2 实现（✅ 已完成 2026-11-09，留档）
 
 ```
 Phase 1 已通过（证据 docs/verify/phase1.md），现在只做 Phase 2「交互」。
@@ -166,6 +166,16 @@ Phase 1 的既成事实（直接用）：
 ```
 
 ---
+
+## 2.7 Phase 2.5 布局优化（✅ 已完成 2026-11-09，留档）
+
+> 这一轮也是会话内直接实现的，没走 Codex。要复现的要点：
+> 1. `BoardEditor.TryAddColumn(board, title, index, out column)` 重载，越界夹到 `0..Count`
+> 2. `BoardViewModel.ActiveColumn` + `SetActiveColumn`，加栏按「当前栏下标 + 1」插入
+> 3. XAML：栏容器换 `ScrollViewer + ItemsControl + 横向 StackPanel`，卡片 `Width` 绑 `Window.ColumnWidth`
+> 4. 代码：`MinColumnWidth=190`、`PreferredColumnWidth=280`、`ColumnGap=8`；
+>    `UpdateColumnWidths()` 均分且保底 190；`GrowWindowForColumns()` 加栏先撑窗口
+> 5. 验收见 `docs/verify/phase2.5.md`（4 栏 280 DIP / 窄窗 190 DIP + 横向滚动）
 
 ## 3. 阶段模板（Phase 2 起每阶段套用）
 

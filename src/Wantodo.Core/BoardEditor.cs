@@ -16,6 +16,13 @@ public static class BoardEditor
 
     /// <summary>加一栏。到上限或标题为空都返回 false，不做「悄悄改名」这种惊喜。</summary>
     public static bool TryAddColumn(Board board, string? title, out NoteColumn? column)
+        => TryAddColumn(board, title, board.Columns.Count, out column);
+
+    /// <summary>
+    /// 在指定下标处加一栏（越界自动夹到 0..Count）。
+    /// 新栏插在当前操作的那一栏右边，而不是永远追加到末尾——见 decisions.md D9。
+    /// </summary>
+    public static bool TryAddColumn(Board board, string? title, int index, out NoteColumn? column)
     {
         column = null;
 
@@ -25,7 +32,7 @@ public static class BoardEditor
         }
 
         column = new NoteColumn { Title = NormalizeTitle(title) };
-        board.Columns.Add(column);
+        board.Columns.Insert(Math.Clamp(index, 0, board.Columns.Count), column);
         return true;
     }
 

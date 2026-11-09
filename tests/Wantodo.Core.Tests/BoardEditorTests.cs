@@ -1,4 +1,4 @@
-using Wantodo.Core;
+﻿using Wantodo.Core;
 using Xunit;
 
 namespace Wantodo.Core.Tests;
@@ -229,5 +229,42 @@ public class BoardEditorTests
         Assert.True(BoardEditor.TryFindNote(board, note!.Id, out var column, out var found));
         Assert.Same(board.Columns[1], column);
         Assert.Same(note, found);
+    }
+
+    [Fact]
+    public void TryAddColumn_WithIndex_InsertsAtRequestedPosition()
+    {
+        var board = TwoColumns();
+        var second = board.Columns[1];
+
+        Assert.True(BoardEditor.TryAddColumn(board, "插在中间", 1, out var inserted));
+
+        Assert.Equal(3, board.Columns.Count);
+        Assert.Same(inserted, board.Columns[1]);
+        Assert.Same(second, board.Columns[2]);
+    }
+
+    [Fact]
+    public void TryAddColumn_WithIndex_ClampsOutOfRange()
+    {
+        var board = TwoColumns();
+
+        Assert.True(BoardEditor.TryAddColumn(board, "越界到末尾", 99, out var tail));
+        Assert.Same(tail, board.Columns[^1]);
+
+        Assert.True(BoardEditor.TryAddColumn(board, "负数到开头", -5, out var head));
+        Assert.Same(head, board.Columns[0]);
+    }
+
+    [Fact]
+    public void TryAddColumn_WithIndex_StillHonoursMaxColumns()
+    {
+        var board = TwoColumns();
+        Assert.True(BoardEditor.TryAddColumn(board, "三", 1, out _));
+        Assert.True(BoardEditor.TryAddColumn(board, "四", 1, out _));
+
+        Assert.False(BoardEditor.TryAddColumn(board, "五", 0, out var extra));
+        Assert.Null(extra);
+        Assert.Equal(BoardEditor.MaxColumns, board.Columns.Count);
     }
 }
