@@ -226,16 +226,38 @@
 
 ---
 
-## Phase 5 — 打包（1 个任务）
+## Phase 5 — 打包（✅ 2026-11-10 通过，证据见 `docs/verify/phase5.md`）
 
 - `dotnet publish -c Release -r win-x64`：先出 framework-dependent，再出 self-contained 单文件，两者都测体积
 - 程序图标、窗口图标、版本号、单实例互斥（`Mutex`，二次启动唤出已有窗口）
 - 提供 `install.ps1` / `uninstall.ps1`（复制到 `%LOCALAPPDATA%\Programs\wantodo`，建快捷方式，不写系统级路径）
 
 **验收**
-- [ ] 干净目录下双击能启动，不报缺运行时
-- [ ] 报告两种发布模式的 exe 体积与启动耗时
-- [ ] 重复双击不会开出两个窗口，只会把已有窗口提到前台
+- [x] 干净目录下双击能启动，不报缺运行时（SC 单文件在只有 exe 的临时目录里跑起来，首帧 968ms）
+- [x] 报告两种发布模式的 exe 体积与启动耗时（FDD 1.37 MB / 983ms；SC 148.74 MB / 968ms）
+- [x] 重复双击不会开出两个窗口，只会把已有窗口提到前台（进程数始终 1，日志「第二次启动：已把已有窗口叫到前面」）
+
+**做完的东西**
+
+- 单实例：`Mutex(@"Local\Wantodo.SingleInstance")`；第二实例 `FindWindow(null,"wantodo")` +
+  `PostMessage(RegisterWindowMessage("Wantodo.Show"))` 后自己退出；第一实例在 `WndProc` 里
+  `BringToFront()`（临时置顶抢前台 → 撤置顶落回桌面层）。
+- `install.ps1`：复制到 `%LOCALAPPDATA%\Programs\wantodo`、建开始菜单快捷方式（`-DesktopShortcut` 加桌面、
+  `-StartWithWindows` 写 Run），复制前先结束运行中的实例。
+- `uninstall.ps1`：停进程、删快捷方式、清 Run 值、删程序目录；**默认保留** `%APPDATA%\wantodo`，
+  `-RemoveData` 才删。
+- csproj 补齐产品名/描述/公司，`IncludeSourceRevisionInInformationalVersion=false`（版本号不带 git hash）。
+
+**踩坑记录**
+
+1. `$PSScriptRoot` 在 `powershell -File` 下为空 → 参数默认值里不能直接 `Join-Path $PSScriptRoot`，改到函数体里算并兜底 `$MyInvocation.MyCommand.Path`。
+2. PowerShell 5.1 读无 BOM 的 UTF-8 会乱码 → 脚本写成带 BOM。
+3. `ProductVersion` 自动拼 git hash → `IncludeSourceRevisionInInformationalVersion=false`。
+4. `install.ps1` 复制 148 MB 前必须先结束进程，否则文件被占用。
+5. 桌面层窗口 `SetForegroundWindow` 会被系统拒绝 → 先临时置顶再撤。
+
+**结论**：对外分发只用 **self-contained 单文件**；framework-dependent 版在本机（运行时装在用户目录）双击起不来，
+只用于对照体积。
 
 ---
 

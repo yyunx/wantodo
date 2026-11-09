@@ -205,6 +205,23 @@ Phase 1 的既成事实（直接用）：
 
 ---
 
+## 2.10 Phase 5 打包（✅ 已完成 2026-11-10，留档）
+
+范围（实际做完的）：
+
+1. 单实例：`Mutex(@"Local\Wantodo.SingleInstance")` + `RegisterWindowMessage("Wantodo.Show")`；
+   第二实例 `FindWindow` + `PostMessage` 后 `Shutdown()`；第一实例 `BringToFront()`（临时置顶抢前台再撤）。
+2. `dotnet publish` 两版：FDD 1.37 MB（依赖运行时）、SC 单文件 148.74 MB（对外发这个）。
+3. `install.ps1` / `uninstall.ps1`：装到 `%LOCALAPPDATA%\Programs\wantodo`，开始菜单快捷方式，
+   不写 HKLM、不需要管理员；卸载默认保留数据。
+4. 产品元数据：`Product` / `AssemblyTitle` / `Description` / `Company` / `Copyright`，
+   `IncludeSourceRevisionInInformationalVersion=false`。
+
+当轮踩到的坑（已写进 verify）：`$PSScriptRoot` 在 `-File` 下为空、PowerShell 5.1 无 BOM 乱码、
+`ProductVersion` 带 git hash、148 MB 复制前必须停进程、桌面层窗口 `SetForegroundWindow` 被拒。
+
+---
+
 ## 3. 阶段模板（Phase 2 起每阶段套用）
 
 ```

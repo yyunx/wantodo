@@ -5,3 +5,7 @@ obj/
 
 # 探针与验收的临时日志（日志内容以文字形式抄进 docs/verify/*.md）
 docs/verify/*.log
+
+# 发布产物（自包含单文件 148 MB，不进仓库）
+
+publish/

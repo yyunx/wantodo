@@ -255,8 +255,48 @@ public partial class MainWindow : Window
             ShowQuickCapture();
             handled = true;
         }
+        else if (message == NativeMethods.ShowWantodoMessage)
+        {
+            // 用户又双击了一次 exe：不新开窗口，把已有的这扇叫到前面（单实例，见 docs/verify/phase5.md）
+            BringToFront();
+            handled = true;
+        }
 
         return IntPtr.Zero;
+    }
+
+    /// <summary>
+    /// 把窗口叫到最前面一次。桌面层窗口直接 <c>SetForegroundWindow</c> 会被系统拒绝，
+    /// 所以先临时置顶、抢到前台后再撤掉置顶，让它落回桌面层。
+    /// </summary>
+    public void BringToFront()
+    {
+        if (!IsVisible)
+        {
+            Show();
+            if (Board.Surface == DesktopLayer.SurfaceDesktop)
+            {
+                DesktopLayer.Attach(_hwnd, Board.Surface);
+            }
+        }
+
+        var topmost = NativeMethods.GetWindowLongPtr(_hwnd, NativeMethods.GWL_EXSTYLE).ToInt64() & NativeMethods.WS_EX_TOPMOST;
+        if (topmost == 0)
+        {
+            NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, 0, 0, 0, 0,
+                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_SHOWWINDOW);
+        }
+
+        NativeMethods.SetForegroundWindow(_hwnd);
+        Activate();
+
+        if (topmost == 0)
+        {
+            NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_NOTOPMOST, 0, 0, 0, 0,
+                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE);
+        }
+
+        AppLog.Info("第二次启动：已把已有窗口叫到前面");
     }
 
     /// <summary>把窗口位置写回模型并立刻落盘。关窗、注销、关机都会走这里。</summary>

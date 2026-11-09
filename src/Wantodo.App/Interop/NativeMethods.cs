@@ -98,6 +98,17 @@ internal static class NativeMethods
     /// <summary>不抢焦点地把窗口显示出来（托盘召回时用）。</summary>
     internal static void ShowWithoutActivating(IntPtr hWnd) => ShowWindow(hWnd, SW_SHOWNOACTIVATE);
 
+    // ---------- 单实例：第二次启动把已有窗口叫到前面 ----------
+
+    /// <summary>第二个实例启动时发给第一个实例的消息（同名注册，两个进程拿到同一个 id）。</summary>
+    internal static readonly int ShowWantodoMessage = (int)RegisterWindowMessage("Wantodo.Show");
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool PostMessage(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    internal static extern bool SetForegroundWindow(IntPtr hWnd);
+
     internal static string ClassNameOf(IntPtr hWnd)
     {
         if (hWnd == IntPtr.Zero)

@@ -4,11 +4,12 @@
 
 ## 现状
 
-**Phase 4 已通过**（2026-11-10）：托盘常驻（左键显示/隐藏、右键菜单）、无边框设置面板
-（层级 / 深色浅色 / 色调强度 / 隐藏已完成 / 开机自启）、全局快捷键 `Ctrl+Alt+Space`「快速记一条」、
-自绘图标与版本号。证据见 [`docs/verify/phase4.md`](docs/verify/phase4.md)
-（Phase 3 在 [`phase3.md`](docs/verify/phase3.md)；2 / 2.5 在 [`phase2.md`](docs/verify/phase2.md)、
-[`phase2.5.md`](docs/verify/phase2.5.md)）。
+**Phase 5 已通过**（2026-11-10）：自包含单文件发布（148.74 MB，不依赖运行时）、
+单实例（第二次双击只把已有窗口叫到前面）、`install.ps1` / `uninstall.ps1`
+（装到 `%LOCALAPPDATA%\Programs\wantodo`，开始菜单快捷方式，不需要管理员）。
+证据见 [`docs/verify/phase5.md`](docs/verify/phase5.md)
+（Phase 4 在 [`phase4.md`](docs/verify/phase4.md)；3 在 [`phase3.md`](docs/verify/phase3.md)；
+2 / 2.5 在 [`phase2.md`](docs/verify/phase2.md)、[`phase2.5.md`](docs/verify/phase2.5.md)）。
 
 已能用的操作：
 
@@ -36,6 +37,25 @@ Start-Process src\Wantodo.App\bin\Debug\net10.0-windows\Wantodo.exe
 
 数据在 `%APPDATA%\wantodo\data.json`（可直接手改，改完重启生效；日志在同目录 `app.log`）。
 
+## 安装 / 卸载
+
+```powershell
+# 先出发布产物（自包含单文件，约 149 MB）
+dotnet publish src\Wantodo.App\Wantodo.App.csproj -c Release -r win-x64 --self-contained true `
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish\sc
+
+# 装到 %LOCALAPPDATA%\Programs\wantodo + 开始菜单快捷方式（不加 -DesktopShortcut 就不建桌面图标）
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+
+# 卸载：默认保留数据；要连便签一起删就加 -RemoveData
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
+```
+
+- 分发用 **self-contained 单文件**：framework-dependent 版只有 1.37 MB，但要求机器上有 .NET 10
+  Desktop Runtime，双击会弹 `You must install .NET to run this application`。
+- 未经签名，首次运行 SmartScreen 会拦一下（「更多信息 → 仍要运行」）。
+- 安装只影响当前用户，不写 `Program Files`、不需要管理员；控制面板「应用」里看不到，卸载用 `uninstall.ps1`。
+
 ## 文档
 
 | 文件 | 作用 |
@@ -61,4 +81,4 @@ Start-Process src\Wantodo.App\bin\Debug\net10.0-windows\Wantodo.exe
 - [x] Phase 2.5 布局优化（加栏插在当前栏右边、最小栏宽 190 DIP、窄了横向滚动）—— 见 `docs/verify/phase2.5.md`
 - [x] Phase 3 健壮性（写盘节流、位置兜底、系统事件、启动开销）—— 见 `docs/verify/phase3.md`
 - [x] Phase 4 托盘 / 设置 / 快捷键 / 主题 —— 见 `docs/verify/phase4.md`
-- [ ] Phase 5 打包
+- [x] Phase 5 打包（单实例 + 安装脚本）—— 见 `docs/verify/phase5.md`

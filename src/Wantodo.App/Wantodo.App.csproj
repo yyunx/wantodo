@@ -18,6 +18,14 @@
     <AssemblyName>Wantodo</AssemblyName>
     <RootNamespace>Wantodo.App</RootNamespace>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- 文件属性的「属性 → 详细信息」面板里显示的文案 -->
+    <Product>wantodo</Product>
+    <AssemblyTitle>wantodo — 桌面便签板</AssemblyTitle>
+    <Description>贴在桌面图标层上的便签板，两栏起，可增删栏、勾选划线、拖拽排序。</Description>
+    <Company>ty</Company>
+    <Copyright>© 2026 ty</Copyright>
+    <!-- 版本号后面别自动拼 git 提交 hash，属性面板里看着干净 -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <!--
       WinForms 分析器会要求把 DPI 设置从 manifest 挪到 ApplicationHighDpiMode。
       但本项目是 WPF 应用（只是借 NotifyIcon），DPI 认知以 manifest 里的 PerMonitorV2 为准，

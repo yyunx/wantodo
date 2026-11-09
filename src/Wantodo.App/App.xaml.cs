@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics;
+using System.Threading;
 using System.Windows;
+using Wantodo.App.Interop;
 using Wantodo.Core;
 
 namespace Wantodo.App;
@@ -9,6 +11,10 @@ public partial class App : Application
 {
     private JsonBoardStore _store = null!;
     private Stopwatch? _startupWatch;
+    private Mutex? _singleInstance;
+
+    /// <summary>必须和 MainWindow.xaml 里的 Title 一致，第二个实例靠它找已有窗口。</summary>
+    private const string MainWindowTitle = "wantodo";
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -24,6 +30,21 @@ public partial class App : Application
             AppLog.Error("后台线程未处理异常（进程即将退出）", args.ExceptionObject as Exception);
 
         base.OnStartup(e);
+
+        // 单实例：第二次双击 exe 不该开出第二个窗口（两个实例同时写 data.json 会互相覆盖）。
+        // 这里用的是 Local\ 命名空间（只影响当前登录会话），注销后自动释放。
+        _singleInstance = new Mutex(initiallyOwned: true, @"Local\Wantodo.SingleInstance", out var createdNew);
+        if (!createdNew)
+        {
+            var existing = NativeMethods.FindWindow(null, MainWindowTitle);
+            if (existing != IntPtr.Zero)
+            {
+                NativeMethods.PostMessage(existing, (uint)NativeMethods.ShowWantodoMessage, IntPtr.Zero, IntPtr.Zero);
+            }
+
+            Shutdown();
+            return;
+        }
 
         _store = new JsonBoardStore();
         var result = _store.Load();

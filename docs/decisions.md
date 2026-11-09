@@ -247,6 +247,24 @@ Phase 1 实际落盘的是 `version` / `surface` / `theme` / `tone` / `placement
 
 ---
 
+## D12 — 分发形态：只对外发 self-contained 单文件；单实例用 Local 命名空间 Mutex + 注册窗口消息
+
+- **分发用 self-contained 单文件（148.74 MB），不用 framework-dependent（1.37 MB）**。
+  理由是可用性优先：FDD 版要求机器上有 .NET 10 Desktop Runtime，而本机（以及很多用户机器）
+  的运行时装在用户目录，从资源管理器双击会直接弹 `You must install .NET to run this application`。
+  WPF 不支持 trimming，也压不到几十 MB，所以「大一点但双击就能跑」是这笔交易里更划算的一边。
+  代价：首次启动要先解压到 `%TEMP%\.net\Wantodo\...`，之后复用。
+- **单实例用 `Mutex(@"Local\Wantodo.SingleInstance")` + `RegisterWindowMessage("Wantodo.Show")`**。
+  用 `Local\` 而不是 `Global\`：只影响当前登录会话，注销后系统自动释放，不会出现「注销重进后
+  新实例以为旧实例还在」。第二个实例不建窗口，`FindWindow(null,"wantodo")` + `PostMessage`
+  通知第一个实例，然后自己 `Shutdown()`——不会出现第二个托盘图标，也不会两个进程同时写 `data.json`。
+- **「叫到前面」要临时置顶**。桌面层窗口（owner=Progman）直接 `SetForegroundWindow` 会被系统拒绝，
+  所以 `BringToFront()` 先 `SetWindowPos(HWND_TOPMOST)`、抢到前台后再 `HWND_NOTOPMOST` 撤掉，
+  窗口仍然归 Progman 所有、落回桌面层。
+- **安装只装当前用户**：`%LOCALAPPDATA%\Programs\wantodo` + 开始菜单 `.lnk`，不写 HKLM、
+  不做控制面板卸载登记（用 `uninstall.ps1`）。好处是不需要管理员；代价是「应用」列表里看不到它。
+
+---
 ## 未决（需要产品决定，不阻塞下一步）
 
 - [x] 完成项默认「划线保留」还是「隐藏」？→ 默认划线保留，设置面板可开「隐藏已完成的条目」（D11）
