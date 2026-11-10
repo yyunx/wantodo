@@ -1,8 +1,8 @@
-# wantodo
+﻿# wantodo
 
 贴在 Windows 桌面上的便签板——像手机主屏的小组件，但里面是你的待办、随手记和"卡在什么地方"。
 
-![wantodo](docs/verify/phase11-installed.png)
+![wantodo](docs/verify/image-20261110232825066.png)
 
 它能贴在桌面图标那一层：**Win + D 之后还在**，普通窗口可以盖住它，不抢焦点，也不会挡在浏览器前面。
 
@@ -61,7 +61,28 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 ---
 
+## 截图
+
+**工具栏**（加栏 / 卡住 / 随心记）
+
+![工具栏](docs/verify/image-20261110233021915.png)
+
+**卡住清单**
+
+![卡住清单](docs/verify/image-20261110233046114.png)
+
+**主界面悬停看卡住原因**
+
+![悬停提示](docs/verify/image-20261110233342547.png)
+
+**托盘菜单**
+
+![托盘菜单](docs/verify/image-20261110233119314.png)
+
+---
+
 ## 三个容易踩的点
+
 
 1. **右上角 ✕ 是隐藏到托盘**，不是退出。要真的退出：托盘右键 →「退出」。
 2. **数据不在 exe 旁边**。默认放非系统盘（程序在非 C 盘时用 `<程序目录>\data`；在 C 盘时用剩余空间最大的非系统盘建 `<盘>:\Wantodo`）。按「设置 → 数据位置」能看到当前根，也能一键迁移。
