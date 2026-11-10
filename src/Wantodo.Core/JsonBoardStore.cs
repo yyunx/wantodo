@@ -204,6 +204,9 @@ public sealed class JsonBoardStore
             board.Placement.Height = 320;
         }
 
+        // 手改文件写成 "manual"/"autofit"/乱码 都接受，统一归一
+        board.Placement.SizeMode = SizeModes.Normalize(board.Placement.SizeMode);
+
         if (board.Tone < 0)
         {
             board.Tone = 0;

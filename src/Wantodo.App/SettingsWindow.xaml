@@ -56,6 +56,16 @@
                     Margin="0,0,0,12"
                     ValueChanged="OnToneChanged" />
 
+            <TextBlock Text="窗口尺寸" Style="{StaticResource FieldLabel}" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <RadioButton x:Name="AutoFitRadio" Content="跟随栏数" GroupName="sizeMode" Margin="0,0,14,0"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnSizeModeChanged" />
+                <RadioButton x:Name="ManualSizeRadio" Content="固定" GroupName="sizeMode"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnSizeModeChanged" />
+            </StackPanel>
+
             <CheckBox x:Name="HideCompletedCheck" Content="隐藏已完成的条目"
                       Foreground="{DynamicResource TextPrimary}"
                       Margin="0,0,0,8"

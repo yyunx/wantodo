@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Wantodo.Core;
 
 namespace Wantodo.Core.Tests;
@@ -241,6 +241,30 @@ public sealed class JsonBoardStoreTests : IDisposable
         var result = NewStore().Load();
 
         Assert.False(result.Board.HideCompleted);
+    }
+
+    [Fact]
+    public void SizeMode_DefaultsToAutoFitAndRoundTripsManual()
+    {
+        Assert.Equal(SizeModes.AutoFit, Board.CreateDefault().Placement.SizeMode);
+
+        var board = Board.CreateDefault();
+        board.Placement.SizeMode = SizeModes.Manual;
+        NewStore().Save(board);
+
+        var reloaded = NewStore().Load();
+        Assert.Equal(SizeModes.Manual, reloaded.Board.Placement.SizeMode);
+    }
+
+    [Fact]
+    public void SizeMode_MissingOrGarbageInFile_FallsBackToAutoFit()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(_dataPath, """{ "version": 1, "placement": { "width": 600, "height": 360 }, "columns": [] }""");
+        Assert.Equal(SizeModes.AutoFit, NewStore().Load().Board.Placement.SizeMode);
+
+        File.WriteAllText(_dataPath, """{ "version": 1, "placement": { "width": 600, "height": 360, "sizeMode": "fixed" }, "columns": [] }""");
+        Assert.Equal(SizeModes.AutoFit, NewStore().Load().Board.Placement.SizeMode);
     }
 
     [Fact]

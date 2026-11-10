@@ -43,6 +43,12 @@ public partial class SettingsWindow : Window
             LightRadio.IsChecked = ThemePalette.IsLight(_viewModel.Model.Theme);
 
             ToneSlider.Value = Math.Clamp(_viewModel.Model.Tone, 0, 1);
+
+            bool autoFit = !string.Equals(
+                _viewModel.Model.Placement.SizeMode, SizeModes.Manual, StringComparison.OrdinalIgnoreCase);
+            AutoFitRadio.IsChecked = autoFit;
+            ManualSizeRadio.IsChecked = !autoFit;
+
             HideCompletedCheck.IsChecked = _viewModel.HideCompleted;
             AutostartCheck.IsChecked = Shell.Autostart.IsEnabled();
         }
@@ -85,6 +91,18 @@ public partial class SettingsWindow : Window
         }
 
         _viewModel.SetTone(e.NewValue);
+    }
+
+    private void OnSizeModeChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading || sender is not RadioButton { IsChecked: true } radio)
+        {
+            return;
+        }
+
+        _main.SetSizeMode(
+            ReferenceEquals(radio, ManualSizeRadio) ? SizeModes.Manual : SizeModes.AutoFit,
+            "设置面板");
     }
 
     private void OnHideCompletedChanged(object sender, RoutedEventArgs e)

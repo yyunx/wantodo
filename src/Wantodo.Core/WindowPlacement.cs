@@ -12,6 +12,12 @@ public sealed class WindowPlacement
 
     public double Height { get; set; } = 320;
 
+    /// <summary>
+    /// 窗口尺寸策略：<see cref="SizeModes.AutoFit"/>（默认，结构变化时跟着收放）
+    /// 或 <see cref="SizeModes.Manual"/>（用户自己调过，之后不再自动改）。
+    /// </summary>
+    public string SizeMode { get; set; } = SizeModes.AutoFit;
+
     /// <summary>有没有存过位置。没存过就由程序挑一个默认落点。派生值，不写进 JSON。</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasPosition => Left.HasValue && Top.HasValue;

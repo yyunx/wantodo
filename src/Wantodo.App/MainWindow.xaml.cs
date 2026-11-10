@@ -20,13 +20,10 @@ public partial class MainWindow : Window
     private const string NoteDataFormat = "wantodo/note";
 
     /// <summary>一栏能压到的最窄宽度（DIP）。再窄就横向滚动，不让文字被剪成一条缝。</summary>
-    private const double MinColumnWidth = 190;
+    private const double MinColumnWidth = LayoutMetrics.MinPaneWidth;
 
     /// <summary>栏与栏之间的间距：模板里是 Margin="4,0"，左右各 4。</summary>
-    private const double ColumnGap = 8;
-
-    /// <summary>加栏时希望保住的舒适宽度；窗口放不下就先撑窗口，撑不动才退到最小宽度。</summary>
-    private const double PreferredColumnWidth = 280;
+    private const double ColumnGap = LayoutMetrics.PaneGap;
 
     public static readonly DependencyProperty ColumnWidthProperty = DependencyProperty.Register(
         nameof(ColumnWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(MinColumnWidth));
@@ -40,6 +37,10 @@ public partial class MainWindow : Window
     private SettingsWindow? _settingsWindow;
     private QuickCaptureWindow? _quickCapture;
     private bool _hotKeyRegistered;
+
+    private bool _applyingSize;
+    private double _expectedWidth = double.NaN;
+    private bool _manualSizeLogged;
 
     private Point _dragStart;
     private NoteViewModel? _draggingNote;
@@ -64,9 +65,14 @@ public partial class MainWindow : Window
 
         _viewModel.Columns.CollectionChanged += OnColumnsChanged;
         Loaded += (_, _) => UpdateColumnWidths();
-        SizeChanged += (_, _) => UpdateColumnWidths();
+        SizeChanged += OnWindowSizeChanged;
+        StateChanged += OnWindowStateChanged;
 
         ApplyPlacement();
+
+        // AutoFit 下，上次关窗时的宽度可能对不上现在恢复出来的栏数（比如加了栏还没关就被杀），
+        // 启动时先收敛一次，免得一睁眼就是被挤扁的四栏。
+        ApplyAutoFit("启动");
     }
 
     /// <summary>每栏宽度，由窗口可用宽度和栏数算出来；窄到放不下就保持最小宽度并横向滚动。</summary>
@@ -321,6 +327,8 @@ public partial class MainWindow : Window
         var placement = Board.Placement;
         Width = Math.Max(MinWidth, placement.Width);
         Height = Math.Max(MinHeight, placement.Height);
+        // 记下「我们自己设的宽度」，SizeChanged 里靠它区分用户拖拽
+        _expectedWidth = Width;
 
         if (placement.HasPosition)
         {
@@ -543,43 +551,136 @@ public partial class MainWindow : Window
 
     private void OnColumnsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.Action == NotifyCollectionChangedAction.Add)
+        switch (e.Action)
         {
-            GrowWindowForColumns();
+            case NotifyCollectionChangedAction.Add:
+                ApplyAutoFit("加栏");
+                break;
+
+            case NotifyCollectionChangedAction.Remove:
+                ApplyAutoFit("删栏");
+                break;
         }
 
         UpdateColumnWidths();
     }
 
     /// <summary>
-    /// 加栏时如果按最小宽度已经放不下，先把窗口往右撑（撑到屏幕边缘为止），
-    /// 实在放不下才交给横向滚动。窗口本来就更宽时不动它。
+    /// 结构变了（加栏 / 删栏）就让窗口收放到「刚好放下这些栏」。
+    /// 只在 <see cref="SizeModes.AutoFit"/> 下生效；用户拖过边框就切到 Manual，不再擅自改尺寸。
+    /// 目标宽度 = 16 + n × (280 + 8)；夹在 MINWIDTH 与工作区宽度之间。
     /// </summary>
-    private void GrowWindowForColumns()
+    public void ApplyAutoFit(string reason)
     {
         int count = _viewModel.Columns.Count;
-        // 目标是一栏 PreferredColumnWidth 宽；窗口不够就撑窗口，撑到屏幕边界为止
-        double preferred = PreferredColumnWidth;
-        double needed = ColumnGap * count + preferred * count + ColumnGap;
-        double current = ActualWidth > 0 ? ActualWidth : Width;
+        if (count <= 0)
+        {
+            return;
+        }
 
-        if (current >= needed)
+        if (!string.Equals(Board.Placement.SizeMode, SizeModes.AutoFit, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
         var work = SystemParameters.WorkArea;
-        double width = Math.Min(needed, work.Width - ColumnGap);
-        double left = Left;
+        double target = Math.Max(MinWidth, LayoutMetrics.FitTo(LayoutMetrics.ComputePreferredWidth(count), count, work.Width));
+        double current = ActualWidth > 0 ? ActualWidth : Width;
 
-        if (left + width > work.Right)
+        if (Math.Abs(target - current) < 0.5)
         {
-            left = Math.Max(work.Left, work.Right - width);
+            _expectedWidth = current;
+            return;
         }
 
-        AppLog.Info($"加栏后窗口加宽 {current:F0} → {width:F0} DIP @ {left:F0}");
-        Left = left;
-        Width = width;
+        // 默认保持左边缘不动；只有右边越界时才整体左移，避免整窗跳一下
+        double left = Left;
+        if (left + target > work.Right)
+        {
+            left = Math.Max(work.Left, work.Right - target);
+        }
+
+        _applyingSize = true;
+        try
+        {
+            Left = left;
+            Width = target;
+        }
+        finally
+        {
+            _applyingSize = false;
+            _expectedWidth = Width;
+        }
+
+        AppLog.Info($"AutoFit（{reason}）：{current:F0} → {Width:F0} DIP（{count} 栏）@ {left:F0}");
+
+        if (Math.Abs(Left - left) > 0.5 || Math.Abs(Width - target) > 0.5)
+        {
+            AppLog.Warn($"AutoFit 目标 {target:F0} 被系统夹到 {Width:F0}（MinWidth={MinWidth}）");
+        }
+    }
+
+    /// <summary>设置面板切「跟随栏数 / 固定」。</summary>
+    public void SetSizeMode(string mode, string reason)
+    {
+        string normalized = SizeModes.Normalize(mode);
+        if (string.Equals(Board.Placement.SizeMode, normalized, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Board.Placement.SizeMode = normalized;
+        _viewModel.RequestSave();
+        AppLog.Info($"窗口尺寸策略切到 {normalized}（{reason}）");
+
+        if (string.Equals(normalized, SizeModes.AutoFit, StringComparison.OrdinalIgnoreCase))
+        {
+            // 切回自动时立刻收敛一次，不要让用户还要再点一下才看到效果
+            ApplyAutoFit("切回跟随栏数");
+        }
+        else
+        {
+            _expectedWidth = Width;
+        }
+    }
+
+    private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateColumnWidths();
+
+        if (!IsLoaded || WindowState != WindowState.Normal || _applyingSize)
+        {
+            return;
+        }
+
+        // 我们自己设的宽度不算「用户拖拽」：比较的是上一次主动设置的宽度
+        if (!double.IsNaN(_expectedWidth) && Math.Abs(Width - _expectedWidth) < 0.5)
+        {
+            return;
+        }
+
+        if (string.Equals(Board.Placement.SizeMode, SizeModes.Manual, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!_manualSizeLogged)
+        {
+            _manualSizeLogged = true;
+            AppLog.Info("用户调整了窗口尺寸，切到 Manual（之后加栏/删栏不再自动改宽度）");
+        }
+
+        Board.Placement.SizeMode = SizeModes.Manual;
+        _viewModel.RequestSave();
+        _expectedWidth = Width;
+    }
+
+    private void OnWindowStateChanged(object? sender, EventArgs e)
+    {
+        if (WindowState != WindowState.Normal)
+        {
+            SetSizeMode(SizeModes.Manual, $"窗口状态变为 {WindowState}");
+        }
     }
 
     private void OnColumnTitleMouseDown(object sender, MouseButtonEventArgs e)
