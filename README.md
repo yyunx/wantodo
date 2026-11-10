@@ -69,6 +69,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
 | [docs/decisions.md](docs/decisions.md) | 技术选型 ADR、环境实测、待定项 |
 | [docs/prompts.md](docs/prompts.md) | 可直接粘贴给 Codex 的提示词 |
 | [docs/research.md](docs/research.md) | 竞品与来源速查 |
+| [docs/design/data-root.md](docs/design/data-root.md) | 数据根目录设计（不落 C 盘、指针、迁移状态机） |
+| [docs/design/dock-layout.md](docs/design/dock-layout.md) | 停靠式自由布局设计（布局树、热区、比例、迁移） |
 
 ## 怎么开工
 
@@ -85,3 +87,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
 - [x] Phase 3 健壮性（写盘节流、位置兜底、系统事件、启动开销）—— 见 `docs/verify/phase3.md`
 - [x] Phase 4 托盘 / 设置 / 快捷键 / 主题 —— 见 `docs/verify/phase4.md`
 - [x] Phase 5 打包（单实例 + 安装脚本）—— 见 `docs/verify/phase5.md`
+- [ ] Phase 6 窗口尺寸自适应闭环（删栏收窄 / AutoFit 与 Manual 双态）
+- [ ] Phase 7 数据根外置（不落 C 盘、可迁移）—— 设计见 `docs/design/data-root.md`
+- [ ] Phase 8 随心记（笔记库 + 默认类型可配 + 外部可编辑）
+- [ ] Phase 9 停靠式自由布局（栏停靠到任意位置、单独缩放）—— 设计见 `docs/design/dock-layout.md`
+- [ ] Phase 10 0.5.0 收口（回归矩阵 + 发布说明）
