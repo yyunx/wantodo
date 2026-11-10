@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Wantodo.Core;
 
 namespace Wantodo.App.ViewModels;
@@ -29,6 +29,27 @@ public sealed class NoteViewModel : ObservableObject
     public RelayCommand ToggleCommand { get; }
 
     public string Text => _model.Text;
+
+    private string _blockerHint = string.Empty;
+
+    /// <summary>
+    /// 「卡住清单」里同名条目填的原因；空串表示没卡住。主界面悬停提示绑这个值。
+    /// 靠文字匹配而不是 id，是因为用户可能在两个地方各写一遍同样的任务名。
+    /// </summary>
+    public string BlockerHint
+    {
+        get => _blockerHint;
+        set
+        {
+            if (SetProperty(ref _blockerHint, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(HasBlocker));
+            }
+        }
+    }
+
+    /// <summary>有卡点才让提示生效（空提示框会闪一下空白，很难看）。</summary>
+    public bool HasBlocker => _blockerHint.Length > 0;
 
     public bool IsCompleted => _model.Completed;
 

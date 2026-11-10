@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -44,6 +45,7 @@ public partial class MainWindow : Window
     private SettingsWindow? _settingsWindow;
     private QuickCaptureWindow? _quickCapture;
     private NotesWindow? _notesWindow;
+    private BlockersWindow? _blockersWindow;
     private bool _hotKeyRegistered;
 
     private bool _applyingSize;
@@ -81,6 +83,7 @@ public partial class MainWindow : Window
         {
             RebuildLayout();
             UpdateColumnsHostSize();
+            RefreshBlockerHints();
         };
         SizeChanged += OnWindowSizeChanged;
         StateChanged += OnWindowStateChanged;
@@ -157,6 +160,7 @@ public partial class MainWindow : Window
         _quickCapture?.Close();
         _settingsWindow?.Close();
         _notesWindow?.Close();
+            _blockersWindow?.Close();
 
         _shellRestartWatcher?.Dispose();
         _shellRestartWatcher = null;
@@ -626,6 +630,52 @@ public partial class MainWindow : Window
     }
 
     private void OnNotesClick(object sender, RoutedEventArgs e) => ShowNotes();
+
+    // ---------- 卡住清单 ----------
+
+    /// <summary>打开「想做 ⇄ 卡在什么地方」对照表；已经开着就提到前面。</summary>
+    public void ShowBlockers()
+    {
+        if (_blockersWindow is not null)
+        {
+            _blockersWindow.Activate();
+            return;
+        }
+
+        _blockersWindow = new BlockersWindow(this, _paths.BoardDir) { Owner = this };
+        _blockersWindow.Closed += (_, _) =>
+        {
+            _blockersWindow = null;
+            RefreshBlockerHints();
+        };
+
+        _blockersWindow.Show();
+        RefreshBlockerHints();
+        AppLog.Info($"打开卡住清单：{Path.Combine(_paths.BoardDir, BlockersDocument.FileName)}");
+    }
+
+    /// <summary>把卡住清单里的原因同步到条目上（悬停提示绑的就是它）。</summary>
+    public void RefreshBlockerHints()
+    {
+        var document = new BlockersStore(_paths.BoardDir).Load();
+
+        foreach (var column in _viewModel.Columns)
+        {
+            foreach (var note in column.Notes)
+            {
+                note.BlockerHint = document.Find(note.Text)?.Blocker ?? string.Empty;
+            }
+        }
+    }
+
+    /// <summary>主界面里把条目拖到「卡住」按钮上：直接开窗并加一行。</summary>
+    public void AddNoteToBlockers(NoteViewModel note)
+    {
+        ShowBlockers();
+        _blockersWindow?.AddFromText(note.Text);
+    }
+
+    private void OnBlockersClick(object sender, RoutedEventArgs e) => ShowBlockers();
 
     /// <summary>加栏先问名字：回车用默认名，Esc 取消（用户明确要求）。</summary>
     private void OnAddColumnClick(object sender, RoutedEventArgs e)

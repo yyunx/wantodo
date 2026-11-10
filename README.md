@@ -101,4 +101,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
 - [x] Phase 7 数据根外置（不落 C 盘、可迁移）—— 见 `docs/verify/phase7.md`
 - [x] Phase 8 随心记（笔记库 + 默认类型可配 + 外部可编辑）—— 见 `docs/verify/phase8.md`
 - [x] Phase 9 停靠式自由布局（栏停靠到任意位置、单独缩放）—— 设计见 `docs/design/dock-layout.md`，证据 `docs/verify/phase9.md`
-- [ ] Phase 10 0.5.0 收口（回归矩阵 + 发布说明）
+- [x] Phase 10 卡住清单（想做 ⇄ 卡在什么地方，独立窗口 + 悬停提示）—— 见 `docs/verify/phase10.md`
+- [ ] Phase 11 0.5.0 收口（回归矩阵 + 发布说明）

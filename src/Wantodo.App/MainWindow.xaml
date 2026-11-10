@@ -256,6 +256,19 @@
                                                       PreviewMouseLeftButtonDown="OnNoteRowPreviewMouseDown"
                                                       PreviewMouseMove="OnNoteRowPreviewMouseMove"
                                                       MouseLeftButtonDown="OnNoteRowMouseLeftButtonDown">
+                                                    <Grid.Style>
+                                                        <Style TargetType="Grid">
+                                                            <!-- 卡住清单里有同名条目才提示；没有就不设 ToolTip（空提示框会闪白） -->
+                                                            <Setter Property="ToolTip" Value="{Binding BlockerHint}" />
+                                                            <Setter Property="ToolTipService.InitialShowDelay" Value="350" />
+                                                            <Setter Property="ToolTipService.ShowDuration" Value="20000" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasBlocker}" Value="False">
+                                                                    <Setter Property="ToolTip" Value="{x:Null}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Grid.Style>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="20" />
                                                         <ColumnDefinition Width="*" />
@@ -351,6 +364,7 @@
                 <Button x:Name="AddColumnButton"
                         Style="{StaticResource TitleBarButton}"
                         Click="OnAddColumnClick"
+                        AutomationProperties.Name="加栏"
                         IsEnabled="{Binding CanAddColumn}"
                         ToolTip="加一栏（会给它起个名）">
                     <StackPanel Orientation="Horizontal">
@@ -360,7 +374,18 @@
                     </StackPanel>
                 </Button>
                 <Button Style="{StaticResource TitleBarButton}" Margin="6,0,0,0"
+                        Click="OnBlockersClick"
+                        AutomationProperties.Name="卡住清单"
+                        ToolTip="卡住清单：想做 ⇄ 卡在什么地方（也可以把主界面的条目拖进去）">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                   VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="卡住" FontSize="11.5" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource TitleBarButton}" Margin="6,0,0,0"
                         Click="OnNotesClick"
+                        AutomationProperties.Name="随心记"
                         ToolTip="随心记：打开笔记库（随手记一笔也可以按 Ctrl+Alt+Space）">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="10"
