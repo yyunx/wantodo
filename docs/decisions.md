@@ -303,6 +303,27 @@ Phase 1 实际落盘的是 `version` / `surface` / `theme` / `tone` / `placement
   迁移路径，收益要等 Phase 8（笔记库）/9（停靠布局）引入更多设置才显现；`DataPaths.SettingsFile` 先留位。
 
 ---
+## D16 — 布局树：单类 + `type` 判别；沿用 `columns[]` 当 panes（Phase 9）
+
+**决定**
+
+1. `LayoutNode` 用一个类装 `leaf` / `split` 两种形态，靠 `Type` 字段判别，不写多态继承或 `record` 层级。
+2. 布局树只新增 `layout` 一个字段，**不把 `columns[]` 改名成 `panes[]`**；树的叶子引用 `column.Id`。
+3. 结构变更（插入/移动/删除/互换）重建整棵视图；只有比例变化时改 `GridLength`，不重建。
+
+**理由**
+
+- System.Text.Json 的多态要配 `$type` 转换器或自定义 `JsonConverter`，而这两种数据结构都允许用户手改文件；
+  扁平结构坏了顶多是「布局回退」，多态解析失败是整块数据读不出来。
+- 改名 `columns[]` 要同时动 `BoardEditor`、五个 ViewModel、XAML 绑定和两套迁移逻辑，收益只是名字好听；
+  真正的语义差异（叶子集合 = 栏集合）由 `Validate` 保证。
+- 重建视图的代价是几个 `Grid` 对象，只在结构变化时发生；每次拖动都重建会掉帧。
+
+**代价**
+
+- `Validate` 必须每次结构变更后跑一遍，并且**失败要写日志**（本轮就栽在「静默回退」上：`data.json` 里 4 个叶子、
+  栏只剩 3 个，树被打回均衡横向，日志里只有旧的 `绘制布局：Horizontal`）。
+- 深拷贝用 `Clone()` 手写，新增字段时容易漏；目前只有 6 个字段，可接受。
 ## D15 — 笔记是「普通文件 + 全量重扫」，不建索引、不锁文件（Phase 8）
 
 **结构**：`<数据根>\notes\<yyyyMMdd-HHmm-slug>.<ext>`，`trash\<yyyyMMdd-HHmmss>-<原名>` 回收。
