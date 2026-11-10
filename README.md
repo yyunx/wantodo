@@ -1,105 +1,157 @@
 # wantodo
 
-贴在 Windows 桌面上的便签板 —— 像手机主屏的小组件，默认两栏：「要做的事情」「突然想到的问题」。
+贴在 Windows 桌面上的便签板——像手机主屏的小组件，但里面是你的待办、随手记和"卡在什么地方"。
 
-> **怎么用、怎么装：看 [docs/usage.md](docs/usage.md)（使用说明）**。下面这份 README 偏开发向。
+![wantodo](docs/verify/phase11-installed.png)
 
-## 现状
+它能贴在桌面图标那一层：**Win + D 之后还在**，普通窗口可以盖住它，不抢焦点，也不会挡在浏览器前面。
 
-**Phase 8 已通过**（2026-11-10）：随心记——笔记是数据根下的**普通文件**（`notes\yyyyMMdd-HHmm-标题.txt|md`），
-可被 Obsidian / 记事本直接编辑，改了窗口 2.5 秒内自动同步；0.6 秒去抖自动保存，删除进 `trash\`。
-证据见 [`docs/verify/phase8.md`](docs/verify/phase8.md)
-（Phase 7 在 [`phase7.md`](docs/verify/phase7.md)；6 在 [`phase6.md`](docs/verify/phase6.md)；
-5 在 [`phase5.md`](docs/verify/phase5.md)；4 在 [`phase4.md`](docs/verify/phase4.md)；
-3 在 [`phase3.md`](docs/verify/phase3.md)；2 / 2.5 在
-[`phase2.md`](docs/verify/phase2.md)、[`phase2.5.md`](docs/verify/phase2.5.md)）。
+---
 
-自包含单文件发布（148.74 MB，不依赖运行时）、单实例（第二次双击只把已有窗口叫到前面）、
-`install.ps1` / `uninstall.ps1`（装到 `%LOCALAPPDATA%\Programs\wantodo`，开始菜单快捷方式，不需要管理员）。
+## 下载
 
-已能用的操作：
+**[下载最新版](https://github.com/yyunx/wantodo/releases/latest)** — `Wantodo.exe`，单文件，Windows 10 1809+ / 11 x64，不依赖 .NET 运行时。
 
-- 栏尾输入框回车 → 加一条并保持焦点；`Shift+Enter` 条目内换行
-- 双击条目/栏标题 → 就地编辑；`Esc` 取消，`Enter` 提交
-- 点勾选圆点或选中行按 `Space` → 划线；`↑/↓` 在条目间移动焦点
-- 条目拖到另一栏或同栏其它位置 → 落点线提示
-- 顶栏「＋ 栏」插在最近操作的那栏右边，最多 4 栏；栏标题旁 ✕ 删栏（栏里有内容会先确认）
-- 加栏自动撑宽到 280 DIP/栏、删栏自动收窄；手动拖过窗口就转「固定」，设置里可切回「跟随栏数」
-- 每栏最窄 190 DIP，窗口放不下就横向滚动，不会把文字挤成一条缝
-- 托盘左键：显示/隐藏（召回不夺焦点）；托盘右键：设置、层级、外观、隐藏已完成、开机自启、退出
-- `Ctrl+Alt+Space`：贴屏幕上方弹出「快速记一条」，回车入库、Esc 取消
-- 设置面板：桌面层/普通窗口/置顶、深色/浅色、色调强度、隐藏已完成、开机自启（写 `HKCU\...\Run`，可回滚）、
-  窗口尺寸策略（跟随栏数 / 固定）、数据位置（打开目录 / 迁移到… / 清理旧数据）、随心记默认类型（txt / md）
-- 顶栏「记」或托盘「随心记…」：左侧笔记列表 + 右侧编辑器；`＋ 新建`、`打开文件夹`、`删除`（进 `trash\`）
+双击就能用。第一次运行如果被 SmartScreen 拦下（exe 没有代码签名），点「更多信息 → 仍要运行」。
 
-已验证的窗口语义：`SetWindowLongPtr(GWLP_HWNDPARENT, Progman)` 设 owner 即可贴在桌面图标层，
-Win+D 不受影响，Explorer 重启后靠 `TaskbarCreated` 重挂，全程不需要分层窗口
-（`exstyle` 无 `WS_EX_LAYERED`，硬件加速完好）。这一代 Windows 没有可用的 WorkerW 壁纸层，
-所以宿主按 **Progman 优先、WorkerW 兜底**探测。
+想要开始菜单快捷方式，把 `install.ps1` 和 exe 放一起，执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+它只装到 `%LOCALAPPDATA%\Programs\wantodo`，不需要管理员，也不碰系统目录。
+
+---
+
+## 功能
+
+**多栏待办板**
+
+- 栏数 1–4，加栏时会问你要叫什么名字（直接回车用默认名）
+- 栏可以**拖到任意位置**停靠：顶部拖动条按住，拖到别的栏左/右/上/下，松手就按预览的位置并排
+- 拖到正中就是两栏互换；分隔条单独拖动调比例，**窗口大小不变**
+- 窗口宽度跟随栏数自动伸缩（2 栏 592 / 3 栏 880 / 4 栏 1168），手动拖过窗口后自动切成"固定"，不再自动改
+
+**条目**
+
+- 回车加一条；双击就地改；勾选划线置灰；`Shift + Enter` 换行
+- 拖拽排序（有插入位置提示）；`↑ ↓` 移动、`Space` 勾选、`Enter` 编辑
+- 删掉条目有二次确认
+
+**随心记**（顶栏「随心记」入口 / 托盘 / `Ctrl + Alt + Space`）
+
+- 就是一个文件夹里的 `.txt` 或 `.md`，**不是数据库**，Obsidian、VSCode 都能直接开
+- 外部编辑器改了文件，窗口 2 秒内自动刷新；改名保留时间前缀
+- 删除进 `trash\`，保留 30 天
+
+**卡住清单**（顶栏「⚠ 卡住」）
+
+- 左边"想做的事"、右边"卡在什么地方"，存成 `board\blockers.md` 的 Markdown 表格
+- 从主界面把条目**拖到「卡住」按钮**上，就自动加一行
+- 主界面上有卡住原因的条目，鼠标悬停会显示深色提示卡片
+
+**其它**
+
+- 托盘：左键显示/隐藏（不抢焦点），右键菜单有层级、外观、开机自启、退出
+- 外观：深色 / 浅色 + 色调强度
+- 全局快捷键 `Ctrl + Alt + Space`：不切窗口直接记一条
+- 单实例：重复打开只把已有窗口叫到前面
+- 数据不在 C 盘：自动选非系统盘，可在「设置 → 数据位置」整体迁移
+
+---
+
+## 三个容易踩的点
+
+1. **右上角 ✕ 是隐藏到托盘**，不是退出。要真的退出：托盘右键 →「退出」。
+2. **数据不在 exe 旁边**。默认放非系统盘（程序在非 C 盘时用 `<程序目录>\data`；在 C 盘时用剩余空间最大的非系统盘建 `<盘>:\Wantodo`）。按「设置 → 数据位置」能看到当前根，也能一键迁移。
+3. **首次运行会被 SmartScreen / 杀软提醒**，因为没有代码签名。介意的话自己从源码构建。
+
+---
+
+## 快捷键
+
+| 位置 | 按键 | 作用 |
+| --- | --- | --- |
+| 全局 | `Ctrl + Alt + Space` | 唤出"记一条"，回车入库 |
+| 栏尾输入框 | `Enter` | 提交并继续下一条 |
+| 条目列表 | `↑` `↓` | 移动选中行 |
+| 条目列表 | `Space` | 勾选 / 取消 |
+| 条目列表 | `Enter` | 就地编辑 |
+| 就地编辑 | `Enter` | 提交 |
+| 就地编辑 | `Shift + Enter` | 换行 |
+| 就地编辑 | `Esc` | 取消 |
+| 栏标题 | 双击 | 改名 |
+| 栏顶部横条 | 按住拖动 | 停靠到别的位置 |
+
+---
+
+## 数据在哪
+
+```
+<数据根>\
+  board\data.json      待办板（原子写 + data.bak 回退 + 损坏隔离）
+  board\blockers.md    卡住清单（Markdown 表格，可直接编辑）
+  notes\inbox\*.md|txt 随心记（文件名即标题，md 带 front matter）
+  logs\app-yyyyMMdd.log
+  trash\               删除的笔记，保留 30 天
+  README.txt           这个目录是干什么的
+```
+
+整个数据根目录拷走就是完整备份；换机器拷回去即可继续用。
+
+---
+
+## 从源码构建
+
+需要 .NET 10 SDK（.NET 8 / 9 已于 2026-11-10 结束支持）。
+
+```powershell
+git clone https://github.com/yyunx/wantodo.git
+cd wantodo
+
+dotnet build Wantodo.slnx -warnaserror
+dotnet test  Wantodo.slnx
+
+# 发布单文件（自包含，约 149 MB）
+dotnet publish src\Wantodo.App\Wantodo.App.csproj -c Release -r win-x64 `
+  --self-contained true -p:PublishSingleFile=true `
+  -p:IncludeNativeLibrariesForSelfExtract=true -o publish\sc
+```
+
+开发时直接跑 `src\Wantodo.App\bin\Debug\net10.0-windows\Wantodo.exe` 即可。如果 .NET SDK 装在用户目录，先设：
 
 ```powershell
 $env:DOTNET_ROOT="$env:LOCALAPPDATA\Microsoft\dotnet"; $env:PATH="$env:DOTNET_ROOT;$env:PATH"
-dotnet build Wantodo.slnx -warnaserror
-dotnet test tests\Wantodo.Core.Tests\Wantodo.Core.Tests.csproj
-Start-Process src\Wantodo.App\bin\Debug\net10.0-windows\Wantodo.exe
 ```
 
-数据根（业务数据都在这，**默认不在 C 盘**）：开发版是 `src\Wantodo.App\bin\Debug\net10.0-windows\data`，
-安装版按「空间最大的非系统盘」选，本机为 `E:\Wantodo`。当前实际路径看设置面板「数据位置」或
-`HKCU\Software\wantodo` 的 `DataRoot`。板数据在 `<根>\board\data.json`（可直接手改，改完重启生效），
-日志在 `<根>\logs\app-yyyyMMdd.log`，笔记在 `<根>\notes\`，回收站在 `<根>\trash\`。
+### 项目结构
 
-## 安装 / 卸载
-
-```powershell
-# 先出发布产物（自包含单文件，约 149 MB）
-dotnet publish src\Wantodo.App\Wantodo.App.csproj -c Release -r win-x64 --self-contained true `
-  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish\sc
-
-# 装到 %LOCALAPPDATA%\Programs\wantodo + 开始菜单快捷方式（不加 -DesktopShortcut 就不建桌面图标）
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
-
-# 卸载：默认保留数据；要连便签一起删就加 -RemoveData
-powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
+```
+src/Wantodo.Core/          模型、布局树、持久化、笔记库、卡住清单（纯逻辑，可单测）
+src/Wantodo.App/           WPF 宿主：窗口、ViewModel、Interop(桌面层)、托盘、对话框
+tests/Wantodo.Core.Tests/  159 个单元测试
+docs/                      规格、计划、决策、设计、验收记录、使用说明
+spike/                     早期验证桌面层行为的一次性探针
 ```
 
-- 分发用 **self-contained 单文件**：framework-dependent 版只有 1.37 MB，但要求机器上有 .NET 10
-  Desktop Runtime，双击会弹 `You must install .NET to run this application`。
-- 未经签名，首次运行 SmartScreen 会拦一下（「更多信息 → 仍要运行」）。
-- 安装只影响当前用户，不写 `Program Files`、不需要管理员；控制面板「应用」里看不到，卸载用 `uninstall.ps1`。
+技术栈：WPF + .NET 10。桌面层是通过 `SetWindowLongPtr(GWLP_HWNDPARENT, Progman)` 把窗口挂成桌面窗口的 **owner**（不是 `SetParent`），所以 Win+D 不隐藏、普通窗口能盖住。细节见 `docs/decisions.md`。
+
+---
 
 ## 文档
 
-| 文件 | 作用 |
-|---|---|
-| [AGENTS.md](AGENTS.md) | 给 Codex 的仓库约定（技术栈、硬性规则、完成定义） |
-| [docs/usage.md](docs/usage.md) | **使用说明**：下载安装、日常操作、快捷键、数据备份、常见问题 |
-| [docs/spec.md](docs/spec.md) | 产品规格：场景、功能分级、数据模型、交互细节 |
-| [docs/plan.md](docs/plan.md) | 分阶段计划 + 每阶段验收清单 |
-| [docs/decisions.md](docs/decisions.md) | 技术选型 ADR、环境实测、待定项 |
-| [docs/prompts.md](docs/prompts.md) | 可直接粘贴给 Codex 的提示词 |
-| [docs/research.md](docs/research.md) | 竞品与来源速查 |
-| [docs/design/data-root.md](docs/design/data-root.md) | 数据根目录设计（不落 C 盘、指针、迁移状态机） |
-| [docs/design/dock-layout.md](docs/design/dock-layout.md) | 停靠式自由布局设计（布局树、热区、比例、迁移） |
+| 文档 | 内容 |
+| --- | --- |
+| [docs/usage.md](docs/usage.md) | 使用说明（安装、日常操作、备份、FAQ） |
+| [docs/spec.md](docs/spec.md) | 产品规格与数据模型 |
+| [docs/plan.md](docs/plan.md) | 分阶段计划与验收记录 |
+| [docs/decisions.md](docs/decisions.md) | 技术决策与取舍（D1–D17） |
+| [docs/design/](docs/design/) | 数据根、停靠布局设计 |
+| [docs/verify/](docs/verify/) | 每个阶段的实测证据与截图 |
 
-## 怎么开工
+---
 
-```
-读 AGENTS.md 和 docs/plan.md，按 docs/prompts.md 里的「0. 开场」开始。
-```
+## 许可
 
-## 路线图
-
-- [x] Phase 0 桌面层探针（Progman owner / Win+D / Explorer 重启）—— 见 `docs/verify/phase0.md`
-- [x] Phase 1 骨架 + 两栏界面（只读、能存能读、数据驱动）—— 见 `docs/verify/phase1.md`
-- [x] Phase 2 交互（增删改、勾选划线、拖拽排序、栏操作）—— 见 `docs/verify/phase2.md`
-- [x] Phase 2.5 布局优化（加栏插在当前栏右边、最小栏宽 190 DIP、窄了横向滚动）—— 见 `docs/verify/phase2.5.md`
-- [x] Phase 3 健壮性（写盘节流、位置兜底、系统事件、启动开销）—— 见 `docs/verify/phase3.md`
-- [x] Phase 4 托盘 / 设置 / 快捷键 / 主题 —— 见 `docs/verify/phase4.md`
-- [x] Phase 5 打包（单实例 + 安装脚本）—— 见 `docs/verify/phase5.md`
-- [x] Phase 6 窗口尺寸自适应闭环（删栏收窄 / AutoFit 与 Manual 双态）—— 见 `docs/verify/phase6.md`
-- [x] Phase 7 数据根外置（不落 C 盘、可迁移）—— 见 `docs/verify/phase7.md`
-- [x] Phase 8 随心记（笔记库 + 默认类型可配 + 外部可编辑）—— 见 `docs/verify/phase8.md`
-- [x] Phase 9 停靠式自由布局（栏停靠到任意位置、单独缩放）—— 设计见 `docs/design/dock-layout.md`，证据 `docs/verify/phase9.md`
-- [x] Phase 10 卡住清单（想做 ⇄ 卡在什么地方，独立窗口 + 悬停提示）—— 见 `docs/verify/phase10.md`
-- [ ] Phase 11 0.5.0 收口（回归矩阵 + 发布说明）
+暂未添加 LICENSE 文件（默认保留所有权利）。如需开源请补一个（MIT / Apache-2.0 都可以）。
