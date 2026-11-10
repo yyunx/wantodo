@@ -1461,32 +1461,29 @@ public partial class MainWindow : Window
     /// <summary>落点区域：左右边各 28%（最多 80px）、上下边各 28%（最多 60px），中心是互换。</summary>
     private static DockSide ComputeDropSide(Point point, double width, double height, out bool swap)
     {
-        var edgeX = Math.Min(0.28 * width, 80);
-        var edgeY = Math.Min(0.28 * height, 60);
-        swap = false;
+        // 判定范围放宽到 45%（左右最多 180px、上下最多 140px），
+        // 再按「离哪条边最近」选目标，避免先匹配左边导致右边/上下几乎点不到。
+        var edgeX = Math.Min(0.45 * width, 180);
+        var edgeY = Math.Min(0.45 * height, 140);
 
-        if (point.X < edgeX)
+        var left = point.X / edgeX;
+        var right = (width - point.X) / edgeX;
+        var top = point.Y / edgeY;
+        var bottom = (height - point.Y) / edgeY;
+
+        swap = left >= 1 && right >= 1 && top >= 1 && bottom >= 1;
+        if (swap)
         {
             return DockSide.Left;
         }
 
-        if (point.X > width - edgeX)
-        {
-            return DockSide.Right;
-        }
+        var best = left;
+        var side = DockSide.Left;
+        if (right < best) { best = right; side = DockSide.Right; }
+        if (top < best) { best = top; side = DockSide.Top; }
+        if (bottom < best) { side = DockSide.Bottom; }
 
-        if (point.Y < edgeY)
-        {
-            return DockSide.Top;
-        }
-
-        if (point.Y > height - edgeY)
-        {
-            return DockSide.Bottom;
-        }
-
-        swap = true;
-        return DockSide.Left;
+        return side;
     }
 
     private void ShowDropPreview(FrameworkElement target, DockSide side, bool swap)
@@ -1743,7 +1740,7 @@ public partial class MainWindow : Window
 
         try
         {
-            DragDrop.DoDragDrop((DependencyObject)sender, new DataObject(NoteDataFormat, note), DragDropEffects.Move);
+            DragDrop.DoDragDrop((DependencyObject)sender, new DataObject(NoteDataFormat, note), DragDropEffects.Move | DragDropEffects.Copy);
         }
         finally
         {
