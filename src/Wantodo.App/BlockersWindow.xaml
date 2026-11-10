@@ -10,7 +10,7 @@
         AllowsTransparency="False"
         ResizeMode="CanResizeWithGrip"
         ShowInTaskbar="False"
-        Topmost="True"
+        Topmost="False"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource WindowBackground}">
     <WindowChrome.WindowChrome>

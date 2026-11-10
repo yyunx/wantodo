@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
@@ -36,6 +36,8 @@ public partial class MainWindow : Window
     private Point _paneDragOrigin;
     private string? _paneDragId;
     private bool _dragHoverLogged;
+    private DockSide _lastDropSide;
+    private bool _lastDropSwap = true;
     private readonly BoardViewModel _viewModel;
     private readonly DataPaths _paths;
 
@@ -1449,6 +1451,13 @@ public partial class MainWindow : Window
             var width = Math.Max(1, element.ActualWidth);
             var height = Math.Max(1, element.ActualHeight);
             var side = ComputeDropSide(point, width, height, out var swap);
+            if (side != _lastDropSide || swap != _lastDropSwap)
+            {
+                _lastDropSide = side;
+                _lastDropSwap = swap;
+                AppLog.Info($"落点判定 {side}{(swap ? "（互换）" : string.Empty)}：x={point.X:F0} y={point.Y:F0} 容器={width:F0}×{height:F0}");
+            }
+
             ShowDropPreview(element, side, swap);
         }
         catch (Exception ex)
@@ -1458,30 +1467,43 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>落点区域：左右边各 28%（最多 80px）、上下边各 28%（最多 60px），中心是互换。</summary>
+    /// <summary>
+    /// 落点判定：把栏切成 30% / 70% 两条分界线。
+    /// 左 30% = 停到左边、右 30% = 右边、上 30% = 上边、下 30% = 下边；
+    /// 四个角同时命中两条带时取「离得更近的那条边」；正中间（30%~70% × 30%~70%）= 与这一栏互换。
+    /// 坐标系：point 是相对「这一栏卡片」的坐标，width/height 也是这张卡片的实际尺寸。
+    /// </summary>
     private static DockSide ComputeDropSide(Point point, double width, double height, out bool swap)
     {
-        // 整栏都参与判定：按「离哪条边最近」决定停靠方位，
-        // 只有正中间一个小方块（各方向 10% 以内）才算「与目标栏互换」。
         var nx = Math.Clamp(point.X / width, 0, 1);
         var ny = Math.Clamp(point.Y / height, 0, 1);
 
-        swap = Math.Abs(nx - 0.5) < 0.1 && Math.Abs(ny - 0.5) < 0.1;
-        if (swap)
+        var nearLeft = nx < 0.3;
+        var nearRight = nx > 0.7;
+        var nearTop = ny < 0.3;
+        var nearBottom = ny > 0.7;
+
+        if (!nearLeft && !nearRight && !nearTop && !nearBottom)
         {
+            swap = true;
             return DockSide.Left;
         }
 
-        var left = nx;
-        var right = 1 - nx;
-        var top = ny;
-        var bottom = 1 - ny;
+        swap = false;
 
-        var best = left;
+        // 角落会同时命中两条带，取距离更近的那条边
+        var dLeft = nx;
+        var dRight = 1 - nx;
+        var dTop = ny;
+        var dBottom = 1 - ny;
+
+        var best = double.MaxValue;
         var side = DockSide.Left;
-        if (right < best) { best = right; side = DockSide.Right; }
-        if (top < best) { best = top; side = DockSide.Top; }
-        if (bottom < best) { side = DockSide.Bottom; }
+
+        if (nearLeft && dLeft < best) { best = dLeft; side = DockSide.Left; }
+        if (nearRight && dRight < best) { best = dRight; side = DockSide.Right; }
+        if (nearTop && dTop < best) { best = dTop; side = DockSide.Top; }
+        if (nearBottom && dBottom < best) { side = DockSide.Bottom; }
 
         return side;
     }
@@ -1868,6 +1890,16 @@ public partial class MainWindow : Window
 
     private void OnNotesDragOver(object sender, DragEventArgs e)
     {
+        // 拖的是「栏」而不是条目：这里必须放行（Handled=false），让它冒泡到栏卡片。
+        // 之前这里一律 Effects=None + Handled=true，结果整个列表区域都在拒绝拖栏，
+        // 只有栏内边距那一条窄边能命中 —— 表现就是「只有最左边一条能停靠」。
+        if (e.Data.GetDataPresent(PaneDataFormat))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = false;
+            return;
+        }
+
         if (!e.Data.GetDataPresent(NoteDataFormat))
         {
             e.Effects = DragDropEffects.None;
