@@ -393,7 +393,7 @@
                         <TextBlock Text="加栏" FontSize="11.5" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource TitleBarButton}" Margin="6,0,0,0"
+                <Button x:Name="BlockersButton" Style="{StaticResource TitleBarButton}" Margin="6,0,0,0"
                         Click="OnBlockersClick"
                         AutomationProperties.Name="卡住清单"
                         AllowDrop="True"

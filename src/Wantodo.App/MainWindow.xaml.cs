@@ -684,6 +684,16 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnWindowDragOver(object sender, DragEventArgs e)
     {
+        // 条目拖到顶栏「卡住」按钮：按钮本身在 WPF 里命中不到（模板/布局导致），
+        // 所以也在窗口级接一次，用按钮的包围盒判断，保证拖上去一定有反应。
+        if (e.Data.GetDataPresent(NoteDataFormat))
+        {
+            var overButton = IsOverBlockersButton(e.GetPosition(this));
+            e.Effects = overButton ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
         if (!e.Data.GetDataPresent(PaneDataFormat))
         {
             return;
@@ -725,6 +735,17 @@ public partial class MainWindow : Window
 
     private void OnWindowDrop(object sender, DragEventArgs e)
     {
+        if (e.Data.GetDataPresent(NoteDataFormat) && e.Data.GetData(NoteDataFormat) is NoteViewModel note)
+        {
+            if (IsOverBlockersButton(e.GetPosition(this)))
+            {
+                e.Handled = true;
+                AddNoteToBlockers(note);
+            }
+
+            return;
+        }
+
         if (!e.Data.GetDataPresent(PaneDataFormat) || e.Data.GetData(PaneDataFormat) is not string sourceId)
         {
             return;
@@ -767,6 +788,20 @@ public partial class MainWindow : Window
     }
 
     private void OnWindowDragLeave(object sender, DragEventArgs e) => ClearPaneDropMarks();
+
+    /// <summary>鼠标是否落在顶栏「卡住」按钮上（用窗口坐标算包围盒，绕开命中测试）。</summary>
+    private bool IsOverBlockersButton(Point pointInWindow)
+    {
+        if (BlockersButton is null || !BlockersButton.IsVisible)
+        {
+            return false;
+        }
+
+        var topLeft = BlockersButton.TransformToAncestor(this).Transform(new Point(0, 0));
+        var rect = new Rect(topLeft, new Size(BlockersButton.ActualWidth, BlockersButton.ActualHeight));
+        rect.Inflate(6, 6);
+        return rect.Contains(pointInWindow);
+    }
 
     /// <summary>从鼠标位置往上找第一栏（模板根 Border 的 DataContext 是 ColumnViewModel）。</summary>
     private FrameworkElement? FindPaneAt(Point pointInWindow)
