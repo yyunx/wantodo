@@ -89,3 +89,17 @@ Get-Content "$env:USERPROFILE\..\..\E:\Wantodo\logs\app-*.log" -Encoding utf8 | 
 - 落点判定抽成 ComputeDropSide(point, width, height, out swap)，DragOver 与 Drop 共用同一套阈值（左右 28%/≤80px、上下 28%/≤60px）。
 
 合成鼠标驱动不了 OLE 拖放，**这两条仍需人肉确认**：拖横杠换位、把条目拖到「卡住」按钮。
+
+## 修复：拖拽时鼠标一直是禁止圈（2026-11-10 21:00）
+
+两个叠加原因，都只在真机拖拽时暴露：
+
+1. **DragOver 里抛异常**：ShowDropPreview 用 	arget.TransformToAncestor(DropPreviewLayer)，而 DropPreviewLayer 是 ScrollViewer 的兄弟节点、不是栏的祖先 → 每次 DragOver 抛 InvalidOperationException，WPF 把这次拖拽判成"不接受"，于是光标一直是红圈。改成先各自转到窗口坐标再相减，并把预览整段包进 try/catch（预览画不出来也必须让投放成功）。
+2. **栏的 Border 在 DataTemplate + 代码建树里命中不到**：AllowDrop 写在了模板根 Border 上，实测拖拽期间 DragOver 根本不到它。改成窗口级 AllowDrop + DragOver/Drop 兜底，用 InputHitTest 反查 DataContext is ColumnViewModel 的元素；落在栏间缝隙时取包围盒最近的一栏。
+
+另外两处体验修正：
+
+- 布局树最多 3 层，插到深处会被 Validate 拒绝 → 现在自动退化成「与目标栏互换」，并写日志 停靠位置太深，改为与目标栏互换。
+- 拖拽开始/命中目标各记一条日志（开始拖栏 … / 拖到栏 … / 停靠：…），下次出问题能直接从 E:\Wantodo\logs 看出来。
+
+实测（真实 OS 鼠标事件驱动）：开始拖栏 a5c437… → 拖到栏 aad277… → 停靠：栏 a5c437… → aad277… 的 Left，data.json 的布局树从 (fa71|(a5c4|aad2)) 变成预期的嵌套结构。

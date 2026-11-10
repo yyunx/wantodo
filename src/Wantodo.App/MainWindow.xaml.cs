@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private ColumnViewModel? _paneDragSource;
     private Point _paneDragOrigin;
     private string? _paneDragId;
+    private bool _dragHoverLogged;
     private readonly BoardViewModel _viewModel;
     private readonly DataPaths _paths;
 
@@ -677,6 +678,154 @@ public partial class MainWindow : Window
 
     private void OnBlockersClick(object sender, RoutedEventArgs e) => ShowBlockers();
 
+    /// <summary>
+    /// 窗口级投放兜底：栏里的 Border 虽然写了 AllowDrop，但在 DataTemplate + 代码建树的情况下
+    /// 命中测试不一定会落到它身上（实测鼠标一直是禁止圈），所以整窗接一次，用命中元素反查栏。
+    /// </summary>
+    private void OnWindowDragOver(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(PaneDataFormat))
+        {
+            return;
+        }
+
+        var pane = FindPaneAt(e.GetPosition(this));
+        if (pane is null || string.Equals(((ColumnViewModel)pane.DataContext).Id, _paneDragId, StringComparison.Ordinal))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        var target = (ColumnViewModel)pane.DataContext;
+        e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+        if (!_dragHoverLogged)
+        {
+            _dragHoverLogged = true;
+            AppLog.Info($"窗口级命中：栏 {target.Id}");
+        }
+
+        foreach (var column in _viewModel.Columns)
+        {
+            column.IsDropTarget = column.Id == target.Id;
+        }
+
+        try
+        {
+            var side = ComputeDropSide(e.GetPosition(pane), Math.Max(1, pane.ActualWidth), Math.Max(1, pane.ActualHeight), out var swap);
+            ShowDropPreview(pane, side, swap);
+        }
+        catch (Exception ex)
+        {
+            HideDropPreview();
+            AppLog.Warn($"落点预览画不出来（不影响投放）：{ex.GetType().Name} {ex.Message}");
+        }
+    }
+
+    private void OnWindowDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(PaneDataFormat) || e.Data.GetData(PaneDataFormat) is not string sourceId)
+        {
+            return;
+        }
+
+        var pane = FindPaneAt(e.GetPosition(this));
+        if (pane is null || pane.DataContext is not ColumnViewModel target || string.Equals(sourceId, target.Id, StringComparison.Ordinal))
+        {
+            ClearPaneDropMarks();
+            return;
+        }
+
+        e.Handled = true;
+        var side = ComputeDropSide(e.GetPosition(pane), Math.Max(1, pane.ActualWidth), Math.Max(1, pane.ActualHeight), out var swap);
+        var ok = swap ? _viewModel.SwapPanes(sourceId, target.Id) : _viewModel.MovePane(sourceId, target.Id, side);
+        var becameSwap = swap;
+
+        // 布局树最多 3 层，插到深处会被拒绝；这时退化成「两栏互换」，
+        // 至少让这次拖动有可见结果，而不是松手什么都不发生。
+        if (!ok && !swap)
+        {
+            ok = _viewModel.SwapPanes(sourceId, target.Id);
+            becameSwap = ok;
+            if (ok)
+            {
+                AppLog.Info("停靠位置太深，改为与目标栏互换");
+            }
+        }
+
+        ClearPaneDropMarks();
+
+        if (!ok)
+        {
+            AppLog.Warn("停靠没成功：布局树拒绝了这次移动（可能是层级超过 3 层）");
+            return;
+        }
+
+        RebuildLayout();
+        AppLog.Info($"停靠（窗口级）：{sourceId} → {(becameSwap ? "与 " + target.Id + " 互换" : target.Id + " 的 " + side)}");
+    }
+
+    private void OnWindowDragLeave(object sender, DragEventArgs e) => ClearPaneDropMarks();
+
+    /// <summary>从鼠标位置往上找第一栏（模板根 Border 的 DataContext 是 ColumnViewModel）。</summary>
+    private FrameworkElement? FindPaneAt(Point pointInWindow)
+    {
+        var hit = InputHitTest(pointInWindow) as DependencyObject;
+        while (hit is not null)
+        {
+            if (hit is FrameworkElement { DataContext: ColumnViewModel } element)
+            {
+                return element;
+            }
+
+            hit = hit is Visual ? VisualTreeHelper.GetParent(hit) : LogicalTreeHelper.GetParent(hit);
+        }
+
+        // 点在栏与栏之间的缝隙/内边距上时，松手最容易「什么都不发生」，改成取最近的那一栏。
+        FrameworkElement? nearest = null;
+        var best = double.MaxValue;
+        foreach (var candidate in EnumeratePanes(this))
+        {
+            if (candidate.ActualWidth <= 0 || candidate.ActualHeight <= 0)
+            {
+                continue;
+            }
+
+            var topLeft = candidate.TransformToAncestor(this).Transform(new Point(0, 0));
+            var dx = Math.Max(0, Math.Max(topLeft.X - pointInWindow.X, pointInWindow.X - (topLeft.X + candidate.ActualWidth)));
+            var dy = Math.Max(0, Math.Max(topLeft.Y - pointInWindow.Y, pointInWindow.Y - (topLeft.Y + candidate.ActualHeight)));
+            var distance = dx * dx + dy * dy;
+            if (distance < best)
+            {
+                best = distance;
+                nearest = candidate;
+            }
+        }
+
+        return nearest;
+    }
+
+    /// <summary>递归找出所有栏卡片（模板根 Border 的 DataContext 是 ColumnViewModel）。</summary>
+    private static IEnumerable<FrameworkElement> EnumeratePanes(DependencyObject root)
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is FrameworkElement element && element.DataContext is ColumnViewModel)
+            {
+                yield return element;
+                continue;
+            }
+
+            foreach (var nested in EnumeratePanes(child))
+            {
+                yield return nested;
+            }
+        }
+    }
+
     /// <summary>把条目拖到「卡住」按钮上：按钮本身就是投放目标（之前只有窗口内部能用，是漏接线）。</summary>
     private void OnBlockersButtonDragOver(object sender, DragEventArgs e)
     {
@@ -1216,6 +1365,7 @@ public partial class MainWindow : Window
         var source = _paneDragSource;
         _paneDragSource = null;
         _paneDragId = source.Id;
+        AppLog.Info($"开始拖栏 {source.Id}");
         try
         {
             DragDrop.DoDragDrop(
@@ -1226,6 +1376,7 @@ public partial class MainWindow : Window
         finally
         {
             _paneDragId = null;
+            _dragHoverLogged = false;
             ClearPaneDropMarks();
         }
     }
@@ -1244,17 +1395,32 @@ public partial class MainWindow : Window
 
         e.Effects = DragDropEffects.Move;
         e.Handled = true;
+        if (!_dragHoverLogged)
+        {
+            _dragHoverLogged = true;
+            AppLog.Info($"拖到栏 {target.Id}");
+        }
+
         foreach (var column in _viewModel.Columns)
         {
             column.IsDropTarget = ReferenceEquals(column, target) || column.Id == target.Id;
         }
 
-        // 落点预览：把「将要占用的那半边」画出来，松手前就能看出结果（Obsidian 那种感觉）
-        var point = e.GetPosition(element);
-        var width = Math.Max(1, element.ActualWidth);
-        var height = Math.Max(1, element.ActualHeight);
-        var side = ComputeDropSide(point, width, height, out var swap);
-        ShowDropPreview(element, side, swap);
+        // 落点预览：把「将要占用的那半边」画出来，松手前就能看出结果（Obsidian 那种感觉）。
+        // 预览只是装饰，画不出来也必须让投放成功，所以整段单独兜住异常。
+        try
+        {
+            var point = e.GetPosition(element);
+            var width = Math.Max(1, element.ActualWidth);
+            var height = Math.Max(1, element.ActualHeight);
+            var side = ComputeDropSide(point, width, height, out var swap);
+            ShowDropPreview(element, side, swap);
+        }
+        catch (Exception ex)
+        {
+            HideDropPreview();
+            AppLog.Warn($"落点预览画不出来（不影响投放）：{ex.GetType().Name} {ex.Message}");
+        }
     }
 
     /// <summary>落点区域：左右边各 28%（最多 80px）、上下边各 28%（最多 60px），中心是互换。</summary>
@@ -1296,8 +1462,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        var topLeft = target.TransformToAncestor(DropPreviewLayer).Transform(new Point(0, 0));
-        double x = topLeft.X, y = topLeft.Y, w = target.ActualWidth, h = target.ActualHeight;
+        // 注意：DropPreviewLayer 是 ScrollViewer 的兄弟节点，不是栏的祖先，
+        // 直接 TransformToAncestor(DropPreviewLayer) 会抛 InvalidOperationException，
+        // 而 DragOver 里抛异常的表现就是「鼠标一直红圈、怎么都放不进去」。统一先转到窗口坐标再相减。
+        var paneTopLeft = target.TransformToAncestor(this).Transform(new Point(0, 0));
+        var layerTopLeft = DropPreviewLayer.TransformToAncestor(this).Transform(new Point(0, 0));
+        double x = paneTopLeft.X - layerTopLeft.X;
+        double y = paneTopLeft.Y - layerTopLeft.Y;
+        double w = target.ActualWidth, h = target.ActualHeight;
 
         if (!swap)
         {
