@@ -57,6 +57,10 @@ public partial class SettingsWindow : Window
             HideCompletedCheck.IsChecked = _viewModel.HideCompleted;
             AutostartCheck.IsChecked = Shell.Autostart.IsEnabled();
 
+            bool md = string.Equals(_viewModel.Model.DefaultNoteFormat, "md", StringComparison.OrdinalIgnoreCase);
+            TxtRadio.IsChecked = !md;
+            MdRadio.IsChecked = md;
+
             DataRootText.Text = _paths.Root;
             var free = Storage.DataRootService.FreeBytesAt(_paths.Root);
             DataFreeText.Text = $"所在磁盘可用 {DataMigrator.FormatBytes(free)}；大文件不会写进这个目录以外的地方。";
@@ -101,6 +105,18 @@ public partial class SettingsWindow : Window
         }
 
         _viewModel.SetTone(e.NewValue);
+    }
+
+    private void OnNoteFormatChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading || sender is not RadioButton { IsChecked: true } radio)
+        {
+            return;
+        }
+
+        var format = ReferenceEquals(radio, MdRadio) ? "md" : "txt";
+        _viewModel.SetDefaultNoteFormat(format);
+        AppLog.Info($"随心记默认类型：{format}");
     }
 
     private void OnSizeModeChanged(object sender, RoutedEventArgs e)

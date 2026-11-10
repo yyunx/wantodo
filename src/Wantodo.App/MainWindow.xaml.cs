@@ -37,6 +37,7 @@ public partial class MainWindow : Window
     private TrayIcon? _trayIcon;
     private SettingsWindow? _settingsWindow;
     private QuickCaptureWindow? _quickCapture;
+    private NotesWindow? _notesWindow;
     private bool _hotKeyRegistered;
 
     private bool _applyingSize;
@@ -151,6 +152,7 @@ public partial class MainWindow : Window
 
         _quickCapture?.Close();
         _settingsWindow?.Close();
+        _notesWindow?.Close();
 
         _shellRestartWatcher?.Dispose();
         _shellRestartWatcher = null;
@@ -216,6 +218,21 @@ public partial class MainWindow : Window
         _settingsWindow = new SettingsWindow(this, _viewModel, _paths);
         _settingsWindow.Show();
         AppLog.Info("打开设置面板");
+    }
+
+    /// <summary>打开「随心记」（已开着就激活）。</summary>
+    public void ShowNotes()
+    {
+        if (_notesWindow is not null)
+        {
+            _notesWindow.Activate();
+            return;
+        }
+
+        _notesWindow = new NotesWindow(_paths, () => _viewModel.Model.DefaultNoteFormat);
+        _notesWindow.Closed += (_, _) => _notesWindow = null;
+        _notesWindow.Show();
+        AppLog.Info("打开随心记");
     }
 
     /// <summary>数据根（设置面板显示用）。</summary>
@@ -602,6 +619,8 @@ public partial class MainWindow : Window
             // 鼠标已经松开时 DragMove 会抛；拖拽而已，忽略
         }
     }
+
+    private void OnNotesClick(object sender, RoutedEventArgs e) => ShowNotes();
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 

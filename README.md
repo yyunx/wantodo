@@ -6,11 +6,12 @@
 
 ## 现状
 
-**Phase 7 已通过**（2026-11-10）：数据根外置——所有数据不再固定放在 C 盘，按「`portable.txt` → 注册表
-指针 → 程序目录 → 空间最大的非系统盘」选址；设置里可把数据整体迁移到别的盘并自动重启；v0.4 旧数据
-首次启动自动导入。证据见 [`docs/verify/phase7.md`](docs/verify/phase7.md)
-（Phase 6 在 [`phase6.md`](docs/verify/phase6.md)；5 在 [`phase5.md`](docs/verify/phase5.md)；4 在
-[`phase4.md`](docs/verify/phase4.md)；3 在 [`phase3.md`](docs/verify/phase3.md)；2 / 2.5 在
+**Phase 8 已通过**（2026-11-10）：随心记——笔记是数据根下的**普通文件**（`notes\yyyyMMdd-HHmm-标题.txt|md`），
+可被 Obsidian / 记事本直接编辑，改了窗口 2.5 秒内自动同步；0.6 秒去抖自动保存，删除进 `trash\`。
+证据见 [`docs/verify/phase8.md`](docs/verify/phase8.md)
+（Phase 7 在 [`phase7.md`](docs/verify/phase7.md)；6 在 [`phase6.md`](docs/verify/phase6.md)；
+5 在 [`phase5.md`](docs/verify/phase5.md)；4 在 [`phase4.md`](docs/verify/phase4.md)；
+3 在 [`phase3.md`](docs/verify/phase3.md)；2 / 2.5 在
 [`phase2.md`](docs/verify/phase2.md)、[`phase2.5.md`](docs/verify/phase2.5.md)）。
 
 自包含单文件发布（148.74 MB，不依赖运行时）、单实例（第二次双击只把已有窗口叫到前面）、
@@ -27,7 +28,9 @@
 - 每栏最窄 190 DIP，窗口放不下就横向滚动，不会把文字挤成一条缝
 - 托盘左键：显示/隐藏（召回不夺焦点）；托盘右键：设置、层级、外观、隐藏已完成、开机自启、退出
 - `Ctrl+Alt+Space`：贴屏幕上方弹出「快速记一条」，回车入库、Esc 取消
-- 设置面板：桌面层/普通窗口/置顶、深色/浅色、色调强度、隐藏已完成、开机自启（写 `HKCU\...\Run`，可回滚）
+- 设置面板：桌面层/普通窗口/置顶、深色/浅色、色调强度、隐藏已完成、开机自启（写 `HKCU\...\Run`，可回滚）、
+  窗口尺寸策略（跟随栏数 / 固定）、数据位置（打开目录 / 迁移到… / 清理旧数据）、随心记默认类型（txt / md）
+- 顶栏「记」或托盘「随心记…」：左侧笔记列表 + 右侧编辑器；`＋ 新建`、`打开文件夹`、`删除`（进 `trash\`）
 
 已验证的窗口语义：`SetWindowLongPtr(GWLP_HWNDPARENT, Progman)` 设 owner 即可贴在桌面图标层，
 Win+D 不受影响，Explorer 重启后靠 `TaskbarCreated` 重挂，全程不需要分层窗口
@@ -96,6 +99,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
 - [x] Phase 5 打包（单实例 + 安装脚本）—— 见 `docs/verify/phase5.md`
 - [x] Phase 6 窗口尺寸自适应闭环（删栏收窄 / AutoFit 与 Manual 双态）—— 见 `docs/verify/phase6.md`
 - [x] Phase 7 数据根外置（不落 C 盘、可迁移）—— 见 `docs/verify/phase7.md`
-- [ ] Phase 8 随心记（笔记库 + 默认类型可配 + 外部可编辑）
+- [x] Phase 8 随心记（笔记库 + 默认类型可配 + 外部可编辑）—— 见 `docs/verify/phase8.md`
 - [ ] Phase 9 停靠式自由布局（栏停靠到任意位置、单独缩放）—— 设计见 `docs/design/dock-layout.md`
 - [ ] Phase 10 0.5.0 收口（回归矩阵 + 发布说明）

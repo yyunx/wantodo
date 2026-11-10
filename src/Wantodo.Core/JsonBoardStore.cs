@@ -207,6 +207,11 @@ public sealed class JsonBoardStore
         // 手改文件写成 "manual"/"autofit"/乱码 都接受，统一归一
         board.Placement.SizeMode = SizeModes.Normalize(board.Placement.SizeMode);
 
+        // 随心记默认类型只认 md，其余一律 txt（"MD"/"markdown"/乱码都归一）
+        board.DefaultNoteFormat = string.Equals(board.DefaultNoteFormat?.Trim(), "md", StringComparison.OrdinalIgnoreCase)
+            ? "md"
+            : "txt";
+
         if (board.Tone < 0)
         {
             board.Tone = 0;

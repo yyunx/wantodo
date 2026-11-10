@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Wantodo.Core;
@@ -76,6 +76,16 @@ public sealed class BoardViewModel : ObservableObject
         Model.Tone = Math.Clamp(tone, 0, 1);
         ApplyAppearance();
     }
+
+    /// <summary>随心记新建的默认类型：只认 <c>md</c>，其余按 <c>txt</c>。</summary>
+    public void SetDefaultNoteFormat(string format)
+    {
+        Model.DefaultNoteFormat = string.Equals(format, "md", StringComparison.OrdinalIgnoreCase) ? "md" : "txt";
+        OnPropertyChanged(nameof(DefaultNoteFormat));
+        RequestSave();
+    }
+
+    public string DefaultNoteFormat => Model.DefaultNoteFormat;
 
     public bool CanAddColumn => Columns.Count < BoardEditor.MaxColumns;
 

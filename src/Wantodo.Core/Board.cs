@@ -17,6 +17,9 @@ public sealed class Board
     /// <summary>是否隐藏已完成的条目（数据仍保留，只是不显示）。</summary>
     public bool HideCompleted { get; set; }
 
+    /// <summary>随心记新建文档的默认类型：<c>txt</c> 或 <c>md</c>（见 NotesVault）。</summary>
+    public string DefaultNoteFormat { get; set; } = "txt";
+
     public WindowPlacement Placement { get; set; } = new();
 
     public List<NoteColumn> Columns { get; set; } = new();

@@ -78,6 +78,16 @@
                       Checked="OnAutostartChanged"
                       Unchecked="OnAutostartChanged" />
 
+            <TextBlock Text="随心记默认类型" Style="{StaticResource FieldLabel}" Margin="0,10,0,0" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <RadioButton x:Name="TxtRadio" Content="纯文本 .txt" GroupName="noteFormat" Margin="0,0,14,0"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnNoteFormatChanged" />
+                <RadioButton x:Name="MdRadio" Content="Markdown .md" GroupName="noteFormat"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnNoteFormatChanged" />
+            </StackPanel>
+
             <TextBlock Style="{StaticResource HintText}"
                        Text="快速记一条：Ctrl+Alt+Space，回车即入库，Esc 取消。"
                        Margin="0,8,0,0" />

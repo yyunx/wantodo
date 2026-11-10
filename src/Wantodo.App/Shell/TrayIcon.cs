@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using Wantodo.App.Interop;
 using Wantodo.App.ViewModels;
@@ -57,6 +57,7 @@ public sealed class TrayIcon : IDisposable
         _autostartItem = new WinForms.ToolStripMenuItem("开机自启", null, (_, _) =>
             _window.SetAutostart(Autostart.SetEnabled(!Autostart.IsEnabled())));
 
+        var notesItem = new WinForms.ToolStripMenuItem("随心记…", null, (_, _) => _window.ShowNotes());
         var settingsItem = new WinForms.ToolStripMenuItem("设置…", null, (_, _) => _window.ShowSettings());
         var exitItem = new WinForms.ToolStripMenuItem("退出", null, (_, _) => _window.Close());
 
@@ -64,6 +65,7 @@ public sealed class TrayIcon : IDisposable
         _menu.Items.AddRange(
         [
             _toggleItem,
+            notesItem,
             settingsItem,
             new WinForms.ToolStripSeparator(),
             surfaceMenu,

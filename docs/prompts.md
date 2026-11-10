@@ -421,3 +421,18 @@ Phase 1 的既成事实（直接用）：
 | 5 | Phase 10 | 全部 | 回归矩阵要真的跑，不许写"应该没问题" |
 
 每完成一个阶段，用 docs/prompts.md 末尾的人肉验收清单过一遍，再让 Codex 进入下一个阶段。
+---
+
+## 2.11 Phase 8 随心记（✅ 已完成 2026-11-10，留档）
+
+范围（实际做完的）：
+
+1. Core `NotesVault`：`Scan/Create/Read/Write/Rename/Trash`，命名 `yyyyMMdd-HHmm-slug.ext`，
+   md 写 front matter（title/created/updated/tags），txt 首行即标题。
+2. App `NotesWindow`：左列表（徽标/标题/时间/摘要）+ 右编辑器；0.6s 去抖自动保存；
+   `FileSystemWatcher` 500ms 去抖重扫，用 `_saving/_dirty` 挡住自己触发的刷新。
+3. 设置项 `defaultNoteFormat ∈ {txt, md}`；顶栏「记」与托盘「随心记…」入口。
+4. 删除进 `trash\`；数据根切换后笔记路径自动跟随（全部走 `DataPaths`）。
+
+踩坑见 `docs/verify/phase8.md`：占位标题改名、txt/md 标题存法不同、自触发 watcher、
+后台线程切 UI、`DockPanel` 三元素重叠。
