@@ -294,3 +294,127 @@ Phase 1 的既成事实（直接用）：
 4. 拖到屏幕边缘外一半，重启后是否自动回到可见区。
 5. 长时间（≥30 分钟）挂着，任务管理器里内存是否稳定不涨。
 6. 注销重登，位置、栏数、内容是否原样。
+
+---
+
+## 7. 总控提示词（Codex 每个会话开场贴一次）
+
+````text
+你在 Windows 上维护一个已可运行的 WPF 桌面便签应用，仓库：E:\Dev\Project\wantodo
+现状：Phase 0–5 已通过并提交（最新提交见 git log），接下来做 docs/plan.md 里的 Phase 6–10。
+
+先按顺序读，读完复述你对约束的理解，再等我指定阶段：
+1. AGENTS.md（技术栈与硬性规则）
+2. docs/plan.md（Phase 6–10 的目标与验收）
+3. docs/design/data-root.md、docs/design/dock-layout.md（两份设计，Phase 7 / 9 的依据）
+4. docs/spec.md（产品行为）、docs/decisions.md（D1–D12，别推翻已决项）
+5. docs/verify/phase5.md（上一阶段的证据格式，你后面要照这个写）
+
+环境事实（必须照做，否则构建会失败）：
+- 每条 PowerShell 命令先执行：
+  $env:DOTNET_ROOT="$env:LOCALAPPDATA\Microsoft\dotnet"; $env:PATH="$env:DOTNET_ROOT;$env:PATH"
+  （SDK 10.0.403 装在用户目录；本机 PowerShell 是 5.1）
+- build 前先结束运行中的实例，否则 exe 被占用报 MSB3021：
+  Get-Process Wantodo -ErrorAction SilentlyContinue | Stop-Process -Force
+- 可执行文件叫 Wantodo.exe（AssemblyName=Wantodo），不是 Wantodo.App.exe。
+- 读日志用 Get-Content <path> -Encoding utf8（默认 ANSI 会中文乱码）。
+- git：E:\Downloads\迅雷下载\Git\cmd\git.exe；提交用
+  & $git -c user.name=ty -c user.email=ty@local commit -F <msgfile>
+  msgfile 用 [System.IO.File]::WriteAllText(path, text, (New-Object System.Text.UTF8Encoding($false))) 生成
+  （不要用 Set-Content -Encoding utf8，会带 BOM；不要用 -m "多行"，会把 \n 写成字面量）。
+
+硬性规则（违反即返工）：
+1. 所有 Win32 P/Invoke 只能写在 src/Wantodo.App/Interop/ 下，ViewModel 与 XAML 不许 DllImport。
+2. 禁止 AllowsTransparency="True"，也禁止 Window.Opacity<1（会触发分层窗口、掉硬件加速）。
+3. 禁止 async void（UI 事件处理器除外，且内部必须 try/catch + 写 AppLog）。
+4. 落盘必须原子：写 *.tmp → Flush(true) → File.Replace（首次用 File.Move），失败降级 Copy+Move 并记日志。
+5. 不引入第三方 NuGet（xUnit 除外）；不更换技术栈、不改 TargetFramework。
+6. 不改系统级设置；写 HKCU 必须走设置面板的显式开关，并且能回滚。
+7. Windows 行为不许凭记忆下结论：先写最小验证、留日志，再说结论。
+
+工作方式（门控，必须遵守）：
+- 一次只做一个 Phase。先给计划：要改哪些文件、每个文件改什么、怎么验证（命令 + 观察点）、可能踩的坑；
+  我批准后再动手。计划阶段不要写代码。
+- 每阶段结束必须同时满足：`dotnet build Wantodo.slnx -warnaserror` 0 警告 0 错误；
+  `dotnet test` 全绿；新增/修改的验收项逐条有证据；写 docs/verify/phaseN.md；
+  一个以 `phase-N:` 开头的 commit。任一条不满足，不许进入下一阶段，把卡点写清楚。
+- docs/verify/phaseN.md 必须包含：改了什么的表格、命令与输出要点、逐条验收（通过/未验证/失败）、
+  踩坑、已知限制、复跑命令、需要人肉眼确认的项。
+
+禁止事项：
+- 不要用 UI 自动化或合成鼠标键盘去"验证"功能（之前因此误删过用户的栏，只认 build/test/日志/截图）。
+- 不要顺手改无关文件、不要重新格式化、不要"优化"既有代码。
+- 不要为了让编译通过而注释掉报错代码，也不要用 #pragma 屏蔽。
+- 不要改 docs/ 里的产品决策；发现矛盾就停下来问我。
+
+每次回复的格式：
+1) 阶段与目标（一句话）2) 改动清单（文件 → 改了什么）3) 验证证据（命令 + 关键输出）
+4) 未验证/风险 5) 下一步建议。代码不要整段贴，指出文件与关键行即可。
+````
+
+---
+
+## 8. Phase 6 提示词（窗口尺寸自适应闭环，可直接用）
+
+````text
+阶段：Phase 6 — 窗口尺寸自适应闭环（AutoFit / Manual）
+依据：docs/plan.md 的 Phase 6 段落。只做这一阶段，不要碰数据根、随心记、停靠布局。
+
+目标：
+- 删栏时窗口宽度收窄到"刚好放下剩余栏"；加栏时仍按每栏 280 DIP 撑宽。
+- 用户手动拖过窗口边框后，结构变化不再自动改尺寸（Manual），直到用户切回 AutoFit。
+
+要做的：
+1. 模型：在 WindowPlacement（src/Wantodo.Core）加 SizeMode，字符串枚举 "AutoFit" / "Manual"，默认 "AutoFit"；
+   缺字段按 AutoFit；写进 data.json，重启保持。旧文件必须能读。
+2. Core 纯函数 LayoutMetrics（新文件 src/Wantodo.Core/LayoutMetrics.cs）：
+   - const double PreferredPaneWidth = 280, MinPaneWidth = 190, PaneGap = 8;
+   - double ComputePreferredWidth(int paneCount) => PaneGap * (paneCount + 1) + PreferredPaneWidth * paneCount;
+   - double FitTo(double width, int paneCount, double workAreaLeft, double workAreaRight)
+     → 夹到 [MinPaneWidth*paneCount + PaneGap*(paneCount+1), workAreaRight-workAreaLeft]；
+   - int ComputeMaxPanes(double availableWidth)（给后续阶段复用）。
+3. 窗口：MainWindow.xaml.cs
+   - 字段 bool _applyingSize; Size? _lastAppliedSize;
+   - 方法 ApplyAutoFit(string reason)：若 Model.Placement.SizeMode != AutoFit 直接返回；
+     目标宽度 = LayoutMetrics.FitTo(...)，与当前差 < 0.5 DIP 则不动；
+     计算 Left：优先保持原 Left，若 Right 越界则右对齐到工作区右边；
+     设置 _applyingSize = true 再改 Width/Left，finally 复位；日志 "AutoFit（{reason}）：{旧} → {新} DIP @ {left}"。
+   - 栏集合 Add/Remove 后调用 ApplyAutoFit("加栏"/"删栏")，替换现有的 GrowWindowForColumns。
+   - 用户拖边框：在 SizeChanged 里判断 !_applyingSize 且尺寸与 _lastAppliedSize 不符 → 记一次
+     AppLog.Info("用户调整窗口尺寸，切到 Manual")，把 Model.Placement.SizeMode 设为 Manual 并 RequestSave()；
+     不要在多显示器/DPI 事件里误判（用 _applyingSize 包住这些内部调整）。
+4. 设置面板：SettingsWindow 加下拉"窗口尺寸：跟随栏数(AutoFit) / 固定(Manual)"，切换立即写模型并触发一次 ApplyAutoFit。
+5. 测试：tests/Wantodo.Core.Tests/LayoutMetricsTests.cs
+   - 1/2/3/4 栏期望宽度分别为 288/576/864/1152（按上面常量核对，若不符以实际常量为准）；
+   - FitTo 在窄 WorkArea 下的夹取；ComputeMaxPanes 边界；
+   - WindowPlacement.SizeMode 缺字段 → AutoFit；往返序列化。
+6. 不要改 schema 版本号；不要动停靠布局相关代码。
+
+验收（逐条给证据）：
+- [ ] 3 栏（≈872 DIP）删 1 栏 → 宽度收回到 ≈601 DIP（日志里能看到 AutoFit 那一行）。
+- [ ] 2 栏删到 1 栏 → 宽度 ≈288 DIP，不出现大片空白。
+- [ ] AutoFit 下加栏仍是每栏 280 DIP 撑宽，越界时左移不跑出屏幕。
+- [ ] 手动拖窗口边框后（日志出现"切到 Manual"），删栏/加栏窗口宽度不变；设置里切回 AutoFit 后恢复。
+- [ ] 重启后 SizeMode 保持。
+- [ ] build -warnaserror 0 警告 0 错误；dotnet test 全绿（原 54 + 新增）。
+- [ ] docs/verify/phase6.md 写全；commit 以 phase-6: 开头。
+
+注意：改完先 build 再启动；启动后用 Get-Content app.log -Encoding utf8 看日志，不要靠截图猜。
+````
+
+---
+
+## 9. Phase 7–10 的用法
+
+把第 8 节里的"阶段 / 依据 / 目标 / 要做的 / 验收"整段替换成 `docs/plan.md` 对应 Phase 的段落原文，
+其它约束（第 7 节）保持不变。建议顺序与依赖：
+
+| 顺序 | 阶段 | 前置 | 关键风险 |
+|---|---|---|---|
+| 1 | Phase 6 | 无 | 低；注意别把 DPI/多屏事件误判成"用户手动" |
+| 2 | Phase 7 | 6 | 跨盘迁移要能回滚；先做只读预检再复制 |
+| 3 | Phase 8 | 7 | 外部编辑冲突；索引必须可从文件重建 |
+| 4 | Phase 9 | 6、8 | 布局树最容易写坏；先做 Core 树操作 + 单测，再接 UI |
+| 5 | Phase 10 | 全部 | 回归矩阵要真的跑，不许写"应该没问题" |
+
+每完成一个阶段，用 docs/prompts.md 末尾的人肉验收清单过一遍，再让 Codex 进入下一个阶段。
