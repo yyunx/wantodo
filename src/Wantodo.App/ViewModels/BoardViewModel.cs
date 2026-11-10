@@ -182,9 +182,16 @@ public sealed class BoardViewModel : ObservableObject
 
     public void AddColumn()
     {
-        int index = ActiveColumn is null ? Columns.Count : Columns.IndexOf(ActiveColumn) + 1;
+        AddColumn(BoardEditor.DefaultColumnTitle);
+    }
 
-        if (!BoardEditor.TryAddColumn(Model, BoardEditor.DefaultColumnTitle, index, out var column) || column is null)
+    /// <summary>按指定名字加一栏；空白名字回落到默认名（对话框里直接回车就是这条路）。</summary>
+    public void AddColumn(string? title)
+    {
+        int index = ActiveColumn is null ? Columns.Count : Columns.IndexOf(ActiveColumn) + 1;
+        string name = string.IsNullOrWhiteSpace(title) ? BoardEditor.DefaultColumnTitle : title.Trim();
+
+        if (!BoardEditor.TryAddColumn(Model, name, index, out var column) || column is null)
         {
             AppLog.Warn($"加栏被拒绝：已经有 {Columns.Count} 栏（上限 {BoardEditor.MaxColumns}）");
             return;
@@ -194,6 +201,7 @@ public sealed class BoardViewModel : ObservableObject
         Columns.Insert(Math.Clamp(index, 0, Columns.Count), viewModel);
         SetActiveColumn(viewModel);
         AddColumnCommand.RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(CanAddColumn));
         RequestSave();
         AppLog.Info($"加了第 {Columns.Count} 栏 id={column.Id}（插在下标 {index}）");
     }
@@ -208,6 +216,7 @@ public sealed class BoardViewModel : ObservableObject
 
         Columns.Remove(column);
         AddColumnCommand.RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(CanAddColumn));
         RequestSave();
         AppLog.Info($"删了栏 {column.Title}，剩 {Columns.Count} 栏");
         return true;

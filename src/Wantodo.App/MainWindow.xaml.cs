@@ -11,6 +11,7 @@ using Wantodo.App.Interop;
 using Wantodo.App.Shell;
 using Wantodo.App.ViewModels;
 using Wantodo.App.Appearance;
+using Wantodo.App.Dialogs;
 using Wantodo.Core;
 
 namespace Wantodo.App;
@@ -625,6 +626,25 @@ public partial class MainWindow : Window
     }
 
     private void OnNotesClick(object sender, RoutedEventArgs e) => ShowNotes();
+
+    /// <summary>加栏先问名字：回车用默认名，Esc 取消（用户明确要求）。</summary>
+    private void OnAddColumnClick(object sender, RoutedEventArgs e)
+    {
+        if (!_viewModel.CanAddColumn)
+        {
+            AppLog.Warn($"加栏被拒绝：已经有 {_viewModel.Columns.Count} 栏（上限 {BoardEditor.MaxColumns}）");
+            return;
+        }
+
+        var dialog = new ColumnNameDialog(ColumnNameDialog.DefaultName) { Owner = this };
+        if (dialog.ShowDialog() != true)
+        {
+            AppLog.Info("加栏取消（对话框里按了取消或 Esc）");
+            return;
+        }
+
+        _viewModel.AddColumn(dialog.ColumnTitle);
+    }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 

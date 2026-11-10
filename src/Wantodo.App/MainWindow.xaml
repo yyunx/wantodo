@@ -333,33 +333,47 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 顶栏：拖拽区 + 加栏 + 关闭 -->
+        <!-- 顶栏：品牌区 + 加栏 / 随心记 / 关闭；空白处按住可拖窗口 -->
         <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="OnHeaderMouseLeftButtonDown">
-            <TextBlock Text="wantodo"
-                       Margin="14,0,0,0"
-                       VerticalAlignment="Center"
-                       FontSize="11.5"
-                       Foreground="{DynamicResource TextMuted}" />
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0">
-                <Button Style="{StaticResource IconButton}"
-                        Height="24" Padding="6,0"
-                        Command="{Binding AddColumnCommand}"
-                        ToolTip="加一栏（最多 4 栏）">
-                    <TextBlock Text="＋ 栏" FontSize="11" />
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
+                        Margin="14,0,0,0" IsHitTestVisible="False">
+                <Ellipse Width="6" Height="6" Fill="{DynamicResource Accent}" Margin="0,0,7,0" />
+                <TextBlock Text="wantodo" FontSize="11.5" Foreground="{DynamicResource TextMuted}" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                <Button x:Name="AddColumnButton"
+                        Style="{StaticResource TitleBarButton}"
+                        Click="OnAddColumnClick"
+                        IsEnabled="{Binding CanAddColumn}"
+                        ToolTip="加一栏（会给它起个名）">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                   VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="加栏" FontSize="11.5" VerticalAlignment="Center" />
+                    </StackPanel>
                 </Button>
-                <Button Style="{StaticResource IconButton}"
-                        Height="24" Padding="9,0" Margin="8,0,0,0"
-                        ToolTip="随心记：随手记一笔（Ctrl+Alt+Space 也行）"
-                        Click="OnNotesClick">
-                    <TextBlock Text="随心记" FontSize="11" />
+                <Button Style="{StaticResource TitleBarButton}" Margin="6,0,0,0"
+                        Click="OnNotesClick"
+                        ToolTip="随心记：打开笔记库（随手记一笔也可以按 Ctrl+Alt+Space）">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                   VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="随心记" FontSize="11.5" VerticalAlignment="Center" />
+                    </StackPanel>
                 </Button>
+                <Border Width="1" Height="14" Margin="8,0" Background="{DynamicResource Divider}" />
                 <Button x:Name="CloseButton"
-                        Style="{StaticResource IconButton}"
-                        Width="30" Height="24" Margin="8,0,0,0"
-                        ToolTip="隐藏到托盘（再从托盘图标左键唤回）"
-                        Click="OnCloseClick">
-                    <TextBlock Text="&#x2715;" FontSize="10" />
+                        Style="{StaticResource TitleBarCloseButton}"
+                        Click="OnCloseClick"
+                        ToolTip="隐藏到托盘（右键托盘图标可退出）">
+                    <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
                 </Button>
             </StackPanel>
         </Grid>
