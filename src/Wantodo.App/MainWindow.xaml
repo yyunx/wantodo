@@ -278,15 +278,36 @@
                                                       MouseLeftButtonDown="OnNoteRowMouseLeftButtonDown">
                                                     <Grid.Style>
                                                         <Style TargetType="Grid">
-                                                            <!-- 卡住清单里有同名条目才提示；没有就不设 ToolTip（空提示框会闪白） -->
-                                                            <Setter Property="ToolTip" Value="{Binding BlockerHint}" />
+                                                            <!-- 卡住清单里有同名条目才提示；没有就整条关掉，空提示框会闪白 -->
+                                                            <Setter Property="ToolTipService.IsEnabled" Value="{Binding HasBlocker}" />
                                                             <Setter Property="ToolTipService.InitialShowDelay" Value="350" />
                                                             <Setter Property="ToolTipService.ShowDuration" Value="20000" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding HasBlocker}" Value="False">
-                                                                    <Setter Property="ToolTip" Value="{x:Null}" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
+                                                            <Setter Property="ToolTip">
+                                                                <Setter.Value>
+                                                                    <ToolTip Style="{StaticResource BlockerToolTip}">
+                                                                        <StackPanel>
+                                                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                                                <TextBlock Text="&#xE7BA;"
+                                                                                           FontFamily="Segoe MDL2 Assets"
+                                                                                           FontSize="10"
+                                                                                           VerticalAlignment="Center"
+                                                                                           Margin="0,0,6,0"
+                                                                                           Foreground="{DynamicResource Accent}" />
+                                                                                <TextBlock Text="卡在这里"
+                                                                                           FontSize="11"
+                                                                                           FontWeight="SemiBold"
+                                                                                           Foreground="{DynamicResource Accent}" />
+                                                                            </StackPanel>
+                                                                            <TextBlock Text="{Binding BlockerHint}"
+                                                                                       FontSize="12.5"
+                                                                                       LineHeight="19"
+                                                                                       TextWrapping="Wrap"
+                                                                                       MaxWidth="248"
+                                                                                       Foreground="{DynamicResource TextPrimary}" />
+                                                                        </StackPanel>
+                                                                    </ToolTip>
+                                                                </Setter.Value>
+                                                            </Setter>
                                                         </Style>
                                                     </Grid.Style>
                                                     <Grid.ColumnDefinitions>

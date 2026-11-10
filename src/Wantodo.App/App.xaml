@@ -109,5 +109,23 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
+            <!-- 卡住原因提示：默认 ToolTip 是浅色系统框，和深色小组件放一起很突兀 -->
+        <Style x:Key="BlockerToolTip" TargetType="ToolTip">
+            <Setter Property="HasDropShadow" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="{DynamicResource CardBackground}"
+                                BorderBrush="{DynamicResource Accent}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="10,8">
+                            <ContentPresenter />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Application.Resources>
 </Application>

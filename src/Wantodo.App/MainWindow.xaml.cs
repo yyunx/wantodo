@@ -1461,21 +1461,21 @@ public partial class MainWindow : Window
     /// <summary>落点区域：左右边各 28%（最多 80px）、上下边各 28%（最多 60px），中心是互换。</summary>
     private static DockSide ComputeDropSide(Point point, double width, double height, out bool swap)
     {
-        // 判定范围放宽到 45%（左右最多 180px、上下最多 140px），
-        // 再按「离哪条边最近」选目标，避免先匹配左边导致右边/上下几乎点不到。
-        var edgeX = Math.Min(0.45 * width, 180);
-        var edgeY = Math.Min(0.45 * height, 140);
+        // 整栏都参与判定：按「离哪条边最近」决定停靠方位，
+        // 只有正中间一个小方块（各方向 10% 以内）才算「与目标栏互换」。
+        var nx = Math.Clamp(point.X / width, 0, 1);
+        var ny = Math.Clamp(point.Y / height, 0, 1);
 
-        var left = point.X / edgeX;
-        var right = (width - point.X) / edgeX;
-        var top = point.Y / edgeY;
-        var bottom = (height - point.Y) / edgeY;
-
-        swap = left >= 1 && right >= 1 && top >= 1 && bottom >= 1;
+        swap = Math.Abs(nx - 0.5) < 0.1 && Math.Abs(ny - 0.5) < 0.1;
         if (swap)
         {
             return DockSide.Left;
         }
+
+        var left = nx;
+        var right = 1 - nx;
+        var top = ny;
+        var bottom = 1 - ny;
 
         var best = left;
         var side = DockSide.Left;
