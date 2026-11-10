@@ -677,6 +677,32 @@ public partial class MainWindow : Window
 
     private void OnBlockersClick(object sender, RoutedEventArgs e) => ShowBlockers();
 
+    /// <summary>把条目拖到「卡住」按钮上：按钮本身就是投放目标（之前只有窗口内部能用，是漏接线）。</summary>
+    private void OnBlockersButtonDragOver(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(NoteDataFormat))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        e.Effects = DragDropEffects.Copy;
+        e.Handled = true;
+    }
+
+    private void OnBlockersButtonDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(NoteDataFormat) ||
+            e.Data.GetData(NoteDataFormat) is not NoteViewModel note)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        AddNoteToBlockers(note);
+    }
+
     /// <summary>加栏先问名字：回车用默认名，Esc 取消（用户明确要求）。</summary>
     private void OnAddColumnClick(object sender, RoutedEventArgs e)
     {
@@ -1156,6 +1182,22 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    /// <summary>按住栏顶那条小横杠才开始拖整栏（像手机小窗的把手）。</summary>
+    private void OnPaneGripMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: ColumnViewModel column })
+        {
+            return;
+        }
+
+        _paneDragSource = column;
+        _paneDragOrigin = e.GetPosition(this);
+        e.Handled = false;
+    }
+
+    private void OnPaneGripMouseMove(object sender, MouseEventArgs e)
+        => OnPaneHeaderPreviewMouseMove(sender, e);
+
     /// <summary>从栏头开始拖：超过系统拖拽阈值才起拖，避免双击改名被误判成拖动。</summary>
     private void OnPaneHeaderPreviewMouseMove(object sender, MouseEventArgs e)
     {
@@ -1191,10 +1233,11 @@ public partial class MainWindow : Window
     private void OnPaneDragOver(object sender, DragEventArgs e)
     {
         if (!e.Data.GetDataPresent(PaneDataFormat) ||
-            sender is not FrameworkElement { DataContext: ColumnViewModel target } ||
+            sender is not FrameworkElement { DataContext: ColumnViewModel target } element ||
             string.Equals(target.Id, _paneDragId, StringComparison.Ordinal))
         {
             e.Effects = DragDropEffects.None;
+            HideDropPreview();
             e.Handled = true;
             return;
         }
@@ -1205,6 +1248,88 @@ public partial class MainWindow : Window
         {
             column.IsDropTarget = ReferenceEquals(column, target) || column.Id == target.Id;
         }
+
+        // 落点预览：把「将要占用的那半边」画出来，松手前就能看出结果（Obsidian 那种感觉）
+        var point = e.GetPosition(element);
+        var width = Math.Max(1, element.ActualWidth);
+        var height = Math.Max(1, element.ActualHeight);
+        var side = ComputeDropSide(point, width, height, out var swap);
+        ShowDropPreview(element, side, swap);
+    }
+
+    /// <summary>落点区域：左右边各 28%（最多 80px）、上下边各 28%（最多 60px），中心是互换。</summary>
+    private static DockSide ComputeDropSide(Point point, double width, double height, out bool swap)
+    {
+        var edgeX = Math.Min(0.28 * width, 80);
+        var edgeY = Math.Min(0.28 * height, 60);
+        swap = false;
+
+        if (point.X < edgeX)
+        {
+            return DockSide.Left;
+        }
+
+        if (point.X > width - edgeX)
+        {
+            return DockSide.Right;
+        }
+
+        if (point.Y < edgeY)
+        {
+            return DockSide.Top;
+        }
+
+        if (point.Y > height - edgeY)
+        {
+            return DockSide.Bottom;
+        }
+
+        swap = true;
+        return DockSide.Left;
+    }
+
+    private void ShowDropPreview(FrameworkElement target, DockSide side, bool swap)
+    {
+        if (target.ActualWidth <= 0 || target.ActualHeight <= 0)
+        {
+            HideDropPreview();
+            return;
+        }
+
+        var topLeft = target.TransformToAncestor(DropPreviewLayer).Transform(new Point(0, 0));
+        double x = topLeft.X, y = topLeft.Y, w = target.ActualWidth, h = target.ActualHeight;
+
+        if (!swap)
+        {
+            switch (side)
+            {
+                case DockSide.Left:
+                    w /= 2;
+                    break;
+                case DockSide.Right:
+                    x += w / 2;
+                    w /= 2;
+                    break;
+                case DockSide.Top:
+                    h /= 2;
+                    break;
+                case DockSide.Bottom:
+                    y += h / 2;
+                    h /= 2;
+                    break;
+            }
+        }
+
+        Canvas.SetLeft(DropPreviewBox, x);
+        Canvas.SetTop(DropPreviewBox, y);
+        DropPreviewBox.Width = Math.Max(0, w);
+        DropPreviewBox.Height = Math.Max(0, h);
+        DropPreviewBox.Visibility = Visibility.Visible;
+    }
+
+    private void HideDropPreview()
+    {
+        DropPreviewBox.Visibility = Visibility.Collapsed;
     }
 
     private void OnPaneDragLeave(object sender, DragEventArgs e)
@@ -1271,6 +1396,7 @@ public partial class MainWindow : Window
 
     private void ClearPaneDropMarks()
     {
+        HideDropPreview();
         foreach (var column in _viewModel.Columns)
         {
             column.IsDropTarget = false;

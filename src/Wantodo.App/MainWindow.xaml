@@ -117,6 +117,22 @@
                             </Border.Style>
 
                         <DockPanel>
+                            <!-- 拖动条：像手机小窗顶部的把手，按住它可以把整栏拖到别处 -->
+                            <Border DockPanel.Dock="Top"
+                                    Height="12"
+                                    Margin="0,0,0,1"
+                                    Background="Transparent"
+                                    Cursor="SizeAll"
+                                    ToolTip="按住拖到别的栏边缘，可以把这一栏停靠过去"
+                                    PreviewMouseLeftButtonDown="OnPaneGripMouseDown"
+                                    PreviewMouseMove="OnPaneGripMouseMove">
+                                <Border Width="38" Height="4"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        CornerRadius="2"
+                                        Background="{DynamicResource Divider}" />
+                            </Border>
+
                             <!-- 栏头：标题（双击改名）+ 条目数 + 删栏 -->
                             <Grid DockPanel.Dock="Top" Margin="0,0,0,2">
                                 <Grid.ColumnDefinitions>
@@ -376,6 +392,9 @@
                 <Button Style="{StaticResource TitleBarButton}" Margin="6,0,0,0"
                         Click="OnBlockersClick"
                         AutomationProperties.Name="卡住清单"
+                        AllowDrop="True"
+                        DragOver="OnBlockersButtonDragOver"
+                        Drop="OnBlockersButtonDrop"
                         ToolTip="卡住清单：想做 ⇄ 卡在什么地方（也可以把主界面的条目拖进去）">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="10"
@@ -414,5 +433,15 @@
                       Padding="0,0,0,2">
             <Grid x:Name="LayoutHost" />
         </ScrollViewer>
+
+        <!-- 拖拽时的「预设位置」预览：半透明色块盖住将会占用的那半边 -->
+        <Canvas x:Name="DropPreviewLayer" Grid.Row="1" IsHitTestVisible="False" ClipToBounds="True">
+            <Border x:Name="DropPreviewBox"
+                    Visibility="Collapsed"
+                    Background="#336FA8FF"
+                    BorderBrush="{DynamicResource Accent}"
+                    BorderThickness="1.5"
+                    CornerRadius="8" />
+        </Canvas>
     </Grid>
 </Window>
