@@ -3,7 +3,7 @@ namespace Wantodo.Core;
 /// <summary>整块便签板的数据。持久化对象就是它，字段变化要考虑旧文件兼容。</summary>
 public sealed class Board
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
 
     /// <summary>窗口层级：Desktop（默认，贴桌面图标层）/ Normal / Topmost。</summary>
     public string Surface { get; set; } = "Desktop";
@@ -23,6 +23,32 @@ public sealed class Board
     public WindowPlacement Placement { get; set; } = new();
 
     public List<NoteColumn> Columns { get; set; } = new();
+
+    /// <summary>
+    /// 停靠布局（Phase 9）。为 <c>null</c> 时按 <see cref="Columns"/> 的顺序生成均衡横向树，
+    /// 旧数据（只有 columns[]）因此无需立刻改写就能打开。
+    /// </summary>
+    public LayoutNode? Layout { get; set; }
+
+    /// <summary>确保 <see cref="Layout"/> 与 <see cref="Columns"/> 一致：缺失就重建，非法就回退到均衡布局。</summary>
+    public string? NormalizeLayout()
+    {
+        var ids = Columns.Where(c => !string.IsNullOrEmpty(c.Id)).Select(c => c.Id).ToList();
+        if (ids.Count != Columns.Count)
+        {
+            return "栏 id 有空值";
+        }
+
+        var error = Layout is null ? null : LayoutTree.Validate(Layout, ids);
+        if (error is null)
+        {
+            Layout ??= LayoutTree.Balanced(ids);
+            return null;
+        }
+
+        Layout = LayoutTree.Balanced(ids);
+        return error;
+    }
 
     /// <summary>首次启动（或数据彻底损坏）时的初始内容：两栏，带几条占位条目。</summary>
     public static Board CreateDefault()
@@ -48,6 +74,7 @@ public sealed class Board
             },
         });
 
+        board.Layout = LayoutTree.Balanced(board.Columns.Select(c => c.Id).ToList());
         return board;
     }
 }

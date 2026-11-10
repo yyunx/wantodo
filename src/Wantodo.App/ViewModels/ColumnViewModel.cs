@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using Wantodo.Core;
 
@@ -33,6 +33,9 @@ public sealed class ColumnViewModel : ObservableObject
     public ObservableCollection<NoteViewModel> Notes { get; }
 
     public string Title => Model.Title;
+
+    /// <summary>数据层 id；停靠布局树按它找栏。</summary>
+    public string Id => Model.Id;
 
     public int NoteCount
     {

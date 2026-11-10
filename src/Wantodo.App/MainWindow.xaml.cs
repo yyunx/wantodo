@@ -25,9 +25,14 @@ public partial class MainWindow : Window
     /// <summary>栏与栏之间的间距：模板里是 Margin="4,0"，左右各 4。</summary>
     private const double ColumnGap = LayoutMetrics.PaneGap;
 
-    public static readonly DependencyProperty ColumnWidthProperty = DependencyProperty.Register(
-        nameof(ColumnWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(MinColumnWidth));
 
+    private const string PaneDataFormat = "wantodo/pane";
+
+    private readonly Dictionary<LayoutNode, SplitView> _splitViews = new();
+
+    private ColumnViewModel? _paneDragSource;
+    private Point _paneDragOrigin;
+    private string? _paneDragId;
     private readonly BoardViewModel _viewModel;
     private readonly DataPaths _paths;
 
@@ -71,7 +76,11 @@ public partial class MainWindow : Window
         DataContext = _viewModel;
 
         _viewModel.Columns.CollectionChanged += OnColumnsChanged;
-        Loaded += (_, _) => UpdateColumnWidths();
+        Loaded += (_, _) =>
+        {
+            RebuildLayout();
+            UpdateColumnsHostSize();
+        };
         SizeChanged += OnWindowSizeChanged;
         StateChanged += OnWindowStateChanged;
 
@@ -82,12 +91,6 @@ public partial class MainWindow : Window
         ApplyAutoFit("启动");
     }
 
-    /// <summary>每栏宽度，由窗口可用宽度和栏数算出来；窄到放不下就保持最小宽度并横向滚动。</summary>
-    public double ColumnWidth
-    {
-        get => (double)GetValue(ColumnWidthProperty);
-        set => SetValue(ColumnWidthProperty, value);
-    }
 
     private Board Board => _viewModel.Model;
 
@@ -538,7 +541,7 @@ public partial class MainWindow : Window
         => RunOnUi(nameof(OnDisplaySettingsChanged), () =>
         {
             ClampIntoVirtualScreen();
-            UpdateColumnWidths();
+            UpdateColumnsHostSize();
             ReattachDesktopLayer("显示设置变化");
         });
 
@@ -591,8 +594,9 @@ public partial class MainWindow : Window
     {
         base.OnDpiChanged(oldDpi, newDpi);
 
-        AppLog.Info($"DPI 变化 {oldDpi.PixelsPerDip:F2} → {newDpi.PixelsPerDip:F2}，重算栏宽");
-        UpdateColumnWidths();
+        AppLog.Info($"DPI 变化 {oldDpi.PixelsPerDip:F2} → {newDpi.PixelsPerDip:F2}，重建停靠布局");
+        RebuildLayout();
+        UpdateColumnsHostSize();
     }
 
     private static string MemorySnapshot()
@@ -645,25 +649,231 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 栏宽 = 可用宽度平均分；分到比 <see cref="MinColumnWidth"/> 还窄就停在最小宽度，
-    /// 让外层横向滚动顶出去，而不是把每栏压成一条缝。
+    /// 按 <c>Board.Layout</c> 重建可视树：叶 = 一栏，Split = 两路 + 中间 6px 分隔条。
+    /// 只在「结构变了」时调用（启动、加栏、删栏、停靠、DPI 变化），拖分隔条不走这里。
     /// </summary>
-    private void UpdateColumnWidths()
+    private void RebuildLayout()
     {
-        int count = _viewModel.Columns.Count;
-        if (count <= 0)
+        _splitViews.Clear();
+        LayoutHost.Children.Clear();
+        LayoutHost.ColumnDefinitions.Clear();
+        LayoutHost.RowDefinitions.Clear();
+
+        if (Board.Layout is null)
+        {
+            AppLog.Warn("布局为空，界面不渲染任何栏");
+            return;
+        }
+
+        AppLog.Info($"绘制布局：根={Board.Layout.Type}/{Board.Layout.Orientation} 叶={LayoutTree.LeafIds(Board.Layout).Count}");
+
+        if (BuildLayoutElement(Board.Layout, string.Empty) is { } element)
+        {
+            LayoutHost.Children.Add(element);
+        }
+    }
+
+    private FrameworkElement? BuildLayoutElement(LayoutNode node, string path)
+    {
+        if (node.IsLeaf)
+        {
+            var column = _viewModel.Columns.FirstOrDefault(
+                c => string.Equals(c.Id, node.PaneId, StringComparison.Ordinal));
+
+            if (column is null)
+            {
+                return null;
+            }
+
+            return new ContentControl
+            {
+                Content = column,
+                ContentTemplate = (DataTemplate)FindResource("PaneTemplate"),
+                Focusable = false,
+            };
+        }
+
+        if (node.First is null || node.Second is null)
+        {
+            return null;
+        }
+
+        var horizontal = node.IsHorizontal;
+        var ratio = Math.Clamp(node.Ratio, LayoutNode.MinRatio, LayoutNode.MaxRatio);
+        var firstMin = LayoutTree.ComputeMinSize(node.First);
+        var secondMin = LayoutTree.ComputeMinSize(node.Second);
+
+        var grid = new Grid();
+
+        ColumnDefinition? firstColumn = null;
+        ColumnDefinition? secondColumn = null;
+        RowDefinition? firstRow = null;
+        RowDefinition? secondRow = null;
+
+        if (horizontal)
+        {
+            firstColumn = new ColumnDefinition { Width = new GridLength(ratio, GridUnitType.Star), MinWidth = firstMin.Width };
+            secondColumn = new ColumnDefinition { Width = new GridLength(1 - ratio, GridUnitType.Star), MinWidth = secondMin.Width };
+            grid.ColumnDefinitions.Add(firstColumn);
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LayoutTree.SplitterSize) });
+            grid.ColumnDefinitions.Add(secondColumn);
+        }
+        else
+        {
+            firstRow = new RowDefinition { Height = new GridLength(ratio, GridUnitType.Star), MinHeight = firstMin.Height };
+            secondRow = new RowDefinition { Height = new GridLength(1 - ratio, GridUnitType.Star), MinHeight = secondMin.Height };
+            grid.RowDefinitions.Add(firstRow);
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(LayoutTree.SplitterSize) });
+            grid.RowDefinitions.Add(secondRow);
+        }
+
+        var first = BuildLayoutElement(node.First, path + "0");
+        var second = BuildLayoutElement(node.Second, path + "1");
+        if (first is null || second is null)
+        {
+            return grid;
+        }
+
+        var splitter = new GridSplitter
+        {
+            ShowsPreview = false,
+            ResizeBehavior = GridResizeBehavior.PreviousAndNext,
+            ResizeDirection = horizontal ? GridResizeDirection.Columns : GridResizeDirection.Rows,
+            Background = Brushes.Transparent,
+            Focusable = false,
+            Cursor = horizontal ? Cursors.SizeWE : Cursors.SizeNS,
+            // 显式给尺寸：GridSplitter 默认模板按内容量，空内容会量出 0×0，
+            // 结果就是「看得见缝、点不到把手」（UIA 里 BoundingRectangle 是 ∞ 即未排布）。
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Width = horizontal ? LayoutTree.SplitterSize : double.NaN,
+            Height = horizontal ? double.NaN : LayoutTree.SplitterSize,
+        };
+
+        var accent = (Brush)FindResource("Accent");
+        splitter.MouseEnter += (_, _) => splitter.Background = accent;
+        splitter.MouseLeave += (_, _) => splitter.Background = Brushes.Transparent;
+
+        if (horizontal)
+        {
+            Grid.SetColumn(first, 0);
+            Grid.SetColumn(splitter, 1);
+            Grid.SetColumn(second, 2);
+        }
+        else
+        {
+            Grid.SetRow(first, 0);
+            Grid.SetRow(splitter, 1);
+            Grid.SetRow(second, 2);
+        }
+
+        grid.Children.Add(first);
+        grid.Children.Add(splitter);
+        grid.Children.Add(second);
+
+        var view = new SplitView(path, horizontal, firstColumn, secondColumn, firstRow, secondRow);
+        _splitViews[node] = view;
+        splitter.DragCompleted += (_, _) => OnSplitterDragCompleted(node, view);
+
+        return grid;
+    }
+
+    /// <summary>
+    /// 拖完分隔条：按实际尺寸回算比例写进模型，再把两路设回星号。
+    /// 这一步**不改窗口尺寸**——「缩放时整体窗口保持原样」是 Phase 9 的硬要求。
+    /// </summary>
+    private void OnSplitterDragCompleted(LayoutNode node, SplitView view)
+    {
+        double first;
+        double second;
+
+        if (view.Horizontal)
+        {
+            first = view.FirstColumn?.ActualWidth ?? 0;
+            second = view.SecondColumn?.ActualWidth ?? 0;
+        }
+        else
+        {
+            first = view.FirstRow?.ActualHeight ?? 0;
+            second = view.SecondRow?.ActualHeight ?? 0;
+        }
+
+        var total = first + second;
+        if (total <= 0)
         {
             return;
         }
 
-        double available = ColumnsScroller.ActualWidth;
-        if (available <= 0)
+        if (!LayoutTree.SetRatio(Board.Layout, view.Path, first / total))
         {
-            available = ActualWidth - 16;
+            return;
         }
 
-        double width = (available - ColumnGap * count) / count;
-        ColumnWidth = Math.Max(MinColumnWidth, width);
+        ApplySplitLengths(node, view);
+        _viewModel.RequestSave();
+        AppLog.Info($"分隔条 {view.Path}：比例 {node.Ratio:F2}");
+    }
+
+    private static void ApplySplitLengths(LayoutNode node, SplitView view)
+    {
+        var ratio = Math.Clamp(node.Ratio, LayoutNode.MinRatio, LayoutNode.MaxRatio);
+
+        if (view.Horizontal)
+        {
+            if (view.FirstColumn is not null)
+            {
+                view.FirstColumn.Width = new GridLength(ratio, GridUnitType.Star);
+            }
+
+            if (view.SecondColumn is not null)
+            {
+                view.SecondColumn.Width = new GridLength(1 - ratio, GridUnitType.Star);
+            }
+        }
+        else
+        {
+            if (view.FirstRow is not null)
+            {
+                view.FirstRow.Height = new GridLength(ratio, GridUnitType.Star);
+            }
+
+            if (view.SecondRow is not null)
+            {
+                view.SecondRow.Height = new GridLength(1 - ratio, GridUnitType.Star);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 布局宿主的最小尺寸：窗口小到放不下时，让内容宽/高大于视口，走 ScrollViewer 横向滚动，
+    /// 而不是把每一栏压成一条缝（复用 Phase 2.5 的策略）。
+    /// </summary>
+    private void UpdateColumnsHostSize()
+    {
+        if (Board.Layout is null)
+        {
+            AppLog.Warn("布局为空，界面不渲染任何栏");
+            return;
+        }
+
+        AppLog.Info($"绘制布局：根={Board.Layout.Type}/{Board.Layout.Orientation} 叶={LayoutTree.LeafIds(Board.Layout).Count}");
+
+        var min = LayoutTree.ComputeMinSize(Board.Layout);
+
+        var viewportWidth = ColumnsScroller.ViewportWidth;
+        if (viewportWidth <= 0 || double.IsNaN(viewportWidth))
+        {
+            viewportWidth = Math.Max(0, ActualWidth - 16);
+        }
+
+        var viewportHeight = ColumnsScroller.ViewportHeight;
+        if (viewportHeight <= 0 || double.IsNaN(viewportHeight))
+        {
+            viewportHeight = Math.Max(0, ActualHeight - 42);
+        }
+
+        LayoutHost.Width = Math.Max(viewportWidth, min.Width);
+        LayoutHost.Height = Math.Max(viewportHeight, min.Height);
     }
 
     private void OnColumnsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -679,8 +889,18 @@ public partial class MainWindow : Window
                 break;
         }
 
-        UpdateColumnWidths();
+        RebuildLayout();
+        UpdateColumnsHostSize();
     }
+
+    /// <summary>一次 Split 的可视化句柄，拖完分隔条要用它把尺寸设回星号。</summary>
+    private sealed record SplitView(
+        string Path,
+        bool Horizontal,
+        ColumnDefinition? FirstColumn,
+        ColumnDefinition? SecondColumn,
+        RowDefinition? FirstRow,
+        RowDefinition? SecondRow);
 
     /// <summary>
     /// 结构变了（加栏 / 删栏）就让窗口收放到「刚好放下这些栏」。
@@ -731,6 +951,9 @@ public partial class MainWindow : Window
 
         AppLog.Info($"AutoFit（{reason}）：{current:F0} → {Width:F0} DIP（{count} 栏）@ {left:F0}");
 
+        // 尺寸是程序改的，但落盘要靠 placement；不写的话下次启动会读到旧宽度
+        _viewModel.SavePlacement(Left, Top, Width, Height);
+
         if (Math.Abs(Left - left) > 0.5 || Math.Abs(Width - target) > 0.5)
         {
             AppLog.Warn($"AutoFit 目标 {target:F0} 被系统夹到 {Width:F0}（MinWidth={MinWidth}）");
@@ -763,7 +986,7 @@ public partial class MainWindow : Window
 
     private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        UpdateColumnWidths();
+        UpdateColumnsHostSize();
 
         if (!IsLoaded || WindowState != WindowState.Normal || _applyingSize)
         {
@@ -802,6 +1025,13 @@ public partial class MainWindow : Window
 
     private void OnColumnTitleMouseDown(object sender, MouseButtonEventArgs e)
     {
+        // 手指按下就记下「这一栏可能是被拖走的」，移动超过阈值才真的起拖
+        if (sender is FrameworkElement { DataContext: ColumnViewModel pressed })
+        {
+            _paneDragSource = pressed;
+            _paneDragOrigin = e.GetPosition(this);
+        }
+
         if (e.ClickCount != 2 || sender is not FrameworkElement { DataContext: ColumnViewModel column })
         {
             return;
@@ -809,6 +1039,172 @@ public partial class MainWindow : Window
 
         column.BeginTitleEdit();
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// 栏头的右键菜单：拖拽是「放到任意位置」的手势，这里给不能拖的场景一个等价出口，
+    /// 同时它也是自动化测试能点到的那条路径（DoDragDrop 收不到合成鼠标事件）。
+    /// </summary>
+    private void OnPaneHeaderMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: ColumnViewModel pane } element || _viewModel.Columns.Count < 2)
+        {
+            return;
+        }
+
+        var menu = new ContextMenu { PlacementTarget = element, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+
+        void AddItem(string header, Func<bool> action)
+        {
+            var item = new MenuItem { Header = header };
+            item.Click += (_, _) =>
+            {
+                if (action())
+                {
+                    RebuildLayout();
+                }
+            };
+            menu.Items.Add(item);
+        }
+
+        var first = _viewModel.Columns[0];
+        var last = _viewModel.Columns[^1];
+
+        AddItem("移到最左", () => _viewModel.MovePane(pane.Id, first.Id, DockSide.Left));
+        AddItem("移到最右", () => _viewModel.MovePane(pane.Id, last.Id, DockSide.Right));
+        AddItem("移到最上", () => _viewModel.MovePane(pane.Id, first.Id, DockSide.Top));
+        AddItem("移到最下", () => _viewModel.MovePane(pane.Id, last.Id, DockSide.Bottom));
+        menu.Items.Add(new Separator());
+        AddItem("与右边一栏互换", () =>
+        {
+            var index = _viewModel.Columns.IndexOf(pane);
+            return index >= 0 && index + 1 < _viewModel.Columns.Count
+                && _viewModel.SwapPanes(pane.Id, _viewModel.Columns[index + 1].Id);
+        });
+
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
+    /// <summary>从栏头开始拖：超过系统拖拽阈值才起拖，避免双击改名被误判成拖动。</summary>
+    private void OnPaneHeaderPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_paneDragSource is null || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        var now = e.GetPosition(this);
+        if (Math.Abs(now.X - _paneDragOrigin.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(now.Y - _paneDragOrigin.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        var source = _paneDragSource;
+        _paneDragSource = null;
+        _paneDragId = source.Id;
+        try
+        {
+            DragDrop.DoDragDrop(
+                (DependencyObject)sender,
+                new DataObject(PaneDataFormat, source.Id),
+                DragDropEffects.Move);
+        }
+        finally
+        {
+            _paneDragId = null;
+            ClearPaneDropMarks();
+        }
+    }
+
+    private void OnPaneDragOver(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(PaneDataFormat) ||
+            sender is not FrameworkElement { DataContext: ColumnViewModel target } ||
+            string.Equals(target.Id, _paneDragId, StringComparison.Ordinal))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+        foreach (var column in _viewModel.Columns)
+        {
+            column.IsDropTarget = ReferenceEquals(column, target) || column.Id == target.Id;
+        }
+    }
+
+    private void OnPaneDragLeave(object sender, DragEventArgs e)
+    {
+        ClearPaneDropMarks();
+    }
+
+    private void OnPaneDrop(object sender, DragEventArgs e)
+    {
+        ClearPaneDropMarks();
+
+        if (!e.Data.GetDataPresent(PaneDataFormat) ||
+            e.Data.GetData(PaneDataFormat) is not string sourceId ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not ColumnViewModel target ||
+            string.Equals(sourceId, target.Id, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var point = e.GetPosition(element);
+        var width = Math.Max(1, element.ActualWidth);
+        var height = Math.Max(1, element.ActualHeight);
+        var edgeX = Math.Min(0.28 * width, 80);
+        var edgeY = Math.Min(0.28 * height, 60);
+
+        DockSide? side = null;
+        var swap = false;
+
+        if (point.X < edgeX)
+        {
+            side = DockSide.Left;
+        }
+        else if (point.X > width - edgeX)
+        {
+            side = DockSide.Right;
+        }
+        else if (point.Y < edgeY)
+        {
+            side = DockSide.Top;
+        }
+        else if (point.Y > height - edgeY)
+        {
+            side = DockSide.Bottom;
+        }
+        else
+        {
+            swap = true;
+        }
+
+        var ok = swap
+            ? _viewModel.SwapPanes(sourceId, target.Id)
+            : _viewModel.MovePane(sourceId, target.Id, side!.Value);
+
+        if (!ok)
+        {
+            AppLog.Warn("停靠没成功：布局树拒绝了这次移动（可能是层级超过 3 层）");
+            return;
+        }
+
+        RebuildLayout();
+        AppLog.Info($"停靠：栏 {sourceId} → {(swap ? "与 " + target.Id + " 互换" : target.Id + " 的 " + side)}");
+    }
+
+    private void ClearPaneDropMarks()
+    {
+        foreach (var column in _viewModel.Columns)
+        {
+            column.IsDropTarget = false;
+        }
     }
 
     private void OnTitleEditBoxIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)

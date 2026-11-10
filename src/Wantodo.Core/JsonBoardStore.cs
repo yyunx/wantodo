@@ -108,7 +108,7 @@ public sealed class JsonBoardStore
     public void Save(Board board)
     {
         ArgumentNullException.ThrowIfNull(board);
-        Normalize(board);
+        Normalize(board, Diagnostics);
 
         Directory.CreateDirectory(DirectoryPath);
 
@@ -189,7 +189,7 @@ public sealed class JsonBoardStore
     }
 
     /// <summary>把字段缺失 / 手写出错的数据补成可用状态。不改内容，只补默认值。</summary>
-    internal static void Normalize(Board board)
+    internal static void Normalize(Board board, List<string>? diagnostics = null)
     {
         board.Placement ??= new WindowPlacement();
         board.Columns ??= new List<NoteColumn>();
@@ -239,6 +239,15 @@ public sealed class JsonBoardStore
                 }
             }
         }
+
+        // 停靠布局：旧文件没有 layout、或树被手改坏，都在这里修好（见 D16）
+        var layoutError = board.NormalizeLayout();
+        if (layoutError is not null)
+        {
+            diagnostics?.Add($"布局已回退为均衡横向树：{layoutError}");
+        }
+
+        board.Version = 2;
     }
 
     private static string? Quarantine(string path)

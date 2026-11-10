@@ -103,6 +103,49 @@ public sealed class BoardViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 把一栏停靠到另一栏的某一侧；布局树先算、校验通过才落数据，
+    /// 否则保持原样并把原因抛回去（界面负责提示，不静默丢操作）。
+    /// </summary>
+    public bool MovePane(string paneId, string targetPaneId, DockSide side)
+    {
+        if (Model.Layout is null || string.Equals(paneId, targetPaneId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var moved = LayoutTree.MovePane(Model.Layout, paneId, targetPaneId, side);
+        if (LayoutTree.Validate(moved, Model.Columns.Select(c => c.Id).ToList()) is { } error)
+        {
+            AppLog.Warn($"停靠被拒绝：{error}");
+            return false;
+        }
+
+        Model.Layout = moved;
+        RequestSave();
+        return true;
+    }
+
+    /// <summary>把两栏的位置互换（拖到中间时用）。</summary>
+    public bool SwapPanes(string paneId, string otherPaneId)
+    {
+        if (Model.Layout is null || string.Equals(paneId, otherPaneId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var swapped = LayoutTree.SwapPanes(Model.Layout, paneId, otherPaneId);
+        if (LayoutTree.Validate(swapped, Model.Columns.Select(c => c.Id).ToList()) is { } error)
+        {
+            AppLog.Warn($"互换被拒绝：{error}");
+            return false;
+        }
+
+        Model.Layout = swapped;
+        RequestSave();
+        return true;
+    }
+
+    /// <summary>
     /// 标记「有改动」，400ms 内合并成一次落盘（连续拖动、连敲几条不会每次都写盘）。
     /// 关窗、系统注销时会走 <see cref="FlushSave"/> 立刻写。
     /// 最坏情况：改完 400ms 内被强杀，丢最后一次改动——验收口径允许。

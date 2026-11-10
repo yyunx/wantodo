@@ -31,8 +31,24 @@ public static class BoardEditor
             return false;
         }
 
+        var at = Math.Clamp(index, 0, board.Columns.Count);
         column = new NoteColumn { Title = NormalizeTitle(title) };
-        board.Columns.Insert(Math.Clamp(index, 0, board.Columns.Count), column);
+        board.Columns.Insert(at, column);
+
+        // 布局跟着插：放在「插入位置左边那一栏」的右侧；没有任何栏时它就是唯一的叶子。
+        var layout = board.Layout ?? LayoutTree.Balanced(board.Columns.Take(at).Select(c => c.Id).ToList());
+        if (layout is null)
+        {
+            board.Layout = LayoutNode.Leaf(column.Id);
+        }
+        else
+        {
+            var anchor = at > 0 ? board.Columns[at - 1] : null;
+            board.Layout = anchor is null
+                ? LayoutTree.InsertBeside(layout, board.Columns[at + 1].Id, column.Id, DockSide.Left)
+                : LayoutTree.InsertBeside(layout, anchor.Id, column.Id, DockSide.Right);
+        }
+
         return true;
     }
 
@@ -50,7 +66,14 @@ public static class BoardEditor
             return false;
         }
 
-        return board.Columns.Remove(column);
+        var removed = board.Columns.Remove(column);
+        if (removed)
+        {
+            board.Layout = LayoutTree.RemovePane(board.Layout, column.Id)
+                           ?? LayoutTree.Balanced(board.Columns.Select(c => c.Id).ToList());
+        }
+
+        return removed;
     }
 
     public static void RenameColumn(NoteColumn column, string? title)
