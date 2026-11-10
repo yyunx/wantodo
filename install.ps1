@@ -92,5 +92,6 @@ if ($StartWithWindows) {
 }
 
 Write-Host ''
-Write-Host '安装完成。数据在 %APPDATA%\wantodo\data.json，卸载默认不删。' -ForegroundColor Green
-Write-Host '下次登录要自动启动的话，也可以用程序里「设置 → 开机自启」，效果一样。' -ForegroundColor DarkGray
+Write-Host '安装完成。开始菜单里搜 wantodo 即可打开（或双击上面的快捷方式）。' -ForegroundColor Green
+Write-Host '数据不在这个目录里：程序启动后「设置 → 数据位置」会显示当前数据根，默认在非系统盘。' -ForegroundColor DarkGray
+Write-Host '卸载默认可保留数据；下次登录要自动启动，用程序里「设置 → 开机自启」。' -ForegroundColor DarkGray
