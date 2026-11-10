@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace Wantodo.Core;
 
@@ -88,7 +88,7 @@ public static class LayoutTree
     public const double MinPaneHeight = 120;
 
     /// <summary>最大嵌套深度（根为 1）。4 栏的常见形态是 2–3 层。</summary>
-    public const int MaxDepth = 3;
+    public const int MaxDepth = 4;
 
     /// <summary>把若干栏排成均衡的横向树：1 栏就是叶，2 栏 0.5/0.5，3 栏 0.667 → 0.5。</summary>
     public static LayoutNode? Balanced(IReadOnlyList<string> paneIds)

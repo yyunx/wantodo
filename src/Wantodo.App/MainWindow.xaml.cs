@@ -38,6 +38,7 @@ public partial class MainWindow : Window
     private bool _dragHoverLogged;
     private DockSide _lastDropSide;
     private bool _lastDropSwap = true;
+    private string? _lastDropTargetId;
     private readonly BoardViewModel _viewModel;
     private readonly DataPaths _paths;
 
@@ -761,7 +762,11 @@ public partial class MainWindow : Window
         }
 
         e.Handled = true;
-        var side = ComputeDropSide(e.GetPosition(pane), Math.Max(1, pane.ActualWidth), Math.Max(1, pane.ActualHeight), out var swap);
+        var fromCache = string.Equals(_lastDropTargetId, target.Id, StringComparison.Ordinal);
+        var side = fromCache
+            ? _lastDropSide
+            : ComputeDropSide(e.GetPosition(pane), Math.Max(1, pane.ActualWidth), Math.Max(1, pane.ActualHeight), out _);
+        var swap = fromCache && _lastDropSwap;
         var ok = swap ? _viewModel.SwapPanes(sourceId, target.Id) : _viewModel.MovePane(sourceId, target.Id, side);
         var becameSwap = swap;
 
@@ -786,7 +791,7 @@ public partial class MainWindow : Window
         }
 
         RebuildLayout();
-        AppLog.Info($"停靠（窗口级）：{sourceId} → {(becameSwap ? "与 " + target.Id + " 互换" : target.Id + " 的 " + side)}");
+        AppLog.Info($"Drop（窗口级）目标={target.Id} 预览方向={(becameSwap ? "互换" : side.ToString())} 来源={(fromCache ? "DragOver 缓存" : "Drop 重算")}");
     }
 
     private void OnWindowDragLeave(object sender, DragEventArgs e) => ClearPaneDropMarks();
@@ -1451,6 +1456,7 @@ public partial class MainWindow : Window
             var width = Math.Max(1, element.ActualWidth);
             var height = Math.Max(1, element.ActualHeight);
             var side = ComputeDropSide(point, width, height, out var swap);
+            _lastDropTargetId = target.Id;
             if (side != _lastDropSide || swap != _lastDropSwap)
             {
                 _lastDropSide = side;
@@ -1576,43 +1582,41 @@ public partial class MainWindow : Window
             return;
         }
 
-        var point = e.GetPosition(element);
-        var width = Math.Max(1, element.ActualWidth);
-        var height = Math.Max(1, element.ActualHeight);
-        var edgeX = Math.Min(0.28 * width, 80);
-        var edgeY = Math.Min(0.28 * height, 60);
-
-        DockSide? side = null;
-        var swap = false;
-
-        if (point.X < edgeX)
+        // 松手时不要再自己算一套：DragOver 已经算好了方向并画了预览，
+        // 两处阈值不一致就会出现「预览是右侧、落地却互换」。目标相同就直接用缓存。
+        DockSide side;
+        bool swap;
+        var fromCache = string.Equals(_lastDropTargetId, target.Id, StringComparison.Ordinal);
+        if (fromCache)
         {
-            side = DockSide.Left;
-        }
-        else if (point.X > width - edgeX)
-        {
-            side = DockSide.Right;
-        }
-        else if (point.Y < edgeY)
-        {
-            side = DockSide.Top;
-        }
-        else if (point.Y > height - edgeY)
-        {
-            side = DockSide.Bottom;
+            side = _lastDropSide;
+            swap = _lastDropSwap;
         }
         else
         {
-            swap = true;
+            side = ComputeDropSide(e.GetPosition(element), Math.Max(1, element.ActualWidth), Math.Max(1, element.ActualHeight), out swap);
         }
 
         var ok = swap
             ? _viewModel.SwapPanes(sourceId, target.Id)
-            : _viewModel.MovePane(sourceId, target.Id, side!.Value);
+            : _viewModel.MovePane(sourceId, target.Id, side);
+
+        if (!ok && !swap)
+        {
+            // 层级太深时插不进去：先换成互换，至少让这次拖动有可见结果，并记下来
+            ok = _viewModel.SwapPanes(sourceId, target.Id);
+            if (ok)
+            {
+                swap = true;
+                AppLog.Info("停靠位置太深，改为与目标栏互换");
+            }
+        }
+
+        AppLog.Info($"Drop 目标={target.Id} 预览方向={(swap ? "互换" : side.ToString())} 来源={(fromCache ? "DragOver 缓存" : "Drop 重算")}");
 
         if (!ok)
         {
-            AppLog.Warn("停靠没成功：布局树拒绝了这次移动（可能是层级超过 3 层）");
+            AppLog.Warn("停靠没成功：布局树拒绝了这次移动（可能是层级超过上限）");
             return;
         }
 

@@ -103,3 +103,26 @@ Get-Content "$env:USERPROFILE\..\..\E:\Wantodo\logs\app-*.log" -Encoding utf8 | 
 - 拖拽开始/命中目标各记一条日志（开始拖栏 … / 拖到栏 … / 停靠：…），下次出问题能直接从 E:\Wantodo\logs 看出来。
 
 实测（真实 OS 鼠标事件驱动）：开始拖栏 a5c437… → 拖到栏 aad277… → 停靠：栏 a5c437… → aad277… 的 Left，data.json 的布局树从 (fa71|(a5c4|aad2)) 变成预期的嵌套结构。
+
+## 修复：预览说「右侧」、落地却「互换」（2026-11-10 22:40）
+
+根因是 DragOver 与 Drop 各算一套阈值：
+
+- DragOver（负责画预览）用的是新的 30%/70% 分带；
+- Drop（真正改数据）里还留着旧的 边缘 = min(28%, 80px) 老代码。
+
+于是「右侧 30%」里靠内的一段（比如 x/宽 = 0.72）预览判成 Right，Drop 却落进「中间 = 互换」，
+表现就是预览在右边、松手变成两栏对调。
+
+修法：
+
+1. DragOver 把「目标栏 + 方向 + 是否互换」缓存下来；
+2. Drop 命中同一目标时直接用缓存，不再重算；只有目标不一致（缓存过期）才调用同一个 ComputeDropSide；
+3. 删掉 Drop 里那套 28%/80px 的旧判定；
+4. 日志补 Drop 目标=… 预览方向=… 来源=DragOver 缓存|Drop 重算，下次一眼能看出走的是哪条路；
+5. LayoutTree.MaxDepth 3 → 4：三栏嵌套时再往深处插会撞上限，旧逻辑会退化成「互换」，这也是同一类
+   「预览与实际不一致」的来源。
+
+实测（真实鼠标）：把中间那栏拖到右栏右侧 →
+落点判定 Right：x=200 y=147 容器=278×333 → Drop 目标=fa71dd… 预览方向=Right 来源=DragOver 缓存
+→ 布局树变成 Horizontal(想做的事情 | Horizontal(想到的问题 | 论文))，截图 phase9-dock-right.png。
