@@ -2,6 +2,8 @@
 
 贴在 Windows 桌面上的便签板 —— 像手机主屏的小组件，默认两栏：「要做的事情」「突然想到的问题」。
 
+> **怎么用、怎么装：看 [docs/usage.md](docs/usage.md)（使用说明）**。下面这份 README 偏开发向。
+
 ## 现状
 
 **Phase 5 已通过**（2026-11-10）：自包含单文件发布（148.74 MB，不依赖运行时）、
@@ -61,6 +63,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
 | 文件 | 作用 |
 |---|---|
 | [AGENTS.md](AGENTS.md) | 给 Codex 的仓库约定（技术栈、硬性规则、完成定义） |
+| [docs/usage.md](docs/usage.md) | **使用说明**：下载安装、日常操作、快捷键、数据备份、常见问题 |
 | [docs/spec.md](docs/spec.md) | 产品规格：场景、功能分级、数据模型、交互细节 |
 | [docs/plan.md](docs/plan.md) | 分阶段计划 + 每阶段验收清单 |
 | [docs/decisions.md](docs/decisions.md) | 技术选型 ADR、环境实测、待定项 |
