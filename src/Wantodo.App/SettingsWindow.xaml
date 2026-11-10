@@ -81,6 +81,26 @@
             <TextBlock Style="{StaticResource HintText}"
                        Text="快速记一条：Ctrl+Alt+Space，回车即入库，Esc 取消。"
                        Margin="0,8,0,0" />
+
+            <Separator Margin="0,12,0,10" Background="{DynamicResource Divider}" Height="1" />
+
+            <TextBlock Text="数据位置" Style="{StaticResource FieldLabel}" />
+            <TextBlock x:Name="DataRootText"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap"
+                       Margin="0,2,0,2" />
+            <TextBlock x:Name="DataFreeText"
+                       Style="{StaticResource HintText}"
+                       Margin="0,0,0,8" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <Button Content="打开目录" Margin="0,0,8,0" Padding="10,3" Click="OnOpenDataFolderClick" />
+                <Button Content="迁移到…" Margin="0,0,8,0" Padding="10,3" Click="OnMigrateClick" />
+                <Button x:Name="CleanLegacyButton" Content="清理旧数据" Padding="10,3"
+                        Click="OnCleanLegacyClick" />
+            </StackPanel>
+            <TextBlock Style="{StaticResource HintText}"
+                       Text="数据默认放在非系统盘；迁移会复制文件并写指针，重启后生效，旧目录不会自动删除。"
+                       Margin="0,4,0,0" />
         </StackPanel>
     </Border>
 </Window>

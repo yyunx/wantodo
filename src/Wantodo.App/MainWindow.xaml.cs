@@ -29,6 +29,7 @@ public partial class MainWindow : Window
         nameof(ColumnWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(MinColumnWidth));
 
     private readonly BoardViewModel _viewModel;
+    private readonly DataPaths _paths;
 
     private IntPtr _hwnd;
     private ShellRestartWatcher? _shellRestartWatcher;
@@ -42,11 +43,16 @@ public partial class MainWindow : Window
     private double _expectedWidth = double.NaN;
     private bool _manualSizeLogged;
 
+    /// <summary>数据根已迁移到别处：进程还指着旧目录，退出时不能再往旧目录写。</summary>
+    private bool _dataMigrated;
+
     private Point _dragStart;
     private NoteViewModel? _draggingNote;
 
-    public MainWindow(Board board, JsonBoardStore store)
+    public MainWindow(Board board, JsonBoardStore store, DataPaths paths)
     {
+        _paths = paths;
+
         // 数据里一栏都没有时界面会是空的，给个最小可用的占位栏（不改用户的 JSON，只在内存里补）
         if (board.Columns.Count == 0)
         {
@@ -207,9 +213,95 @@ public partial class MainWindow : Window
             return;
         }
 
-        _settingsWindow = new SettingsWindow(this, _viewModel);
+        _settingsWindow = new SettingsWindow(this, _viewModel, _paths);
         _settingsWindow.Show();
         AppLog.Info("打开设置面板");
+    }
+
+    /// <summary>数据根（设置面板显示用）。</summary>
+    public DataPaths DataRoot => _paths;
+
+    public void OpenDataFolder()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = _paths.Root,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("打开数据目录失败", ex);
+        }
+    }
+
+    /// <summary>
+    /// 把数据根迁移到 <paramref name="targetRoot"/>：复制 → 校验 → 切换 → 写指针。
+    /// 成功后需要重启才生效（返回 true 由调用方提示）。
+    /// </summary>
+    public bool MigrateDataTo(string targetRoot, out string? error)
+    {
+        error = null;
+
+        // 先把内存里的改动落盘，否则迁移过去的版本会缺最后一笔。
+        FlushPendingSave();
+
+        var result = DataMigrator.Migrate(
+            _paths.Root,
+            targetRoot,
+            Storage.DataRootService.FreeBytesAt,
+            AppLog.Info);
+
+        if (!result.Success)
+        {
+            error = result.Error;
+            AppLog.Warn($"迁移失败：{error}");
+            return false;
+        }
+
+        Storage.DataRootService.Host.WritePointer(result.TargetRoot!);
+        // 迁移后这个进程仍然握着旧目录：退出时不能再往旧目录写，否则旧目录又变成一份「新数据」。
+        _dataMigrated = true;
+        AppLog.Info($"数据根改为 {result.TargetRoot}（{result.FileCount} 个文件，{DataMigrator.FormatBytes(result.TotalBytes)}），重启后生效");
+        return true;
+    }
+
+    /// <summary>删掉 v0.4 的 <c>%APPDATA%\wantodo</c>（数据已迁走后才能用）。</summary>
+    public bool CleanLegacyData(out string? message)
+    {
+        message = null;
+        var legacy = Storage.DataRootService.LegacyDirectory;
+        try
+        {
+            if (!System.IO.Directory.Exists(legacy))
+            {
+                return true;
+            }
+
+            if (DataPaths.IsSameDirectory(legacy, _paths.Root))
+            {
+                message = "当前数据就放在旧位置，不能清理。";
+                return false;
+            }
+
+            System.IO.Directory.Delete(legacy, recursive: true);
+            AppLog.Info($"已清理旧数据目录 {legacy}");
+            return true;
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            message = $"清理失败：{ex.Message}";
+            AppLog.Warn(message);
+            return false;
+        }
+    }
+
+    public bool LegacyDataExists()
+    {
+        var legacy = Storage.DataRootService.LegacyDirectory;
+        return System.IO.Directory.Exists(legacy) && !DataPaths.IsSameDirectory(legacy, _paths.Root);
     }
 
     public void OnSettingsClosed()
@@ -308,6 +400,12 @@ public partial class MainWindow : Window
     /// <summary>把窗口位置写回模型并立刻落盘。关窗、注销、关机都会走这里。</summary>
     public void FlushPendingSave()
     {
+        if (_dataMigrated)
+        {
+            // 数据已经搬到新目录，这个进程还指着旧目录，再写就把旧目录写脏了。
+            return;
+        }
+
         var width = ActualWidth > 0 ? ActualWidth : Width;
         var height = ActualHeight > 0 ? ActualHeight : Height;
 

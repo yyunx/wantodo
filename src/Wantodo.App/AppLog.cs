@@ -5,14 +5,16 @@ using System.Text;
 namespace Wantodo.App;
 
 /// <summary>
-/// 极简日志：写 %APPDATA%\wantodo\app.log。
-/// Phase 1 不引日志库；出问题时用户把 app.log 发过来就能定位，比看任务管理器猜强。
+/// 极简日志：写 <c>&lt;数据根&gt;\logs\app-yyyyMMdd.log</c>（按天滚动，保留 14 天）。
+/// 启动早期还没解析出数据根时先写 <c>%APPDATA%\wantodo\app.log</c>，解析完再切过去，
+/// 保证「解析本身失败」也有据可查。
 /// </summary>
 internal static class AppLog
 {
     private static readonly object Gate = new();
     private static string? _path;
 
+    /// <summary>当前日志文件路径（未初始化时是旧位置的兜底）。</summary>
     public static string Path
     {
         get
@@ -28,6 +30,14 @@ internal static class AppLog
 
             return _path;
         }
+    }
+
+    /// <summary>数据根就绪后切到 <c>&lt;root&gt;\logs\app-yyyyMMdd.log</c>。</summary>
+    public static void Initialize(string logsDirectory)
+    {
+        var dir = logsDirectory;
+        Directory.CreateDirectory(dir);
+        _path = System.IO.Path.Combine(dir, Core.DataRetention.LogFileName(DateTimeOffset.Now));
     }
 
     public static void Info(string message) => Write("INFO", message);

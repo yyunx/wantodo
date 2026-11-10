@@ -6,12 +6,12 @@
 
 ## 现状
 
-**Phase 6 已通过**（2026-11-10）：窗口尺寸跟着栏数走——加栏撑宽、删栏收窄，拖过窗口就自动切成
-「固定」不再自动改；设置面板可切回「跟随栏数」。证据见
-[`docs/verify/phase6.md`](docs/verify/phase6.md)
-（Phase 5 在 [`phase5.md`](docs/verify/phase5.md)；4 在 [`phase4.md`](docs/verify/phase4.md)；
-3 在 [`phase3.md`](docs/verify/phase3.md)；2 / 2.5 在 [`phase2.md`](docs/verify/phase2.md)、
-[`phase2.5.md`](docs/verify/phase2.5.md)）。
+**Phase 7 已通过**（2026-11-10）：数据根外置——所有数据不再固定放在 C 盘，按「`portable.txt` → 注册表
+指针 → 程序目录 → 空间最大的非系统盘」选址；设置里可把数据整体迁移到别的盘并自动重启；v0.4 旧数据
+首次启动自动导入。证据见 [`docs/verify/phase7.md`](docs/verify/phase7.md)
+（Phase 6 在 [`phase6.md`](docs/verify/phase6.md)；5 在 [`phase5.md`](docs/verify/phase5.md)；4 在
+[`phase4.md`](docs/verify/phase4.md)；3 在 [`phase3.md`](docs/verify/phase3.md)；2 / 2.5 在
+[`phase2.md`](docs/verify/phase2.md)、[`phase2.5.md`](docs/verify/phase2.5.md)）。
 
 自包含单文件发布（148.74 MB，不依赖运行时）、单实例（第二次双击只把已有窗口叫到前面）、
 `install.ps1` / `uninstall.ps1`（装到 `%LOCALAPPDATA%\Programs\wantodo`，开始菜单快捷方式，不需要管理员）。
@@ -41,7 +41,10 @@ dotnet test tests\Wantodo.Core.Tests\Wantodo.Core.Tests.csproj
 Start-Process src\Wantodo.App\bin\Debug\net10.0-windows\Wantodo.exe
 ```
 
-数据在 `%APPDATA%\wantodo\data.json`（可直接手改，改完重启生效；日志在同目录 `app.log`）。
+数据根（业务数据都在这，**默认不在 C 盘**）：开发版是 `src\Wantodo.App\bin\Debug\net10.0-windows\data`，
+安装版按「空间最大的非系统盘」选，本机为 `E:\Wantodo`。当前实际路径看设置面板「数据位置」或
+`HKCU\Software\wantodo` 的 `DataRoot`。板数据在 `<根>\board\data.json`（可直接手改，改完重启生效），
+日志在 `<根>\logs\app-yyyyMMdd.log`，笔记在 `<根>\notes\`，回收站在 `<根>\trash\`。
 
 ## 安装 / 卸载
 
@@ -92,7 +95,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
 - [x] Phase 4 托盘 / 设置 / 快捷键 / 主题 —— 见 `docs/verify/phase4.md`
 - [x] Phase 5 打包（单实例 + 安装脚本）—— 见 `docs/verify/phase5.md`
 - [x] Phase 6 窗口尺寸自适应闭环（删栏收窄 / AutoFit 与 Manual 双态）—— 见 `docs/verify/phase6.md`
-- [ ] Phase 7 数据根外置（不落 C 盘、可迁移）—— 设计见 `docs/design/data-root.md`
+- [x] Phase 7 数据根外置（不落 C 盘、可迁移）—— 见 `docs/verify/phase7.md`
 - [ ] Phase 8 随心记（笔记库 + 默认类型可配 + 外部可编辑）
 - [ ] Phase 9 停靠式自由布局（栏停靠到任意位置、单独缩放）—— 设计见 `docs/design/dock-layout.md`
 - [ ] Phase 10 0.5.0 收口（回归矩阵 + 发布说明）

@@ -46,7 +46,31 @@ public partial class App : Application
             return;
         }
 
-        _store = new JsonBoardStore();
+        // 数据根：解析 → 建目录 → 拿锁 → 导入 v0.4 数据 → 清理过期文件。必须在读板数据之前。
+        Wantodo.App.Storage.DataRootService.Initialize();
+        AppLog.Initialize(Wantodo.App.Storage.DataRootService.Paths.LogsDir);
+
+        var resolution = Wantodo.App.Storage.DataRootService.Resolution;
+        AppLog.Info(
+            $"数据根 {resolution.Root}（来源 {resolution.Source}）" +
+            (resolution.Warning is null ? string.Empty : $" ⚠ {resolution.Warning}"));
+        if (Wantodo.App.Storage.DataRootService.LastLockMessage is { } lockMessage)
+        {
+            AppLog.Warn(lockMessage);
+        }
+
+        if (Wantodo.App.Storage.DataRootService.ImportLegacyBoard() is { } importMessage)
+        {
+            AppLog.Info(importMessage);
+        }
+
+        var pruned = Wantodo.App.Storage.DataRootService.Prune();
+        if (pruned.Logs > 0 || pruned.Trash > 0)
+        {
+            AppLog.Info($"清理过期文件：日志 {pruned.Logs} 个、回收站 {pruned.Trash} 个");
+        }
+
+        _store = new JsonBoardStore(Wantodo.App.Storage.DataRootService.Paths.BoardFile);
         var result = _store.Load();
 
         AppLog.Info(
@@ -58,7 +82,7 @@ public partial class App : Application
             AppLog.Warn(diagnostic);
         }
 
-        var window = new MainWindow(result.Board, _store);
+        var window = new MainWindow(result.Board, _store, Wantodo.App.Storage.DataRootService.Paths);
         MainWindow = window;
         window.ContentRendered += OnFirstFrameRendered;
         window.Show();
@@ -89,5 +113,39 @@ public partial class App : Application
         }
 
         base.OnSessionEnding(e);
+    }
+
+    private static bool _restartRequested;
+
+    /// <summary>迁移完数据后要求重启：退出时由 cmd 起一个新进程，避开单实例互斥。</summary>
+    public static void RequestRestart() => _restartRequested = true;
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        Storage.DataRootService.Shutdown();
+
+        if (_restartRequested)
+        {
+            try
+            {
+                var exe = Environment.ProcessPath;
+                if (!string.IsNullOrEmpty(exe))
+                {
+                    System.Diagnostics.Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/c start \"\" \"{exe}\"",
+                        CreateNoWindow = true,
+                        UseShellExecute = false,
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("重启失败", ex);
+            }
+        }
+
+        base.OnExit(e);
     }
 }
