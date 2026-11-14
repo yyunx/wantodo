@@ -247,6 +247,7 @@ public sealed class JsonBoardStore
             diagnostics?.Add($"布局已回退为均衡横向树：{layoutError}");
         }
 
+        board.PanelHeight = Math.Clamp(board.PanelHeight, Board.MinPanelHeight, Board.MaxPanelHeight);
         board.Version = 2;
     }
 

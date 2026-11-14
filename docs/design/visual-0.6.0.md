@@ -93,52 +93,60 @@
 
 ```text
  光标移到屏幕顶边 2 DIP 内，停留 ≥120 ms
-        ▁▁▁▁▁▁▁▁            ← 把手 96×4 DIP，圆角 2，Accent 40%
+        ▁▁▁▁▁▁▁▁            ← 把手 120×4 DIP，圆角 2，Accent 40%
    ┌────────────────────────────────────┐
-   │ 要做的事情          │ 突然想到的问题 │   ← 面板高 320 DIP，圆角 12
-   │ ☐ 写周报            │ 记一下…        │      CardBackground + Divider
-   │ ☐ 买牛奶            │                │
+   │ 便签        （760 DIP 宽，居中）      │   ← 展开高度 = 记忆值 240–720 DIP
+   │ 要做的事情    │ 突然想到的问题        │      CardBackground + Divider
+   │ ☐ 写周报      │ 记一下…              │
    └────────────────────────────────────┘
 ```
 
-- **触发**：屏幕顶边、高 2 DIP（150% 缩放为 3 物理像素）、宽 = 显示器宽；停留 120 ms 才出把手，
-  避免鼠标划过去关闭按钮时误弹。
-- **动效**：把手淡入 120 ms（只动 `Opacity`）；拖动跟手无缓动，面板高度 = 拖拽距离（0–320 DIP，
-  可拉到 480 调整记忆高度）；松手过 128 DIP（40%）吸附展开 160 ms `CubicEase EaseOut`，
-  否则 140 ms 收回。只动 `TranslateTransform` + 父容器 `Clip`，不改 `Height`，避免每帧全窗重排。
+- **触发**：主显示器顶边、高 2 DIP（150% 缩放为 3 物理像素）、宽 = 主屏宽；停留 120 ms 才出把手，
+  避免鼠标划过去关闭按钮时误弹。热区窗口 `Opacity=0.01`（真透明不参与命中），
+  `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`，不进 Alt+Tab。
+- **动效**：把手淡入 120 ms（只动 `Opacity`）；拖动跟手，窗口高度 = 12 DIP + 拖拽距离
+  （12–记忆高度），正文随高度显示/隐藏；松手过 40% 吸附展开 160 ms `CubicEase EaseOut`，
+  否则 140 ms `CubicEase EaseIn` 收回 12 DIP 再 `Hide()`。
+- **与设计的偏差**：原稿写「只动 `TranslateTransform` + `Clip`，不改 `Height`」。实现改为改 `Height`：
+  面板要懒加载且常态不占屏幕，窗口一旦固定为 760×480 就会在桌面盖住一块透明命中区，
+  点桌面图标会被吞。改 `Height` 的代价是拖动时面板内布局重排；DragMove 实测连续（见 `docs/verify/phase17.md`），
+  若后续出现拖动卡顿再换「固定高度 + 裁剪」方案。
 - **降级**：关闭开关 → 不建热区窗口、不装钩子、不启计时器，功能回到 0.5.0。
-- **资源**：`TopPanelWindow` ≈420 行、`Interop/TopEdgeHotZone.cs` ≈120 行；二进制 +≤60 KB；
-  面板懒加载，常态 0 内存；展开 private +≤6 MB；空闲 CPU 0（无轮询）。
+- **资源**：`Windows/HotZoneWindow.cs`（≈100 行）、`Windows/TopPanelWindow.xaml(.cs)`（≈330 行）、
+  `Windows/TopEdgePanelService.cs`（≈190 行）、`Interop/LowLevelMouseHook.cs` 与 `Interop/ForegroundWatcher.cs`（≈250 行）；
+  二进制 +≤60 KB；面板懒加载，常态 0 内存；展开 private +≤6 MB；空闲 CPU 0（无轮询）。
 
 ### 2.2 内容与同步
 
-- 形态 A 复用 `BoardViewModel`，与主窗口读写同一份 `board/data.json`；写盘去抖 600 ms，沿用 `JsonBoardStore`。
-- 两侧同时显示时：写入方打标记，另一侧收 `BoardChanged` 事件刷新。**复用 Phase 11 的自写标记机制**，
-  不新写一套，避免「自己写盘被当外部改动」的历史问题（`NotesWindow.xaml.cs:98-107`）。
-- 形态 B（自由画布，`board/canvas.json`）不在本设计范围内，见 `docs/plan.md` 未排期区 U2。
+- 形态 A 复用同一个 `BoardViewModel` 实例，与主窗口读写同一份 `board/data.json`；
+  两侧绑的是同一份内存模型，互相改动即时可见。
+- 面板内容：两组列（`ItemsControl Columns → Notes`，每行 ☐/☑，完成态 TextMuted + 删除线）、
+  底部 `ComboBox` 选目标列 + `TextBox` 回车快速添加。
+- 写盘仍由 `BoardViewModel` 的 600 ms 去抖统一执行（`JsonBoardStore` 原子落盘），
+  不存在两个窗口各写一份的问题，因此不需要复刻 Phase 11 的自写标记。
+- 未做：外部程序直接改 `board/data.json` 时的自动重载（0.5.0 也不支持）；如需要，进未排期区单独排。
 
 ### 2.3 收回与失焦
 
-- 收回：`Esc`、点面板外任意处、从把手向上拖过 40%、切到其他前台应用。
-- 面板 `ShowActivated=false`：打开时不抢键盘焦点，不打断正在编辑的笔记；因此**不靠 `LostFocus` 判定**，
-  用 `Mouse.Capture` 或鼠标钩子（Phase 16 的 P4 定案）。
-- **动效**：收回 140 ms 上滑 + 淡出；期间可再次下拉打断，不排队。
+- 收回：`Esc`、点面板外任意处（低级鼠标钩子，物理像素判定）、从把手向上拖回 <40%。
+- 面板 `ShowActivated=false`：打开时不抢键盘焦点，不打断正在编辑的笔记；因此**不靠 `LostFocus` 判定**。
+- 前台窗口盖满整块屏幕（视频/游戏/无边框全屏）时：隐藏热区并收起面板，鼠标点屏幕最上 2 px 不会被吞。
 
 ### 2.4 多显示器与 DPI
 
-- 默认只响应**主显示器**顶边；`WindowStartupLocation=Manual`，`Left` = 工作区左，`Top` = 工作区顶 − 高度。
-- 热区高度按 DIP 定义、PerMonitorV2 换算物理像素；显示器切换后重新注册，900 ms 防抖。
-- 前台窗口矩形覆盖整个显示器（独占或无边框全屏）时暂停热区；检测失败只记 WARN，保持响应。
+- 只响应**主显示器**顶边；热区 `Left=0, Top=0, Width=主屏宽, Height=2 DIP`，PerMonitorV2 换算物理像素。
+- 显示器切换 / DPI 变化后的重新注册**未做**（本期只主屏）；要支持多屏时进未排期。
+- 全屏检测用 `EVENT_SYSTEM_FOREGROUND`：比较前台窗口 `GetWindowRect` 与所在显示器 `rcMonitor`；
+  排除 `Progman` / `WorkerW` / `Shell_TrayWnd` 与本进程窗口；检测失败只记 WARN，保持响应。
 
 ### 2.5 面板的资源账
 
 | 项 | 说明 |
 |---|---|
-| 降级 | 全屏检测失败 → 保持响应并 WARN；钩子注册失败 → 面板不可用，设置开关回滚为关 |
+| 降级 | 全屏检测失败 → 保持响应并 WARN；钩子注册失败 → 点外不收回，其余功能不变 |
 | 体积 | 见 2.1；无图片、无新依赖 |
 | 内存 | 懒加载，首帧不加载面板 XAML |
 | 上限 | `PanelHeight` 夹取 240–720 DIP，越界钳到边界 |
-
 ## 3. 待验证（先探针，后下结论）
 
 | ID | 问题 | 怎么测 | 判定 |

@@ -26,6 +26,16 @@ public sealed class Board
     /// <summary>随心记新建文档的默认类型：<c>txt</c> 或 <c>md</c>（见 NotesVault）。</summary>
     public string DefaultNoteFormat { get; set; } = "txt";
 
+    /// <summary>顶边下拉面板是否启用（Phase 17；默认关，关闭时不建窗口、不装钩子）。</summary>
+    public bool ShowTopPanel { get; set; }
+
+    /// <summary>下拉面板展开后的高度（DIP），夹取 240–720。</summary>
+    public double PanelHeight { get; set; } = 320;
+
+    public const double MinPanelHeight = 240;
+
+    public const double MaxPanelHeight = 720;
+
     public WindowPlacement Placement { get; set; } = new();
 
     public List<NoteColumn> Columns { get; set; } = new();
@@ -54,6 +64,18 @@ public sealed class Board
 
         Layout = LayoutTree.Balanced(ids);
         return error;
+    }
+
+    /// <summary>面板高度来自手改文件或旧版本时回到合法区间。</summary>
+    public void NormalizePanel()
+    {
+        if (double.IsNaN(PanelHeight) || double.IsInfinity(PanelHeight))
+        {
+            PanelHeight = MaxPanelHeight;
+            return;
+        }
+
+        PanelHeight = Math.Clamp(PanelHeight, MinPanelHeight, MaxPanelHeight);
     }
 
     /// <summary>首次启动（或数据彻底损坏）时的初始内容：两栏，带几条占位条目。</summary>

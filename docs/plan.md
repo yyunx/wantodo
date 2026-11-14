@@ -651,12 +651,16 @@ PowerShell 行切片（改 Python）、调试版与安装版共用单实例互�
 
 **要做的**
 
-1. 新增 `src/Wantodo.App/Interop/TopEdgeHotZone.cs`（按 Phase 16 结论实现；P/Invoke 只在此目录）。
+1. 新增热区与钩子（P/Invoke 全部在 `src/Wantodo.App/Interop/`）：`Windows/HotZoneWindow.cs`（主屏顶边 2 DIP，
+   `Opacity=0.01` 保证命中，`WS_EX_TOOLWINDOW|WS_EX_NOACTIVATE`）、`Interop/LowLevelMouseHook.cs`（点外收回）、
+   `Interop/ForegroundWatcher.cs`（全屏让路，按 Phase 16 的 covers 判定）。
 2. 新增 `src/Wantodo.App/Windows/TopPanelWindow.xaml(.cs)`：`ShowActivated=false`、圆角 12、懒加载；
    形态 A 复用 `BoardViewModel`，与主窗口同一份 `board/data.json`。
-3. 交互：停留 120 ms 出把手（仅 `Opacity` 动画）；拖动跟手改 `TranslateTransform` + `Clip`；
-   松手 >40% 吸附展开（160 ms `CubicEase EaseOut`），否则 140 ms 收回；`Esc` / 点外 / 上拖收回。
-4. 与主窗口同步：写入方打标记，另一侧收 `BoardChanged` 事件刷新（复用 Phase 11 的自写标记机制）。
+3. 交互：停留 120 ms 出把手（仅 `Opacity` 动画）；拖动跟手改窗口 `Height`（12 DIP → 记忆高度，
+   正文随高度显示）；松手 >40% 吸附展开（160 ms `CubicEase EaseOut`），否则 140 ms 收回；
+   `Esc` / 点外 / 上拖收回。
+4. 与主窗口同步：面板与主窗口共享同一个 `BoardViewModel`（同一份 `board/data.json`），互改即时可见；
+   写盘仍走 600 ms 去抖 + 原子落盘，不存在双写。外部程序改文件的自动重载不做（0.5.0 也没有）。
 5. 设置页加「顶边下拉面板」开关（默认关），关闭时不建窗口、不装钩子。
 
 **验收**
@@ -666,7 +670,7 @@ PowerShell 行切片（改 Python）、调试版与安装版共用单实例互�
 - [ ] 面板勾选一条 → 桌面窗口 1 秒内同步；桌面窗口改动 → 面板同步；双方不互相覆盖（连续 20 次交叉操作）。
 - [ ] 关闭开关后：无面板窗口、无钩子（句柄数与日志证明），功能回到 0.5.0。
 - [ ] 空闲 CPU 0%（无轮询定时器）；展开时 private 增量 ≤6 MB；首帧不退化（对照 Phase 12 中位数）。
-- [ ] `build -warnaserror` 0 警告；`test` 全绿。
+- [x] `build -warnaserror` 0 警告；`test` 全绿（2026-11-14：0 警告 0 错误；206 通过 / 614 ms）。
 
 **风险**：高（热区与系统贴边行为、失焦收回）。**预估**：1–1.5 天。**依赖**：Phase 16。
 

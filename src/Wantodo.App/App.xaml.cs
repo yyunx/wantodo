@@ -12,6 +12,7 @@ public partial class App : Application
     private JsonBoardStore _store = null!;
     private Stopwatch? _startupWatch;
     private Mutex? _singleInstance;
+    private Wantodo.App.Windows.TopEdgePanelService? _topPanel;
 
     /// <summary>必须和 MainWindow.xaml 里的 Title 一致，第二个实例靠它找已有窗口。</summary>
     private const string MainWindowTitle = "wantodo";
@@ -86,6 +87,10 @@ public partial class App : Application
         MainWindow = window;
         window.ContentRendered += OnFirstFrameRendered;
         window.Show();
+
+        // 顶边下拉面板：默认关；开关打开才建热区与钩子（Phase 17 验收要求关闭时零开销）。
+        _topPanel = new Wantodo.App.Windows.TopEdgePanelService(window.ViewModel);
+        _topPanel.Sync();
     }
 
     /// <summary>启动耗时 + 内存：这两个数字每个阶段都要留档，见 docs/verify/phase3.md。</summary>
@@ -122,6 +127,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _topPanel?.Dispose();
         Storage.DataRootService.Shutdown();
 
         if (_restartRequested)

@@ -36,6 +36,40 @@ public sealed class BoardViewModel : ObservableObject
 
     public RelayCommand AddColumnCommand { get; }
 
+    /// <summary>设置页的「顶边下拉面板」开关变化时通知桌面层服务。</summary>
+    public event EventHandler? TopPanelVisibilityChanged;
+
+    /// <summary>顶边下拉面板开关（默认关）。</summary>
+    public bool ShowTopPanel
+    {
+        get => Model.ShowTopPanel;
+        set
+        {
+            if (Model.ShowTopPanel == value)
+            {
+                return;
+            }
+
+            Model.ShowTopPanel = value;
+            OnPropertyChanged();
+            RequestSave();
+            TopPanelVisibilityChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>面板展开后记住高度（夹取 240–720）。</summary>
+    public void SetPanelHeight(double height)
+    {
+        double clamped = Math.Clamp(height, Board.MinPanelHeight, Board.MaxPanelHeight);
+        if (Math.Abs(Model.PanelHeight - clamped) < 0.5)
+        {
+            return;
+        }
+
+        Model.PanelHeight = clamped;
+        RequestSave();
+    }
+
     /// <summary>隐藏已完成的条目（数据保留，只是不显示）。</summary>
     public bool HideCompleted
     {

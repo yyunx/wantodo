@@ -109,6 +109,96 @@ internal static class NativeMethods
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     internal static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    // ---------- 顶边下拉面板：低级鼠标钩子（Phase 17） ----------
+
+    internal const int WH_MOUSE_LL = 14;
+
+    internal const uint WM_LBUTTONDOWN = 0x0201;
+
+    internal const uint WS_EX_NOACTIVATE = 0x08000000;
+
+    internal const uint WS_EX_TOOLWINDOW = 0x00000080;
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    internal struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    internal struct MSLLHOOKSTRUCT
+    {
+        public POINT pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    internal delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc callback, IntPtr module, uint threadId);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    internal static extern bool UnhookWindowsHookEx(IntPtr hook);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    internal static extern IntPtr CallNextHookEx(IntPtr hook, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    internal static extern IntPtr GetModuleHandle(string? moduleName);
+
+    // ---------- 全屏覆盖检测（Phase 16 结论）：前台窗口是否盖满整块屏幕 ----------
+
+    internal const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+
+    internal const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+
+    internal const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    internal struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    internal struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    internal delegate void WinEventProc(IntPtr hook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint threadId, uint time);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    internal static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr module, WinEventProc callback, uint processId, uint threadId, uint flags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    internal static extern bool UnhookWinEvent(IntPtr hook);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    internal static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    internal static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    internal static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    internal static extern IntPtr GetForegroundWindow();
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    internal static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+
     internal static string ClassNameOf(IntPtr hWnd)
     {
         if (hWnd == IntPtr.Zero)

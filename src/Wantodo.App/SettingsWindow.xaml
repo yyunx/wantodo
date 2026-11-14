@@ -91,6 +91,12 @@
                       Checked="OnHideCompletedChanged"
                       Unchecked="OnHideCompletedChanged" />
 
+            <CheckBox x:Name="TopPanelCheck" Content="顶边下拉面板（主屏幕顶部，默认关）"
+                      Foreground="{DynamicResource TextPrimary}"
+                      Margin="0,0,0,8"
+                      Checked="OnTopPanelChanged"
+                      Unchecked="OnTopPanelChanged" />
+
             <CheckBox x:Name="AutostartCheck" Content="开机自启（写入当前用户 Run 项）"
                       Foreground="{DynamicResource TextPrimary}"
                       Margin="0,0,0,4"

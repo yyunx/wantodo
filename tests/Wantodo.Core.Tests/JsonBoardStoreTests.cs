@@ -217,6 +217,30 @@ public sealed class JsonBoardStoreTests : IDisposable
     }
 
     [Fact]
+    public void TopPanel_RoundTripsAndClampsHeight()
+    {
+        var store = NewStore();
+        var board = Board.CreateDefault();
+        board.ShowTopPanel = true;
+        board.PanelHeight = 900;
+        store.Save(board);
+
+        var loaded = NewStore().Load();
+
+        Assert.Equal(BoardLoadStatus.Loaded, loaded.Status);
+        Assert.True(loaded.Board.ShowTopPanel);
+        Assert.Equal(Board.MaxPanelHeight, loaded.Board.PanelHeight);
+
+        // 0.6.0 之前的文件没有这两个字段：默认关闭、高度 320
+        File.WriteAllText(_dataPath, """{"theme":"Dark","columns":[{"title":"旧文件"}]}""");
+        var legacy = NewStore().Load();
+
+        Assert.Equal(BoardLoadStatus.Loaded, legacy.Status);
+        Assert.False(legacy.Board.ShowTopPanel);
+        Assert.Equal(320, legacy.Board.PanelHeight);
+    }
+
+    [Fact]
     public void Load_UnknownFieldsIgnored_AndCamelCaseTolerated()
     {
         var json = JsonSerializer.Serialize(new { version = 1, columns = new[] { new { title = "X" } }, future = "字段" });

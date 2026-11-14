@@ -71,6 +71,7 @@ public partial class SettingsWindow : Window
             ManualSizeRadio.IsChecked = !autoFit;
 
             HideCompletedCheck.IsChecked = _viewModel.HideCompleted;
+            TopPanelCheck.IsChecked = _viewModel.Model.ShowTopPanel;
             AutostartCheck.IsChecked = Shell.Autostart.IsEnabled();
 
             bool md = string.Equals(_viewModel.Model.DefaultNoteFormat, "md", StringComparison.OrdinalIgnoreCase);
@@ -175,6 +176,16 @@ public partial class SettingsWindow : Window
         }
 
         _viewModel.HideCompleted = HideCompletedCheck.IsChecked == true;
+    }
+
+    private void OnTopPanelChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _viewModel.ShowTopPanel = TopPanelCheck.IsChecked == true;
     }
 
     private void OnAutostartChanged(object sender, RoutedEventArgs e)

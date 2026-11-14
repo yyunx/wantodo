@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
@@ -40,6 +40,8 @@ public partial class MainWindow : Window
     private bool _lastDropSwap = true;
     private string? _lastDropTargetId;
     private readonly BoardViewModel _viewModel;
+    public BoardViewModel ViewModel => _viewModel;
+
     private readonly DataPaths _paths;
 
     private IntPtr _hwnd;
