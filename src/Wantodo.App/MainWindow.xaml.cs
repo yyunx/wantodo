@@ -94,6 +94,9 @@ public partial class MainWindow : Window
         SizeChanged += OnWindowSizeChanged;
         StateChanged += OnWindowStateChanged;
 
+        // K2：Ctrl+N 直接新建一篇随心记（先弹「先起名字」对话框），Esc 的既有行为不动。
+        PreviewKeyDown += OnWindowPreviewKeyDown;
+
         ApplyPlacement();
 
         // AutoFit 下，上次关窗时的宽度可能对不上现在恢复出来的栏数（比如加了栏还没关就被杀），
@@ -247,6 +250,18 @@ public partial class MainWindow : Window
         _notesWindow.Closed += (_, _) => _notesWindow = null;
         _notesWindow.Show();
         AppLog.Info("打开随心记");
+    }
+
+    private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.N || Keyboard.Modifiers != ModifierKeys.Control)
+        {
+            return;
+        }
+
+        ShowNotes();
+        _notesWindow?.CreateNewNote();
+        e.Handled = true;
     }
 
     /// <summary>数据根（设置面板显示用）。</summary>

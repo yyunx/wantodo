@@ -2,6 +2,7 @@ using System;
 using System.Windows.Threading;
 using Wantodo.App.Interop;
 using Wantodo.App.ViewModels;
+using Wantodo.Core;
 
 namespace Wantodo.App.Windows;
 
@@ -167,7 +168,13 @@ public sealed class TopEdgePanelService : IDisposable
         }
 
         // 面板自己不抢焦点，WPF 的鼠标捕获在未激活窗口上并不可靠；
-        // 拖动改由全局钩子驱动：按下时落在 12 DIP 把手带里就开始拖。
+        // 拖动与缩放都改由全局钩子驱动。先判边缘（Phase 19），再判 12 DIP 把手带。
+        if (_panel.HitTestEdge(x, y, out PanelEdge edge))
+        {
+            _panel.BeginResize(edge, x, y);
+            return;
+        }
+
         if (_panel.HitTestHandle(x, y))
         {
             _panel.BeginDrag(y);
@@ -189,7 +196,18 @@ public sealed class TopEdgePanelService : IDisposable
 
     private void OnGlobalMouseMoved(int x, int y)
     {
-        if (_panel is not null && _panel.IsDragging)
+        if (_panel is null)
+        {
+            return;
+        }
+
+        if (_panel.IsResizing)
+        {
+            _panel.ResizeTo(x, y);
+            return;
+        }
+
+        if (_panel.IsDragging)
         {
             _panel.DragTo(y);
         }
@@ -197,7 +215,18 @@ public sealed class TopEdgePanelService : IDisposable
 
     private void OnGlobalLeftButtonUp(int x, int y)
     {
-        if (_panel is not null && _panel.IsDragging)
+        if (_panel is null)
+        {
+            return;
+        }
+
+        if (_panel.IsResizing)
+        {
+            _panel.EndResize();
+            return;
+        }
+
+        if (_panel.IsDragging)
         {
             _panel.EndDrag();
         }

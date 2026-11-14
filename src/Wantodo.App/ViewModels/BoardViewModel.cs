@@ -57,16 +57,19 @@ public sealed class BoardViewModel : ObservableObject
         }
     }
 
-    /// <summary>面板展开后记住高度（夹取 240–720）。</summary>
-    public void SetPanelHeight(double height)
+    /// <summary>面板展开/拖拽结束后记住尺寸比例（0.4–1.0，按屏幕工作区算；Phase 19）。</summary>
+    public void SetPanelRatios(double widthRatio, double heightRatio)
     {
-        double clamped = Math.Clamp(height, Board.MinPanelHeight, Board.MaxPanelHeight);
-        if (Math.Abs(Model.PanelHeight - clamped) < 0.5)
+        double width = PanelGeometry.ClampRatio(widthRatio);
+        double height = PanelGeometry.ClampRatio(heightRatio);
+
+        if (Math.Abs(Model.PanelWidthRatio - width) < 0.001 && Math.Abs(Model.PanelHeightRatio - height) < 0.001)
         {
             return;
         }
 
-        Model.PanelHeight = clamped;
+        Model.PanelWidthRatio = width;
+        Model.PanelHeightRatio = height;
         RequestSave();
     }
 

@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Wantodo.App.Interop;
 using Wantodo.App.ViewModels;
@@ -13,6 +14,7 @@ namespace Wantodo.App.Windows;
 /// 顶边下拉面板（形态 A）：与主窗口共用同一个 <see cref="BoardViewModel"/>，
 /// 所以两边看到的是同一份数据，不存在互相覆盖。
 /// 收起时只剩 12 DIP 高的一条把手；按住把手往下拖，超过记忆高度的 40% 展开。
+/// Phase 19：展开尺寸按「主屏工作区 × 记忆比例」算，左右下三边可拖缩放（顶边 12 DIP 仍归把手）。
 /// </summary>
 public partial class TopPanelWindow : Window
 {
@@ -23,6 +25,14 @@ public partial class TopPanelWindow : Window
     private double _dragStartHeight;
     private int _dragStartY;
 
+    private bool _resizing;
+    private PanelEdge _resizeEdge;
+    private PanelRect _resizeStart;
+    private double _resizeStartX;
+    private double _resizeStartY;
+    private double _dpiScaleX = 1;
+    private double _dpiScaleY = 1;
+
     public TopPanelWindow(BoardViewModel viewModel)
     {
         InitializeComponent();
@@ -30,16 +40,28 @@ public partial class TopPanelWindow : Window
         _viewModel = viewModel;
         DataContext = viewModel;
 
-        Width = Math.Min(760, SystemParameters.PrimaryScreenWidth);
-        Left = Math.Max(0, (SystemParameters.PrimaryScreenWidth - Width) / 2);
-        Top = 0;
+        Top = WorkArea.Top;
         Height = CollapsedHeight;
         Opacity = 0;
+        ApplyWorkArea();
 
         PreviewKeyDown += OnPreviewKeyDown;
+        SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        Closed += OnClosed;
     }
 
-    public double FullHeight => Math.Max(Board.MinPanelHeight, Math.Min(Board.MaxPanelHeight, _viewModel.Model.PanelHeight));
+    /// <summary>主屏工作区（DIP，已扣任务栏）。</summary>
+    public static PanelRect WorkArea
+    {
+        get
+        {
+            Rect area = SystemParameters.WorkArea;
+            return new PanelRect(area.Left, area.Top, area.Width, area.Height);
+        }
+    }
+
+    public double FullHeight => PanelGeometry.ExpandedSize(WorkArea, _viewModel.Model.PanelWidthRatio, _viewModel.Model.PanelHeightRatio).Height;
 
     public bool IsExpanded => Height > CollapsedHeight + 2;
 
@@ -76,7 +98,6 @@ public partial class TopPanelWindow : Window
         BodyBorder.Visibility = Visibility.Visible;
         HandlePill.Visibility = Visibility.Collapsed;
         AnimateHeight(FullHeight, 160, new CubicEase { EasingMode = EasingMode.EaseOut });
-        _viewModel.SetPanelHeight(FullHeight);
     }
 
     public void Collapse()
@@ -178,11 +199,133 @@ public partial class TopPanelWindow : Window
         }
     }
 
+    public bool IsResizing => _resizing;
+
+    /// <summary>钩子坐标是物理像素：先换算成窗口内 DIP，再交给纯函数判断命中哪条边。</summary>
+    public bool HitTestEdge(int screenX, int screenY, out PanelEdge edge)
+    {
+        edge = PanelEdge.None;
+        if (!IsVisible || !IsExpanded)
+        {
+            return false;
+        }
+
+        try
+        {
+            Point local = PointFromScreen(new Point(screenX, screenY));
+            var window = new PanelRect(Left, Top, ActualWidth, ActualHeight);
+            edge = PanelGeometry.HitTest(window, Left + local.X, Top + local.Y);
+            return edge != PanelEdge.None;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    public void BeginResize(PanelEdge edge, int screenX, int screenY)
+    {
+        _resizing = true;
+        _resizeEdge = edge;
+        _resizeStart = new PanelRect(Left, Top, ActualWidth, ActualHeight);
+        _resizeStartX = screenX;
+        _resizeStartY = screenY;
+
+        DpiScale dpi = VisualTreeHelper.GetDpi(this);
+        _dpiScaleX = dpi.DpiScaleX <= 0 ? 1 : dpi.DpiScaleX;
+        _dpiScaleY = dpi.DpiScaleY <= 0 ? 1 : dpi.DpiScaleY;
+
+        _dragging = false;
+        BeginAnimation(WidthProperty, null);
+        BeginAnimation(HeightProperty, null);
+    }
+
+    public void ResizeTo(int screenX, int screenY)
+    {
+        if (!_resizing)
+        {
+            return;
+        }
+
+        double dx = (screenX - _resizeStartX) / _dpiScaleX;
+        double dy = (screenY - _resizeStartY) / _dpiScaleY;
+
+        PanelRect next = PanelGeometry.Resize(_resizeStart, _resizeEdge, dx, dy, WorkArea);
+        Left = next.Left;
+        Top = next.Top;
+        Width = next.Width;
+        Height = next.Height;
+
+        bool showBody = Height > CollapsedHeight + 2;
+        BodyBorder.Visibility = showBody ? Visibility.Visible : Visibility.Collapsed;
+        HandlePill.Visibility = Visibility.Visible;
+    }
+
+    public void EndResize()
+    {
+        if (!_resizing)
+        {
+            return;
+        }
+
+        _resizing = false;
+        (double widthRatio, double heightRatio) = PanelGeometry.RatiosFromSize(
+            WorkArea,
+            new PanelSize(ActualWidth, ActualHeight));
+        _viewModel.SetPanelRatios(widthRatio, heightRatio);
+    }
+
+    /// <summary>工作区变化（任务栏挪动、分辨率/缩放变化）后重算尺寸；收起状态保持 12 DIP。</summary>
+    public void ApplyWorkArea()
+    {
+        PanelSize size = PanelGeometry.ExpandedSize(
+            WorkArea,
+            _viewModel.Model.PanelWidthRatio,
+            _viewModel.Model.PanelHeightRatio);
+        PanelRect placed = PanelGeometry.PlaceTopCenter(WorkArea, size);
+
+        Width = placed.Width;
+        Left = placed.Left;
+        Top = placed.Top;
+
+        if (IsExpanded)
+        {
+            Height = size.Height;
+        }
+    }
+
+    private void OnSystemParametersChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (string.Equals(e.PropertyName, nameof(SystemParameters.WorkArea), StringComparison.Ordinal))
+        {
+            ApplyWorkArea();
+        }
+    }
+
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    {
+        ApplyWorkArea();
+    }
+
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+    }
+
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
             Collapse();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.N && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            QuickBox.Clear();
+            QuickBox.Focus();
             e.Handled = true;
         }
     }

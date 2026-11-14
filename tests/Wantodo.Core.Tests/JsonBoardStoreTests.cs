@@ -107,6 +107,56 @@ public sealed class JsonBoardStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_LegacyPanelHeightOnly_DefaultsRatiosAndKeepsHeight()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_dataPath)!);
+        File.WriteAllText(
+            _dataPath,
+            """
+            {
+              "version": 2,
+              "panelHeight": 320,
+              "columns": [ { "id": "a", "title": "x", "notes": [] } ]
+            }
+            """);
+
+        var loaded = NewStore().Load();
+
+        Assert.Equal(BoardLoadStatus.Loaded, loaded.Status);
+        Assert.Equal(320, loaded.Board.PanelHeight, 3);
+        Assert.Equal(0.75, loaded.Board.PanelWidthRatio, 3);
+        Assert.Equal(0.75, loaded.Board.PanelHeightRatio, 3);
+
+        NewStore().Save(loaded.Board);
+
+        var saved = File.ReadAllText(_dataPath);
+        Assert.Contains("\"panelHeight\": 320", saved);
+        Assert.Contains("\"panelWidthRatio\": 0.75", saved);
+        Assert.Contains("\"panelHeightRatio\": 0.75", saved);
+    }
+
+    [Fact]
+    public void Load_CorruptPanelRatios_ClampToRange()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_dataPath)!);
+        File.WriteAllText(
+            _dataPath,
+            """
+            {
+              "version": 2,
+              "panelWidthRatio": 9,
+              "panelHeightRatio": -3,
+              "columns": [ { "id": "a", "title": "x", "notes": [] } ]
+            }
+            """);
+
+        var loaded = NewStore().Load();
+
+        Assert.Equal(1.0, loaded.Board.PanelWidthRatio, 3);
+        Assert.Equal(0.4, loaded.Board.PanelHeightRatio, 3);
+    }
+
+    [Fact]
     public void Load_PrimaryCorrupt_FallsBackToBackupAndQuarantinesIt()
     {
         var store = NewStore();

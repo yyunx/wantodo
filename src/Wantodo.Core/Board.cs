@@ -29,8 +29,14 @@ public sealed class Board
     /// <summary>顶边下拉面板是否启用（Phase 17；默认关，关闭时不建窗口、不装钩子）。</summary>
     public bool ShowTopPanel { get; set; }
 
-    /// <summary>下拉面板展开后的高度（DIP），夹取 240–720。</summary>
+    /// <summary>下拉面板展开后的高度（DIP），0.5.1 及更早的字段，夹取 240–720；仅作旧文件回退，不再驱动尺寸。</summary>
     public double PanelHeight { get; set; } = 320;
+
+    /// <summary>下拉面板展开后的宽度比例（工作区宽度 × 比例，夹 0.4–1.0；Phase 19）。</summary>
+    public double PanelWidthRatio { get; set; } = PanelGeometry.DefaultRatio;
+
+    /// <summary>下拉面板展开后的高度比例（工作区高度 × 比例，夹 0.4–1.0；Phase 19）。</summary>
+    public double PanelHeightRatio { get; set; } = PanelGeometry.DefaultRatio;
 
     public const double MinPanelHeight = 240;
 
@@ -66,16 +72,20 @@ public sealed class Board
         return error;
     }
 
-    /// <summary>面板高度来自手改文件或旧版本时回到合法区间。</summary>
+    /// <summary>面板尺寸来自手改文件或旧版本时回到合法区间；旧 <see cref="PanelHeight"/> 只夹取、不丢弃。</summary>
     public void NormalizePanel()
     {
         if (double.IsNaN(PanelHeight) || double.IsInfinity(PanelHeight))
         {
             PanelHeight = MaxPanelHeight;
-            return;
+        }
+        else
+        {
+            PanelHeight = Math.Clamp(PanelHeight, MinPanelHeight, MaxPanelHeight);
         }
 
-        PanelHeight = Math.Clamp(PanelHeight, MinPanelHeight, MaxPanelHeight);
+        PanelWidthRatio = PanelGeometry.ClampRatio(PanelWidthRatio);
+        PanelHeightRatio = PanelGeometry.ClampRatio(PanelHeightRatio);
     }
 
     /// <summary>首次启动（或数据彻底损坏）时的初始内容：两栏，带几条占位条目。</summary>

@@ -382,6 +382,12 @@ public partial class NotesWindow : Window
             : $"{count} 篇 · {_current.FileName}{(saved ? " · 已保存" : string.Empty)} · 文件是唯一事实来源，外部改了会自动刷新";
     }
 
+    /// <summary>主窗口 Ctrl+N 用：等同点「新建」（先弹「先起名字」对话框）。</summary>
+    public void CreateNewNote()
+    {
+        OnNewClick(this, new RoutedEventArgs());
+    }
+
     private void OnNewClick(object sender, RoutedEventArgs e)
     {
         if (_dirty)
