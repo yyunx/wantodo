@@ -846,10 +846,10 @@ PowerShell 行切片（改 Python）、调试版与安装版共用单实例互�
 
 **验收**
 
-- [ ] FDD zip ≤ 229,376 B（224 KB）；SC zip ≤ 63,900,000 B；两者都有原始字节。
-- [ ] 首帧中位 ≤ 基线 +10%（SC 1226 ms / FDD 1195 ms）；private ≤ 基线 +6 MB（92.0 / 87.8 MB）。
-- [ ] 面板展开的 private 增量 ≤6 MB，有原始值与测量条件。
-- [ ] `build -warnaserror` 0 警告；`test` 全绿；`docs/verify/phase23.md` 含命令原文。
+- [x] FDD zip ≤ 229,376 B（224 KB）；SC zip ≤ 63,900,000 B；两者都有原始字节。（223,415 B / 63,893,046 B，2026-11-14）
+- [ ] 首帧中位 ≤ 基线 +10%（SC 1226 ms / FDD 1195 ms）；private ≤ 基线 +6 MB（92.0 / 87.8 MB）。（首帧 1236 ms 通过；private 100.0 MB 超 +2 MB，未勾）
+- [ ] 面板展开的 private 增量 ≤6 MB，有原始值与测量条件。（未测，需人肉眼）
+- [x] `build -warnaserror` 0 警告；`test` 全绿；`docs/verify/phase23.md` 含命令原文。（230 通过）
 
 **风险**：低。**预估**：0.5 天。**依赖**：Phase 19–22。**回滚点**：不发布，代码留在 main。
 

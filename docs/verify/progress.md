@@ -54,5 +54,13 @@
 - 欠账 / PENDING-HUMAN: 面板/设置窗/取色器/对话框未接 ThemeStyle；外发光与硬阴影未绘制。
 - 下一步第一条命令: 进入 Phase 23（先出两种包，再测首帧/内存/面板增量）。
 
+## Phase 23 — DONE-WITH-DEBT
+- run: B
+- commit: git log --grep '^phase-23:' -1（本阶段提交）
+- 验收: 2/4 自动通过（两种包字节、首帧 1236 ms）；private 100.0 MB 超预算 2 MB；面板增量未测
+- 改动: 版本 0.6.0、release-0.6.0.md、verify/phase23.md、README、两个包
+- 欠账 / PENDING-HUMAN: private +8 MB 归因；面板展开增量；Phase 22 遗留的面板/对话框形式感
+- 下一步第一条命令: Phase 24（0.7.0 画布）——预估 3–5 天，触发「单阶段 >120 分钟」硬停，Run B 到此收口。
+
 ## 下一步
-Run B 继续 Phase 23。
+Run B 收口：21/22/23 完成（各有欠账），24 未开工（3–5 天，超出单次 Run 预算）。
