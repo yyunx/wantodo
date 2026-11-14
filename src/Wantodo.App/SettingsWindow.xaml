@@ -55,6 +55,12 @@
                 <RadioButton x:Name="SakuraRadio" Content="樱花" Tag="Sakura" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
+                <RadioButton x:Name="CyberRadio" Content="赛博" Tag="Cyber" GroupName="theme" Margin="0,0,12,6"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnThemeChanged" />
+                <RadioButton x:Name="ComicRadio" Content="美漫" Tag="Comic" GroupName="theme" Margin="0,0,12,6"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnThemeChanged" />
                 <RadioButton x:Name="DraculaRadio" Content="Dracula" Tag="Dracula" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />

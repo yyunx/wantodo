@@ -93,12 +93,14 @@ public static class ThemePalette
     public const string NordTheme = "Nord";
     public const string CatppuccinTheme = "Catppuccin";
     public const string SakuraTheme = "Sakura";
+    public const string CyberTheme = "Cyber";
+    public const string ComicTheme = "Comic";
     public const string CustomTheme = "Custom";
 
     /// <summary>设置页下拉里的顺序：跟随系统在最前，其余按深→浅排。</summary>
     public static readonly IReadOnlyList<string> ThemeNames = new[]
     {
-        SystemTheme, DarkTheme, LightTheme, SakuraTheme, DraculaTheme, NordTheme, CatppuccinTheme,
+        SystemTheme, DarkTheme, LightTheme, SakuraTheme, CyberTheme, ComicTheme, DraculaTheme, NordTheme, CatppuccinTheme,
     };
 
     /// <summary>界面显示名；枚举值不变，旧数据不受影响。</summary>
@@ -107,6 +109,8 @@ public static class ThemePalette
         SystemTheme => "跟随系统",
         LightTheme => "浅色",
         SakuraTheme => "樱花",
+        CyberTheme => "赛博",
+        ComicTheme => "美漫",
         DraculaTheme => "Dracula",
         NordTheme => "Nord",
         CatppuccinTheme => "Catppuccin Mocha",
@@ -162,10 +166,25 @@ public static class ThemePalette
         || string.Equals(theme, CustomTheme, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>主题名的形式感；未知/自定义一律 Flat，关闭效果开关后也按 Flat 用。</summary>
-    public static ThemeStyle StyleFor(string? theme) =>
-        string.Equals(theme, SakuraTheme, StringComparison.OrdinalIgnoreCase)
-            ? ThemeStyle.Soft
-            : ThemeStyle.Flat;
+    public static ThemeStyle StyleFor(string? theme)
+    {
+        if (string.Equals(theme, SakuraTheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return ThemeStyle.Soft;
+        }
+
+        if (string.Equals(theme, CyberTheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return ThemeStyle.Neon;
+        }
+
+        if (string.Equals(theme, ComicTheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return ThemeStyle.Comic;
+        }
+
+        return ThemeStyle.Flat;
+    }
 
     /// <summary>形式感参数；<see cref="ThemeStyle.Flat"/> 不描边、无纹理，圆角沿用 10。</summary>
     public static ThemeEffects EffectsFor(ThemeStyle style) => style switch
@@ -176,6 +195,23 @@ public static class ThemePalette
         _ => ThemeEffects.Flat,
     };
 
+    /// <summary>赛博：Neon 形式感。</summary>
+    private static readonly ThemeColors CyberBase = Build(
+        window: "#070B14", card: "#0E1524",
+        text: "#E6FAFF", secondary: "#8FA9C4", muted: "#6C8399",
+        accent: "#22E0FF", onAccent: "#04121A", divider: "#1E3A47") with
+    {
+        Style = ThemeStyle.Neon,
+    };
+
+    /// <summary>美漫：Comic 形式感。</summary>
+    private static readonly ThemeColors ComicBase = Build(
+        window: "#FFFDF3", card: "#FFFFFF",
+        text: "#171A1F", secondary: "#4A5260", muted: "#667080",
+        accent: "#D6293A", onAccent: "#FFFFFF", divider: "#E3DFCF") with
+    {
+        Style = ThemeStyle.Comic,
+    };
     /// <summary>按主题名取色；未知主题一律按深色处理（旧文件里可能写着别的东西）。</summary>
     public static ThemeColors For(string? theme, double tone) =>
         For(theme, tone, systemIsLight: false, customBackground: null, customAccent: null);
@@ -205,6 +241,16 @@ public static class ThemePalette
         if (string.Equals(theme, SakuraTheme, StringComparison.OrdinalIgnoreCase))
         {
             return SakuraBase;
+        }
+
+        if (string.Equals(theme, CyberTheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return CyberBase;
+        }
+
+        if (string.Equals(theme, ComicTheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return ComicBase;
         }
 
         if (string.Equals(theme, DraculaTheme, StringComparison.OrdinalIgnoreCase))

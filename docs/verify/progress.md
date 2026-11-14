@@ -46,5 +46,13 @@
 - 欠账 / PENDING-HUMAN: 描边宽度固定 1 px（StrokeWidth 字段已算）；面板/对话框的形式感留 Phase 22。
 - 下一步第一条命令: 进入 Phase 22（补赛博/美漫预设，把 ThemeStrokeWidth 接到 Thickness 资源）。
 
+## Phase 22 — DONE-WITH-DEBT
+- run: B
+- commit: git log --grep '^phase-22:' -1（本阶段提交）
+- 验收: 1/4 自动通过（8 套对比度 230 通过）；其余肉眼/待 Phase 23
+- 改动: 7 个文件（+62/−11，新增 docs/verify/phase22.md）
+- 欠账 / PENDING-HUMAN: 面板/设置窗/取色器/对话框未接 ThemeStyle；外发光与硬阴影未绘制。
+- 下一步第一条命令: 进入 Phase 23（先出两种包，再测首帧/内存/面板增量）。
+
 ## 下一步
-Run B 继续 Phase 22。
+Run B 继续 Phase 23。

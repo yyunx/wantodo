@@ -48,13 +48,13 @@ public partial class SettingsWindow : Window
                 ? ThemePalette.DarkTheme
                 : _viewModel.Model.Theme;
             bool custom = string.Equals(theme, ThemePalette.CustomTheme, StringComparison.OrdinalIgnoreCase);
-            foreach (var radio in new[] { SystemRadio, DarkRadio, LightRadio, SakuraRadio, DraculaRadio, NordRadio, CatppuccinRadio })
+            foreach (var radio in new[] { SystemRadio, DarkRadio, LightRadio, SakuraRadio, CyberRadio, ComicRadio, DraculaRadio, NordRadio, CatppuccinRadio })
             {
                 radio.IsChecked = string.Equals(radio.Tag as string, theme, StringComparison.OrdinalIgnoreCase);
             }
 
             if (!custom && SystemRadio.IsChecked != true && DarkRadio.IsChecked != true && LightRadio.IsChecked != true &&
-                SakuraRadio.IsChecked != true &&
+                SakuraRadio.IsChecked != true && CyberRadio.IsChecked != true && ComicRadio.IsChecked != true &&
                 DraculaRadio.IsChecked != true && NordRadio.IsChecked != true && CatppuccinRadio.IsChecked != true)
             {
                 DarkRadio.IsChecked = true;

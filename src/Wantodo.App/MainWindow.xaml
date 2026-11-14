@@ -111,7 +111,7 @@
                                 Padding="12,8,12,10">
                             <Border.Style>
                                 <Style TargetType="Border">
-                                    <Setter Property="BorderThickness" Value="1" />
+                                    <Setter Property="BorderThickness" Value="{DynamicResource ThemeStrokeThickness}" />
                                     <Setter Property="BorderBrush" Value="{DynamicResource ThemeStrokeBrush}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsDropTarget}" Value="True">

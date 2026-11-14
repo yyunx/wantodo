@@ -54,6 +54,7 @@ public static class ThemeService
 
         resources["ThemeStrokeBrush"] = stroke;
         resources["ThemeStrokeWidth"] = effects.StrokeWidth;
+        resources["ThemeStrokeThickness"] = new System.Windows.Thickness(effects.StrokeWidth);
         resources["ThemeCornerRadius"] = new System.Windows.CornerRadius(effects.CornerRadius);
         resources["ThemeTextureBrush"] = TextureBrush(effects.TextureKey);
     }

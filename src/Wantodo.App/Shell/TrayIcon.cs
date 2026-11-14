@@ -51,6 +51,8 @@ public sealed class TrayIcon : IDisposable
                      (ThemePalette.DarkTheme, "深色"),
                      (ThemePalette.LightTheme, "浅色"),
                      (ThemePalette.SakuraTheme, "樱花"),
+                     (ThemePalette.CyberTheme, "赛博"),
+                     (ThemePalette.ComicTheme, "美漫"),
                      (ThemePalette.DraculaTheme, "Dracula"),
                      (ThemePalette.NordTheme, "Nord"),
                      (ThemePalette.CatppuccinTheme, "Catppuccin Mocha"),

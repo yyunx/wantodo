@@ -34,6 +34,7 @@ public partial class App : Application
 
         // 形式感资源的兜底默认值；ThemeService.Apply 会用当前主题覆盖。
         Resources["ThemeStrokeWidth"] = 0d;
+        Resources["ThemeStrokeThickness"] = new System.Windows.Thickness(0);
         Resources["ThemeStrokeBrush"] = System.Windows.Media.Brushes.Transparent;
         Resources["ThemeTextureBrush"] = System.Windows.Media.Brushes.Transparent;
         Resources["ThemeCornerRadius"] = new System.Windows.CornerRadius(10);

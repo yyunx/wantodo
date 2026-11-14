@@ -13,6 +13,8 @@ public class ThemeContrastTests
         ThemePalette.DarkTheme,
         ThemePalette.LightTheme,
         ThemePalette.SakuraTheme,
+        ThemePalette.CyberTheme,
+        ThemePalette.ComicTheme,
         ThemePalette.DraculaTheme,
         ThemePalette.NordTheme,
         ThemePalette.CatppuccinTheme,
