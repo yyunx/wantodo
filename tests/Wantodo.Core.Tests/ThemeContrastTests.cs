@@ -106,6 +106,69 @@ public class ThemeContrastTests
     }
 
     [Fact]
+    public void ForCustom_WhiteOnWhite_StillReadable()
+    {
+        var colors = ThemePalette.ForCustom("#FFFFFF", "#FFFFFF");
+
+        Assert.True(ThemeDerivation.Contrast(colors.WindowBackground, colors.TextPrimary) >= ThemeDerivation.TextPrimaryTarget);
+        Assert.True(ThemeDerivation.Contrast(colors.CardBackground, colors.TextPrimary) >= ThemeDerivation.TextPrimaryTarget);
+        Assert.True(ThemeDerivation.Contrast(colors.WindowBackground, colors.TextSecondary) >= ThemeDerivation.TextSecondaryTarget);
+        Assert.True(ThemeDerivation.Contrast(colors.WindowBackground, colors.TextMuted) >= ThemeDerivation.TextMutedTarget);
+        Assert.True(ThemeDerivation.Contrast(colors.Accent, colors.OnAccent) >= ThemeDerivation.OnAccentTarget);
+        Assert.True(colors.TextPrimary.R < 0x80, "白底上必须推成深色文字");
+    }
+
+    [Fact]
+    public void ForCustom_TwoHundredRandomPairs_KeepInvariants()
+    {
+        var random = new Random(20261114);
+        var started = System.Diagnostics.Stopwatch.StartNew();
+
+        for (var i = 0; i < 200; i++)
+        {
+            var background = $"#{random.Next(256):X2}{random.Next(256):X2}{random.Next(256):X2}";
+            var accent = $"#{random.Next(256):X2}{random.Next(256):X2}{random.Next(256):X2}";
+
+            var colors = ThemePalette.ForCustom(background, accent);
+
+            Assert.True(
+                ThemeDerivation.Contrast(colors.WindowBackground, colors.TextPrimary) >= ThemeDerivation.TextPrimaryTarget,
+                $"背景 {background} 上正文 {ThemeDerivation.Contrast(colors.WindowBackground, colors.TextPrimary):F2}");
+            Assert.True(
+                ThemeDerivation.Contrast(colors.CardBackground, colors.TextPrimary) >= ThemeDerivation.TextPrimaryTarget,
+                $"背景 {background} 上卡片正文 {ThemeDerivation.Contrast(colors.CardBackground, colors.TextPrimary):F2}");
+            Assert.True(
+                ThemeDerivation.Contrast(colors.WindowBackground, colors.TextSecondary) >= ThemeDerivation.TextSecondaryTarget,
+                $"背景 {background} 上次要 {ThemeDerivation.Contrast(colors.WindowBackground, colors.TextSecondary):F2}");
+            Assert.True(
+                ThemeDerivation.Contrast(colors.WindowBackground, colors.TextMuted) >= ThemeDerivation.TextMutedTarget,
+                $"背景 {background} 上弱化 {ThemeDerivation.Contrast(colors.WindowBackground, colors.TextMuted):F2}");
+            Assert.True(
+                ThemeDerivation.Contrast(colors.CardBackground, colors.TextMuted) >= ThemeDerivation.TextMutedTarget,
+                $"背景 {background} 上卡片弱化 {ThemeDerivation.Contrast(colors.CardBackground, colors.TextMuted):F2}");
+            Assert.True(
+                ThemeDerivation.Contrast(colors.Accent, colors.OnAccent) >= ThemeDerivation.OnAccentTarget,
+                $"强调 {accent} 上的文字 {ThemeDerivation.Contrast(colors.Accent, colors.OnAccent):F2}");
+        }
+
+        started.Stop();
+        Assert.True(
+            started.Elapsed.TotalMilliseconds / 200 < 5,
+            $"单组推导应小于 5 ms，实测平均 {started.Elapsed.TotalMilliseconds / 200:F2} ms");
+    }
+
+    [Fact]
+    public void ForCustom_ToneOnlyMovesBackground()
+    {
+        var plain = ThemePalette.ForCustom("#1B2735", "#E05A7A");
+        var toned = ThemePalette.For(ThemePalette.CustomTheme, 1, false, "#1B2735", "#E05A7A");
+
+        Assert.NotEqual(plain.WindowBackground, toned.WindowBackground);
+        Assert.Equal(plain.TextPrimary, toned.TextPrimary);
+        Assert.Equal(plain.Accent, toned.Accent);
+    }
+
+    [Fact]
     public void EnsureContrast_LeavesGoodPairAlone()
     {
         var bg = Rgb.FromHex("#10151C");

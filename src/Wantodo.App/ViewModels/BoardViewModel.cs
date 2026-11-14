@@ -77,6 +77,28 @@ public sealed class BoardViewModel : ObservableObject
         ApplyAppearance();
     }
 
+    /// <summary>
+    /// 自定义主题：只存背景 + 强调两色，其余 8 个令牌由 <see cref="ThemeDerivation"/> 推导。
+    /// 颜色非法时仍切到 <c>Custom</c>，空/坏值让 <see cref="ThemePalette.ForCustom"/> 回退深色，并记一条 WARN。
+    /// </summary>
+    public void SetCustomTheme(string? background, string? accent)
+    {
+        var normalizedBackground = ThemePalette.NormalizeHex(background);
+        var normalizedAccent = ThemePalette.NormalizeHex(accent);
+
+        if (normalizedBackground is null || normalizedAccent is null)
+        {
+            AppLog.Warn(
+                $"自定义主题颜色非法：background={background ?? "null"} accent={accent ?? "null"}；" +
+                "缺失或无法解析的一项会被忽略，主题退回深色底");
+        }
+
+        Model.Theme = ThemePalette.CustomTheme;
+        Model.CustomBackground = normalizedBackground;
+        Model.CustomAccent = normalizedAccent;
+        ApplyAppearance();
+    }
+
     /// <summary>随心记新建的默认类型：只认 <c>md</c>，其余按 <c>txt</c>。</summary>
     public void SetDefaultNoteFormat(string format)
     {

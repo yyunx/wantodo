@@ -47,7 +47,7 @@
 ### T1 主题：5 套开源预设与全色自定义（P2）
 
 - 用户故事：我能选整套配色，也能自己挑背景和强调色，且无论怎么选文字都看得清。
-- 交互步骤：1 设置 → 外观 → 2 选 GitHub 深色 / GitHub 浅色 / Dracula / Nord / Catppuccin Mocha / 跟随系统 / 自定义… → 3 取色器里选背景 / 强调色 → 4 看预览与对比度读数 → 5 关闭即生效。
+- 交互步骤：1 设置 → 外观 → 2 选 GitHub 深色 / GitHub 浅色 / Dracula / Nord / Catppuccin Mocha / 跟随系统 / 自定义… → 3 取色器里点背景或强调色框，用色相条 + 饱和度/亮度方块或 hex 输入改色 → 4 看预览卡片与 5 组对比度读数 → 5 点「应用」（Esc / ✕ 取消）即生效。
 - 数据模型：`Board.Theme` 取值扩为 `Dark|Light|System|Dracula|Nord|Catppuccin|Custom`；新增可空
   `CustomBackground`、`CustomAccent`；`Version` 仍为 2；未知值回退深色。
 - 默认开关：新装 `Dark`；老用户保留原值；「自定义」与「跟随系统」默认关（选预设后自动关跟随系统）。

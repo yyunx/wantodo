@@ -52,7 +52,10 @@ public static class ThemeDerivation
             return foreground;
         }
 
-        var towardWhite = RelativeLuminance(foreground) >= RelativeLuminance(background);
+        // 方向不跟前景亮度走，而是看哪一端能提供更高的对比度：
+        // 中灰底上浅色前景如果往白推永远到不了 7:1，往黑推反而够。
+        var towardWhite = Contrast(background, new Rgb(255, 255, 255))
+                          >= Contrast(background, new Rgb(0, 0, 0));
         var target0 = towardWhite ? new Rgb(255, 255, 255) : new Rgb(0, 0, 0);
 
         var current = foreground;
@@ -72,17 +75,52 @@ public static class ThemeDerivation
     public static bool IsLightBackground(Rgb background) => RelativeLuminance(background) > 0.35;
 
     /// <summary>
+    /// 中灰背景（黑白文字都到不了 <paramref name="target"/>）时，把背景沿更近的一侧
+    /// 压暗或提亮到可读区；保持色相不变，只动亮度。纯黑/纯白背景原样返回。
+    /// </summary>
+    public static Rgb EnsureReadableBackground(Rgb background, double target)
+    {
+        var white = new Rgb(255, 255, 255);
+        var black = new Rgb(0, 0, 0);
+        if (Math.Max(Contrast(background, white), Contrast(background, black)) >= target)
+        {
+            return background;
+        }
+
+        // 亮文字要求背景亮度 ≤ 1.05/target - 0.05，暗文字要求 ≥ target*0.05 - 0.05。
+        var darkLimit = 1.05 / target - 0.05;
+        var lightLimit = target * 0.05 - 0.05;
+        var luminance = RelativeLuminance(background);
+        var lighten = (lightLimit - luminance) <= (luminance - darkLimit);
+        var destination = lighten ? white : black;
+
+        for (var i = 1; i <= 40; i++)
+        {
+            var candidate = background.Lerp(destination, i * 0.05);
+            if (Math.Max(Contrast(candidate, white), Contrast(candidate, black)) >= target)
+            {
+                return candidate;
+            }
+        }
+
+        return destination;
+    }
+
+    /// <summary>
     /// 自定义主题：给背景 + 强调两色，推出 10 个令牌。
     /// 规则：卡片 = 背景按底色方向挪一档；正文取反色族；强调上文字黑白取优；
     /// 全部再过 <see cref="EnsureContrast"/>，保证阈值成立。
     /// </summary>
     public static ThemeColors DeriveFrom(Rgb background, Rgb accent)
     {
+        background = EnsureReadableBackground(background, TextPrimaryTarget);
         var light = IsLightBackground(background);
         var text = light ? new Rgb(0x1F, 0x23, 0x28) : new Rgb(0xE6, 0xED, 0xF3);
         var card = light ? background.Lerp(new Rgb(255, 255, 255), 0.55) : background.Lerp(new Rgb(0, 0, 0), 0.09);
 
         text = EnsureContrast(background, text, TextPrimaryTarget);
+        // 卡片底如果让正文掉到 7:1 以下（中灰背景常见），把卡片往文字的反方向挪，而不是改文字
+        card = PushAway(card, text, TextPrimaryTarget);
         text = EnsureContrast(card, text, TextPrimaryTarget);
 
         var secondary = EnsureContrast(card, text.Lerp(background, 0.30), TextSecondaryTarget);
@@ -106,6 +144,31 @@ public static class ThemeDerivation
             OnAccent: onAccent,
             Hover: card.Lerp(text, 0.10),
             Selected: card.Lerp(accentFixed, 0.22));
+    }
+
+    /// <summary>
+    /// 保持 <paramref name="background"/> 不动，把它往「离 <paramref name="foreground"/> 更远」的一端挪，
+    /// 直到两者对比度达到 <paramref name="target"/>；用于卡片底与正文的关系。
+    /// </summary>
+    private static Rgb PushAway(Rgb background, Rgb foreground, double target)
+    {
+        if (Contrast(background, foreground) >= target)
+        {
+            return background;
+        }
+
+        var darkText = RelativeLuminance(foreground) < RelativeLuminance(background);
+        var destination = darkText ? new Rgb(255, 255, 255) : new Rgb(0, 0, 0);
+        for (var i = 1; i <= 40; i++)
+        {
+            var candidate = background.Lerp(destination, i * 0.05);
+            if (Contrast(candidate, foreground) >= target)
+            {
+                return candidate;
+            }
+        }
+
+        return destination;
     }
 
     private static Rgb PickOnAccent(Rgb accent)

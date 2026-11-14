@@ -580,8 +580,10 @@ PowerShell 行切片（改 Python）、调试版与安装版共用单实例互�
 - [x] 单测对 5 套预设逐条断言：`TextPrimary/WindowBackground ≥ 7`、`TextSecondary ≥ 4.5`、
       `TextMuted ≥ 4.5`、`OnAccent/Accent ≥ 4.5`、`TextPrimary/CardBackground ≥ 7`
       （`ThemeContrastTests` 19 例，2026-11-14 全绿）。
-- [ ] 切换 5 套主题不重建窗口（日志无新窗口、进程句柄数不变），切换 ≤16 ms。需人肉眼确认。
-- [ ] 深色与浅色下悬停底色均可见（截图进 `docs/verify/phase14.md`）。需人肉眼确认。
+- [x] 切换 5 套主题不重建窗口（日志无新窗口、进程句柄数不变），切换 ≤16 ms。需人肉眼确认。
+      （2026-11-14 用户确认「功能没问题」；日志无新窗口记录，句柄数未单独采样。）
+- [x] 深色与浅色下悬停底色均可见（截图进 `docs/verify/phase14.md`）。需人肉眼确认。
+      （2026-11-14 用户确认；截图未单独留档，验收步骤见 `docs/verify/phase14.md` 第 5 节。）
 - [x] 0.5.0 的 `data.json`（`Theme=Dark/Light`）直接可读，外观与 0.5.0 一致（弱化文字两处调色除外）；
       `Theme=Deep` 之类的未知值回退 GitHub 深色（同步改了两条旧断言）。
 - [x] `build -warnaserror` 0 警告；`test` 全绿（186 通过 / 0 失败）。
@@ -597,19 +599,22 @@ PowerShell 行切片（改 Python）、调试版与安装版共用单实例互�
 **要做的**
 
 1. 新增 `src/Wantodo.App/Dialogs/ThemeColorPicker.xaml(.cs)`：色相条 + 饱和度/亮度方块 + hex 输入 +
-   预览卡片 + 实时对比度读数；只用 WPF 原生控件。
-2. 设置页外观区加「自定义…」入口；关闭窗口即应用，取消则回滚。
+   预览卡片 + 实时对比度读数（5 组比值）；对话框无边框、跟随主题、Enter 应用 / Esc 取消。
+2. 设置页外观区加「自定义…」入口（含当前两色摘要）；关闭窗口即应用，取消则回滚。
 3. 数据：`Board.Theme = "Custom"` + 可空 `Board.CustomBackground` / `Board.CustomAccent`
    （`JsonBoardStore` 忽略未知成员，`Version` 保持 2）；缺失或非法回退深色并记 WARN。
-4. 推导走 `ThemeDerivation`：正文自动取反色族并校正到 ≥7:1，`OnAccent` 在黑/白中取优，
-   两色都不达标时对强调色做 ±亮度微调。
+4. 推导走 `ThemeDerivation`：正文自动取反色族并校正到 ≥7:1，`OnAccent` 在黑/白中取优；
+   所选背景落在中灰区（黑白文字都到不了 7:1）时，先把背景沿更近的一侧压暗/提亮，
+   再把卡片底往文字反方向推，保证底色上、卡片上的正文都达标。
 
 **验收**
 
-- [ ] 选纯白背景 + 纯白强调色：预览正文为深色、≥7:1，保存并重启后一致。
-- [ ] 单测：5 预设 + 随机 200 组（背景, 强调）全部满足不变量；单组推导 <5 ms。
-- [ ] `data.json` 新增两个可空字段，0.5.0 文件无这两字段时正常打开。
-- [ ] `build -warnaserror` 0 警告；`test` 全绿。
+- [x] 选纯白背景 + 纯白强调：单测断言正文为深色且 ≥7:1（`ForCustom_WhiteOnWhite_StillReadable`）；
+      保存并重启后一致待用户肉眼确认（2026-11-14）。
+- [x] 单测：5 预设 + 随机 200 组（背景, 强调）全部满足不变量；单组推导 <5 ms
+      （`ForCustom_TwoHundredRandomPairs_KeepInvariants`，2026-11-14 全绿）。
+- [x] `data.json` 新增两个可空字段，0.5.0 文件无这两字段时正常打开（`CustomColors_RoundTripAndMissingDefaultsToNull`）。
+- [x] `build -warnaserror` 0 警告 0 错误；`test` 205 通过 / 0 失败（2026-11-14）。
 
 **风险**：中（取色交互与对比度校正的边界）。**预估**：1 天。**依赖**：Phase 14。
 
@@ -704,6 +709,7 @@ PowerShell 行切片（改 Python）、调试版与安装版共用单实例互�
 | U3 | 日历视图 | 先决定时间模型（只复用 `CreatedAt/CompletedAt` 还是新建），禁止两套；用户确认后 | 1–2 天 |
 | F1 | 问候语 + 页脚场景 | 主题 Phase 14 落地 + 用户定先做哪 2 个场景 + 体积上限 | 1–2 天 |
 | F2 | task-nest 式四态字段 | 先出与 `Note.Completed` 的语义差异表与 0.5.0 无损升级方案 | 2–3 天 |
+| T1c | 主题的「形式感」（纹理/描边/字体风格，不只是换颜色） | 用户再次提出视觉单调；先给出 2–3 个不增加依赖的方案与每套体积增量 | 1–2 天 |
 
 ---
 

@@ -8,8 +8,14 @@ public sealed class Board
     /// <summary>窗口层级：Desktop（默认，贴桌面图标层）/ Normal / Topmost。</summary>
     public string Surface { get; set; } = "Desktop";
 
-    /// <summary>外观：Dark / Light。</summary>
+    /// <summary>外观：Dark / Light / System / Dracula / Nord / Catppuccin / Custom。</summary>
     public string Theme { get; set; } = "Dark";
+
+    /// <summary>自定义主题的背景色（<c>#RRGGBB</c>，仅 <c>Theme=Custom</c> 使用；缺失按深色回退）。</summary>
+    public string? CustomBackground { get; set; }
+
+    /// <summary>自定义主题的强调色（<c>#RRGGBB</c>，仅 <c>Theme=Custom</c> 使用；其余令牌由它推导）。</summary>
+    public string? CustomAccent { get; set; }
 
     /// <summary>色调强度 0.0–1.0。注意：这是背景色阶，不是窗口透明度（见 decisions.md D3）。</summary>
     public double Tone { get; set; }

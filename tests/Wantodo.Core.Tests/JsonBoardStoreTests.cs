@@ -191,6 +191,32 @@ public sealed class JsonBoardStoreTests : IDisposable
     }
 
     [Fact]
+    public void CustomColors_RoundTripAndMissingDefaultsToNull()
+    {
+        var store = NewStore();
+        var board = Board.CreateDefault();
+        board.Theme = "Custom";
+        board.CustomBackground = "#1B2735";
+        board.CustomAccent = "#E05A7A";
+        store.Save(board);
+
+        var loaded = NewStore().Load();
+
+        Assert.Equal(BoardLoadStatus.Loaded, loaded.Status);
+        Assert.Equal("Custom", loaded.Board.Theme);
+        Assert.Equal("#1B2735", loaded.Board.CustomBackground);
+        Assert.Equal("#E05A7A", loaded.Board.CustomAccent);
+
+        // 0.5.0 的文件没有这两个字段：读出来应是 null，而不是空串或抛错
+        File.WriteAllText(_dataPath, """{"theme":"Dark","columns":[{"title":"旧文件"}]}""");
+        var legacy = NewStore().Load();
+
+        Assert.Equal(BoardLoadStatus.Loaded, legacy.Status);
+        Assert.Null(legacy.Board.CustomBackground);
+        Assert.Null(legacy.Board.CustomAccent);
+    }
+
+    [Fact]
     public void Load_UnknownFieldsIgnored_AndCamelCaseTolerated()
     {
         var json = JsonSerializer.Serialize(new { version = 1, columns = new[] { new { title = "X" } }, future = "字段" });

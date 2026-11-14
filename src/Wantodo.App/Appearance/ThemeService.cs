@@ -14,7 +14,9 @@ public static class ThemeService
         Apply(ThemePalette.For(
             board.Theme,
             board.Tone,
-            SystemTheme.IsLightApplicationTheme()));
+            SystemTheme.IsLightApplicationTheme(),
+            board.CustomBackground,
+            board.CustomAccent));
     }
 
     public static void Apply(ThemeColors colors)

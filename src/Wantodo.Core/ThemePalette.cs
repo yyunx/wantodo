@@ -223,6 +223,13 @@ public static class ThemePalette
         return ThemeDerivation.EnsureContrast(second, againstFirst, target);
     }
 
+    /// <summary>把用户输入的颜色规整成 <c>#RRGGBB</c>；空值或格式不对返回 <c>null</c>。</summary>
+    public static string? NormalizeHex(string? hex) =>
+        TryParse(hex, out var color) ? color.ToHex() : null;
+
+    /// <summary>解析 <c>#RRGGBB</c> / <c>#AARRGGBB</c> / 不带井号的形式；失败返回 false。</summary>
+    public static bool TryParseHex(string? hex, out Rgb color) => TryParse(hex, out color);
+
     private static bool TryParse(string? hex, out Rgb color)
     {
         color = default;

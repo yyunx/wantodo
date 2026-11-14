@@ -63,6 +63,13 @@
                              Checked="OnThemeChanged" />
             </WrapPanel>
 
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <Button x:Name="CustomThemeButton" Content="自定义…" Padding="10,3" Click="OnCustomThemeClick" />
+                <TextBlock x:Name="CustomThemeHint" Style="{StaticResource HintText}"
+                           VerticalAlignment="Center" Margin="10,0,0,0"
+                           Text="背景 + 强调两色，其余自动推导" />
+            </StackPanel>
+
             <TextBlock Text="色调强度" Style="{StaticResource FieldLabel}" />
             <Slider x:Name="ToneSlider" Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.2"
                     Margin="0,0,0,12"
