@@ -12,6 +12,10 @@
         ShowInTaskbar="False"
         Topmost="False"
         WindowStartupLocation="CenterOwner"
+        AllowDrop="True"
+        PreviewDragOver="OnWindowDragOver"
+        PreviewDrop="OnWindowDrop"
+        DragLeave="OnWindowDragLeave"
         Background="{DynamicResource WindowBackground}">
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" />
@@ -125,8 +129,17 @@
             </ItemsControl>
         </ScrollViewer>
 
+        <!-- 拖入提示：整个窗口都是落点，不再要求对准表格 -->
+        <Grid x:Name="DropOverlay" Grid.RowSpan="4" Visibility="Collapsed" IsHitTestVisible="False">
+            <Border Background="{DynamicResource Accent}" Opacity="0.07" CornerRadius="6" Margin="2" />
+            <Border BorderBrush="{DynamicResource Accent}" BorderThickness="2" CornerRadius="6" Margin="2" />
+            <TextBlock Text="松手：把这条加成新的一行" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       FontSize="12.5" Foreground="{DynamicResource TextPrimary}"
+                       Background="{DynamicResource CardBackground}" Padding="12,6" />
+        </Grid>
+
         <TextBlock Grid.Row="3" x:Name="StatusText" Margin="16,8,16,10"
                    FontSize="11.5" Foreground="{DynamicResource TextMuted}"
-                   TextWrapping="Wrap" Text="拖主界面里的条目到这张表上，就会多一行；「卡在什么地方」填了原因后，主界面里悬停这个名字会显示它。" />
+                   TextWrapping="Wrap" Text="拖主界面里的条目到这个窗口的任意位置，就会多一行；「卡在什么地方」填了原因后，主界面里悬停这个名字会显示它。" />
     </Grid>
 </Window>

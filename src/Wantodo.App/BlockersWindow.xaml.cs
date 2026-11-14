@@ -168,12 +168,50 @@ public partial class BlockersWindow : Window
             text = e.Data.GetData(DataFormats.Text) as string;
         }
 
+        DropOverlay.Visibility = Visibility.Collapsed;
+        AcceptDroppedText(text);
+        e.Handled = true;
+    }
+
+    // ---------- 整窗落点：条目拖到窗口任意位置都算（不必对准表格） ----------
+
+    private void OnWindowDragOver(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(NoteDataFormat))
+        {
+            return;
+        }
+
+        e.Effects = DragDropEffects.Copy;
+        DropOverlay.Visibility = Visibility.Visible;
+        e.Handled = true;
+    }
+
+    private void OnWindowDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(NoteDataFormat))
+        {
+            return;
+        }
+
+        DropOverlay.Visibility = Visibility.Collapsed;
+        e.Handled = true;
+
+        if (e.Data.GetData(NoteDataFormat) is NoteViewModel note)
+        {
+            AcceptDroppedText(note.Text);
+        }
+    }
+
+    private void OnWindowDragLeave(object sender, DragEventArgs e) =>
+        DropOverlay.Visibility = Visibility.Collapsed;
+
+    private void AcceptDroppedText(string? text)
+    {
         if (!string.IsNullOrWhiteSpace(text) && AddFromText(text))
         {
             StatusText.Text = $"已加一行：{text}（把「卡在什么地方」补上，主界面悬停就能看到）";
         }
-
-        e.Handled = true;
     }
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
