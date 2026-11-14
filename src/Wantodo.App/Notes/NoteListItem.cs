@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Wantodo.Core;
 
 namespace Wantodo.App.Notes;
@@ -12,6 +13,12 @@ public sealed class NoteListItem
     }
 
     public NoteDocument Document { get; }
+
+    /// <summary>磁盘上的真实文件名（含时间前缀与扩展名），用来和资源管理器对账。</summary>
+    public string FileName => Path.GetFileName(Document.FullPath);
+
+    /// <summary>相对 notes 根的路径，如 <c>inbox\20261114-1402-买牛奶.md</c>。</summary>
+    public string RelativePath => Document.Id.Replace('/', Path.DirectorySeparatorChar);
 
     public string Title => string.IsNullOrWhiteSpace(Document.Title) ? "未命名" : Document.Title;
 

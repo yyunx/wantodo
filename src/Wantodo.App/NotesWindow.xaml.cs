@@ -379,7 +379,7 @@ public partial class NotesWindow : Window
         var count = _items.Count;
         StatusText.Text = _current is null
             ? $"{count} 篇笔记 · 文件在 {_paths.NotesDir}"
-            : $"{count} 篇 · {_current.Document.Id}{(saved ? " · 已保存" : string.Empty)} · 文件是唯一事实来源，外部改了会自动刷新";
+            : $"{count} 篇 · {_current.FileName}{(saved ? " · 已保存" : string.Empty)} · 文件是唯一事实来源，外部改了会自动刷新";
     }
 
     private void OnNewClick(object sender, RoutedEventArgs e)
@@ -393,7 +393,16 @@ public partial class NotesWindow : Window
             ? NoteFormat.Md
             : NoteFormat.Txt;
 
-        var result = _vault.Create(format, "未命名");
+        var dialog = new Dialogs.NewNoteDialog(format) { Owner = this };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var title = dialog.NoteTitle;
+        var named = !string.IsNullOrWhiteSpace(title);
+
+        var result = _vault.Create(format, named ? title : null);
         if (!result.Success || result.Document is null)
         {
             MessageBox.Show(this, $"建不出新笔记：{result.Error}", "随心记", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -403,8 +412,18 @@ public partial class NotesWindow : Window
         AppLog.Info($"随心记新建：{result.Document.Id}");
         Reload(keepSelection: false);
         SelectNote(result.Document.Id);
-        TitleBox.Focus();
-        TitleBox.SelectAll();
+
+        if (named)
+        {
+            // 名字已经定了，直接进正文；留空的仍走「未命名 → 首次改标题同步文件名」的老路。
+            BodyBox.Focus();
+            BodyBox.CaretIndex = 0;
+        }
+        else
+        {
+            TitleBox.Focus();
+            TitleBox.SelectAll();
+        }
     }
 
     private void OnDeleteClick(object sender, RoutedEventArgs e)

@@ -37,6 +37,7 @@
 | 15 | 自定义取色 | 任意背景/强调色不出现白底白字 | 中 |
 | 16 | 顶边热区探针 | 证明可行并选定实现方式 | **高** |
 | 17 | 顶边下拉面板（形态 A） | 撞顶出把手、与桌面同源 | **高** |
+| 18 | 新建先命名 + 真实文件名 | 文件名与标题从第一刻一致 | 低 |
 
 ---
 
@@ -657,6 +658,32 @@ PowerShell 行切片（改 Python）、调试版与安装版共用单实例互�
 - [ ] `build -warnaserror` 0 警告；`test` 全绿。
 
 **风险**：高（热区与系统贴边行为、失焦收回）。**预估**：1–1.5 天。**依赖**：Phase 16。
+
+---
+
+## Phase 18 — 新建先命名 + 显示真实文件名（N1）　P2
+
+**目的**：新建时就定好标题，文件名与标题从第一刻起一致；列表悬停与状态栏能看到磁盘上的真实文件名。
+（用户 2026-11-14 指定提前于 Phase 12 实施，之后回 Phase 12。）
+
+**要做的**
+
+1. 新增 `src/Wantodo.App/Dialogs/NewNoteDialog.xaml(.cs)`：与加栏弹窗同款（无边框、跟随主题、
+   回车确认、Esc 取消），输入框下方实时预览 `yyyyMMdd-HHmm-slug.ext`。
+2. `src/Wantodo.App/NotesWindow.xaml.cs` `OnNewClick`：先弹窗，再 `_vault.Create(format, title)`；
+   留空回落到「未命名」，保留「首次改标题同步文件名」的老路；有名字时光标直接进正文。
+3. `src/Wantodo.App/Notes/NoteListItem.cs` 增 `FileName` / `RelativePath`；列表项 `ToolTip`
+   显示相对路径；状态栏改显示真实文件名（原先显示相对 Id）。
+4. 单测：`Create_WithTitle_PutsSlugIntoFileName`。
+
+**验收**
+
+- [ ] 新建输入「买牛奶 2026」→ 磁盘文件名 `yyyyMMdd-HHmm-买牛奶-2026.md`，标题一致；
+      列表悬停读到同一串名字；状态栏显示它。
+- [ ] 留空回车 → 「未命名」，首次改标题仍会同步文件名。
+- [ ] `build -warnaserror` 0 警告；`test` 全绿（167 通过）。
+
+**风险**：低（不动数据模型与命名规则）。**预估**：0.5 天。**依赖**：Phase 11（自写标记不影响新建后的刷新）。
 
 ---
 

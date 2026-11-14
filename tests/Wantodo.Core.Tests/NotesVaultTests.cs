@@ -56,6 +56,19 @@ public sealed class NotesVaultTests : IDisposable
     }
 
     [Fact]
+    public void Create_WithTitle_PutsSlugIntoFileName()
+    {
+        var result = _vault.Create(NoteFormat.Md, "买牛奶 2026");
+
+        Assert.True(result.Success, result.Error);
+        var doc = result.Document!;
+        var fileName = Path.GetFileName(doc.FullPath);
+        Assert.Matches(@"^\d{8}-\d{4}-", fileName);
+        Assert.EndsWith("-买牛奶-2026.md", fileName);
+        Assert.Equal("买牛奶 2026", _vault.Read(doc.Id)!.Title);
+    }
+
+    [Fact]
     public void Create_Md_WritesFrontMatter_AndRoundTripsTitleAndTags()
     {
         var result = _vault.Create(NoteFormat.Md, "论文精读");

@@ -40,7 +40,7 @@
                     <Button Content="＋ 新建" Style="{StaticResource IconButton}" Padding="9,0" Height="24" Margin="0,0,8,0"
                             FontSize="12"
                             Foreground="{DynamicResource TextSecondary}"
-                            ToolTip="新建一篇笔记（类型见设置里的默认文档类型）"
+                            ToolTip="新建一篇笔记：先起名字（会用作文件名），留空则先用「未命名」"
                             Click="OnNewClick" />
                     <Button Content="打开文件夹" Style="{StaticResource IconButton}" Padding="9,0" Height="24" Margin="0,0,8,0"
                             FontSize="12"
@@ -77,7 +77,8 @@
                              Padding="4">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Margin="6,6,6,7">
+                                <StackPanel Margin="6,6,6,7"
+                                            ToolTip="{Binding RelativePath}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
