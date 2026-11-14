@@ -181,6 +181,18 @@ public sealed class TopEdgePanelService : IDisposable
             return;
         }
 
+        // 分隔条 6 DIP > 栏头 26 DIP 拖动区：先判分隔条，避免贴边时两边抢。
+        var screenPoint = new System.Windows.Point(x, y);
+        if (_panel.TryBeginSplitDrag(screenPoint))
+        {
+            return;
+        }
+
+        if (_panel.TryBeginPaneDrag(screenPoint, out _))
+        {
+            return;
+        }
+
         // 下拉框的弹出层是独立 HWND，点它里面的选项会落在面板矩形外；
         // 不能因为这一下把整个面板收起来，否则选列等于关窗。
         if (_panel.IsPickerOpen)
@@ -207,6 +219,18 @@ public sealed class TopEdgePanelService : IDisposable
             return;
         }
 
+        if (_panel.IsSplitDragging)
+        {
+            _panel.DragSplit(new System.Windows.Point(x, y));
+            return;
+        }
+
+        if (_panel.IsPaneDragging)
+        {
+            _panel.DragPane(new System.Windows.Point(x, y));
+            return;
+        }
+
         if (_panel.IsDragging)
         {
             _panel.DragTo(y);
@@ -223,6 +247,18 @@ public sealed class TopEdgePanelService : IDisposable
         if (_panel.IsResizing)
         {
             _panel.EndResize();
+            return;
+        }
+
+        if (_panel.IsSplitDragging)
+        {
+            _panel.EndSplitDrag();
+            return;
+        }
+
+        if (_panel.IsPaneDragging)
+        {
+            _panel.EndPaneDrag();
             return;
         }
 

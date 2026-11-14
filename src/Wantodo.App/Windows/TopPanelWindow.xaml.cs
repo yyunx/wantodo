@@ -189,6 +189,22 @@ public partial class TopPanelWindow : Window
         }
     }
 
+    public bool TryBeginSplitDrag(Point screenPoint) => LayoutHost.TryBeginSplitDrag(screenPoint);
+
+    public bool IsSplitDragging => LayoutHost.IsSplitDragging;
+
+    public void DragSplit(Point screenPoint) => LayoutHost.DragSplit(screenPoint);
+
+    public void EndSplitDrag() => LayoutHost.EndSplitDrag();
+
+    public bool TryBeginPaneDrag(Point screenPoint, out string paneId) => LayoutHost.TryBeginPaneDrag(screenPoint, out paneId);
+
+    public bool IsPaneDragging => LayoutHost.IsPaneDragging;
+
+    public void DragPane(Point screenPoint) => LayoutHost.DragPane(screenPoint);
+
+    public void EndPaneDrag() => LayoutHost.EndPaneDrag();
+
     public void BeginDrag(int screenY)
     {
         _dragging = true;

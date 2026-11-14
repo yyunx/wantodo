@@ -78,6 +78,41 @@ PID 11284 启动成功
 - 面板宿主的高度由 `PanelHeightRatio` 决定，栏内内容超出时面板内部纵向滚动，不改变面板高度。
 - 没有新增第三方依赖；`BoardLayoutHost` 只用 WPF 自带控件。
 
-## 7. 下一步
+## 7. 交付后补丁（同日，用户实测反馈）
 
-Phase 21（主题形式感与樱花）——Run B 的第一阶段，需先做 Run A 收口交接核对。
+用户反馈：面板「每个栏目之间没有分割，也拖不了；大小可以动，位置不行」。根因有两层：
+
+1. 分隔条 `Background` 是透明，平时看不到缝；而且面板 `ShowActivated=false`，`GridSplitter`
+   的 WPF 鼠标捕获在未激活窗口上不可靠——和 Phase 17 的把手是同一个坑。
+2. 面板里根本没有「拖动整栏换位」的入口。
+
+修法（全部走已有的全局鼠标钩子，不依赖窗口激活）：
+
+- `BoardLayoutHost`：分隔条平时用 `Divider` 画刷画一条 6 DIP 淡分隔线，悬停变 `Accent`；
+  新增 `TryBeginSplitDrag/DragSplit/EndSplitDrag`（命中分隔条 → 按屏幕位移改两列/两行的像素宽，
+  松手回算比例并 `SaveRequested`）；新增 `TryBeginPaneDrag/DragPane/EndPaneDrag`
+  （栏头 26 DIP 为拖动区，拖到另一栏松手 → `LayoutTree.SwapPanes` + 重建 + 保存）。
+- `TopPanelWindow` 暴露同名转发；`TopEdgePanelService` 的按下顺序改为
+  **边缘缩放 > 12 DIP 把手 > 分隔条 > 栏头拖动 > 下拉放行 > 点外收起**，移动/松开按当前手势分流。
+- 栏内文字点击不受影响：拖动区只在栏头顶部 26 DIP，条目按钮仍走原来的 `ToggleCommand`。
+
+证据：
+
+```text
+build -warnaserror：0 个警告，0 个错误
+test --no-build：220 通过 / 0 失败 / 611 ms
+启动 Debug：PID 39176，无异常
+```
+
+需人肉眼确认（替换第 5 节第 2 条的一部分）：
+
+1. 开面板，看三栏之间是否有淡色竖缝 → 按住竖缝左右拖 → 栏宽跟手、松手后比例保留。
+2. 按住某栏标题（栏内最上方）拖到另一栏上松手 → 两栏位置互换，重启后保持。
+3. 点栏内条目 → 仍正常切换完成态，不会误触发拖动。
+
+剩余欠账：面板内仍不支持「拖条目到另一栏」（笔记拖放）；它和主窗口的 `PaneDataFormat`
+拖放逻辑共用一套，留到 0.7.0 一起做。
+
+## 8. 下一步
+
+Phase 21（主题形式感与樱花）——Run B 的第一阶段。

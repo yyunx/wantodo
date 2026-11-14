@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using Wantodo.App.ViewModels;
 using Wantodo.Core;
@@ -17,9 +18,16 @@ namespace Wantodo.App.Controls;
 /// </summary>
 public sealed class BoardLayoutHost : Grid
 {
-    private readonly Dictionary<LayoutNode, SplitView> _splitViews = new();
+    private readonly Dictionary<GridSplitter, SplitView> _splitViews = new();
+    private readonly Dictionary<string, FrameworkElement> _paneElements = new(StringComparer.Ordinal);
     private Board? _board;
     private IReadOnlyList<ColumnViewModel>? _columns;
+    private SplitView? _activeSplit;
+    private Point _activeSplitStart;
+    private double _activeSplitFirst;
+    private double _activeSplitSecond;
+    private string? _dragPaneId;
+    private string? _dragTargetId;
 
     /// <summary>叶子的内容模板；为 null 时退回资源里的 <c>PaneTemplate</c>。</summary>
     public DataTemplate? PaneTemplate { get; set; }
@@ -53,6 +61,10 @@ public sealed class BoardLayoutHost : Grid
     public void Rebuild()
     {
         _splitViews.Clear();
+        _paneElements.Clear();
+        _activeSplit = null;
+        _dragPaneId = null;
+        _dragTargetId = null;
         Children.Clear();
         ColumnDefinitions.Clear();
         RowDefinitions.Clear();
@@ -101,12 +113,15 @@ public sealed class BoardLayoutHost : Grid
 
             DataTemplate? template = PaneTemplate ?? TryFindResource("PaneTemplate") as DataTemplate;
 
-            return new ContentControl
+            var element = new ContentControl
             {
                 Content = column,
                 ContentTemplate = template,
                 Focusable = false,
             };
+
+            _paneElements[node.PaneId ?? string.Empty] = element;
+            return element;
         }
 
         if (node.First is null || node.Second is null)
@@ -150,12 +165,14 @@ public sealed class BoardLayoutHost : Grid
             return grid;
         }
 
+        Brush divider = TryFindResource("Divider") as Brush ?? Brushes.Transparent;
         var splitter = new GridSplitter
         {
             ShowsPreview = false,
             ResizeBehavior = GridResizeBehavior.PreviousAndNext,
             ResizeDirection = horizontal ? GridResizeDirection.Columns : GridResizeDirection.Rows,
-            Background = Brushes.Transparent,
+            // 平时给一条淡分隔线：面板没有窗口边框，纯透明分隔条看不出「这里有缝」。
+            Background = divider,
             Focusable = false,
             Cursor = horizontal ? System.Windows.Input.Cursors.SizeWE : System.Windows.Input.Cursors.SizeNS,
             // 显式给尺寸：GridSplitter 默认模板按内容量，空内容会量出 0×0（UIA 里是 ∞，点不到）。
@@ -165,9 +182,15 @@ public sealed class BoardLayoutHost : Grid
             Height = horizontal ? double.NaN : LayoutTree.SplitterSize,
         };
 
-        var accent = TryFindResource("Accent") as Brush ?? Brushes.Transparent;
+        Brush accent = TryFindResource("Accent") as Brush ?? Brushes.Transparent;
         splitter.MouseEnter += (_, _) => splitter.Background = accent;
-        splitter.MouseLeave += (_, _) => splitter.Background = Brushes.Transparent;
+        splitter.MouseLeave += (_, _) =>
+        {
+            if (!ReferenceEquals(_activeSplit?.Splitter, splitter))
+            {
+                splitter.Background = divider;
+            }
+        };
 
         if (horizontal)
         {
@@ -186,9 +209,9 @@ public sealed class BoardLayoutHost : Grid
         grid.Children.Add(splitter);
         grid.Children.Add(second);
 
-        var view = new SplitView(path, horizontal, firstColumn, secondColumn, firstRow, secondRow);
-        _splitViews[node] = view;
-        splitter.DragCompleted += (_, _) => OnSplitterDragCompleted(node, view);
+        var view = new SplitView(node, path, horizontal, firstColumn, secondColumn, firstRow, secondRow, splitter, divider);
+        _splitViews[splitter] = view;
+        splitter.DragCompleted += (_, _) => OnSplitterDragCompleted(view);
 
         return grid;
     }
@@ -197,7 +220,7 @@ public sealed class BoardLayoutHost : Grid
     /// 拖完分隔条：按实际尺寸回算比例写进模型，再把两路设回星号。
     /// 这一步不改窗口尺寸（Phase 9 的硬要求：缩放窗口时整体保持原样）。
     /// </summary>
-    private void OnSplitterDragCompleted(LayoutNode node, SplitView view)
+    private void OnSplitterDragCompleted(SplitView view)
     {
         double first;
         double second;
@@ -224,9 +247,221 @@ public sealed class BoardLayoutHost : Grid
             return;
         }
 
-        ApplySplitLengths(node, view);
+        ApplySplitLengths(view.Node, view);
         SaveRequested?.Invoke(this, EventArgs.Empty);
-        AppLog.Info($"分隔条 {view.Path}：比例 {node.Ratio:F2}");
+        AppLog.Info($"分隔条 {view.Path}：比例 {view.Node.Ratio:F2}");
+    }
+
+    /// <summary>
+    /// 面板里没有可激活的窗口，WPF 的鼠标捕获不可靠（Phase 17 的把手已经踩过一次），
+    /// 所以分隔条也改由全局钩子驱动：按下时找分隔条，移动时直接改两列/两行的像素宽，松手回算比例。
+    /// </summary>
+    public bool TryBeginSplitDrag(Point screenPoint)
+    {
+        if (_board?.Layout is null)
+        {
+            return false;
+        }
+
+        Point local = PointFromScreen(screenPoint);
+        GridSplitter? splitter = HitAncestor<GridSplitter>(local);
+        if (splitter is null || !_splitViews.TryGetValue(splitter, out SplitView? view))
+        {
+            return false;
+        }
+
+        _activeSplit = view;
+        _activeSplitStart = screenPoint;
+        _activeSplitFirst = view.Horizontal
+            ? view.FirstColumn?.ActualWidth ?? 0
+            : view.FirstRow?.ActualHeight ?? 0;
+        _activeSplitSecond = view.Horizontal
+            ? view.SecondColumn?.ActualWidth ?? 0
+            : view.SecondRow?.ActualHeight ?? 0;
+        splitter.Background = TryFindResource("Accent") as Brush ?? Brushes.Transparent;
+        return true;
+    }
+
+    public bool IsSplitDragging => _activeSplit is not null;
+
+    public void DragSplit(Point screenPoint)
+    {
+        if (_activeSplit is null)
+        {
+            return;
+        }
+
+        SplitView view = _activeSplit;
+        double scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        double delta = view.Horizontal
+            ? (screenPoint.X - _activeSplitStart.X) / scale
+            : (screenPoint.Y - _activeSplitStart.Y) / scale;
+
+        double firstMin = view.Horizontal
+            ? view.FirstColumn?.MinWidth ?? 0
+            : view.FirstRow?.MinHeight ?? 0;
+        double secondMin = view.Horizontal
+            ? view.SecondColumn?.MinWidth ?? 0
+            : view.SecondRow?.MinHeight ?? 0;
+
+        double first = Math.Clamp(_activeSplitFirst + delta, firstMin, _activeSplitFirst + _activeSplitSecond - secondMin);
+        double second = _activeSplitFirst + _activeSplitSecond - first;
+
+        if (view.Horizontal)
+        {
+            if (view.FirstColumn is not null)
+            {
+                view.FirstColumn.Width = new GridLength(first, GridUnitType.Pixel);
+            }
+
+            if (view.SecondColumn is not null)
+            {
+                view.SecondColumn.Width = new GridLength(second, GridUnitType.Pixel);
+            }
+        }
+        else
+        {
+            if (view.FirstRow is not null)
+            {
+                view.FirstRow.Height = new GridLength(first, GridUnitType.Pixel);
+            }
+
+            if (view.SecondRow is not null)
+            {
+                view.SecondRow.Height = new GridLength(second, GridUnitType.Pixel);
+            }
+        }
+    }
+
+    public void EndSplitDrag()
+    {
+        if (_activeSplit is null)
+        {
+            return;
+        }
+
+        SplitView view = _activeSplit;
+        _activeSplit = null;
+        OnSplitterDragCompleted(view);
+        view.Splitter.Background = view.Divider;
+    }
+
+    public bool TryBeginPaneDrag(Point screenPoint, out string paneId)
+    {
+        paneId = string.Empty;
+        if (_paneElements.Count == 0)
+        {
+            return false;
+        }
+
+        Point local = PointFromScreen(screenPoint);
+        ContentControl? pane = HitAncestor<ContentControl>(local);
+        if (pane is null)
+        {
+            return false;
+        }
+
+        string? id = _paneElements.FirstOrDefault(kv => ReferenceEquals(kv.Value, pane)).Key;
+        if (id is null)
+        {
+            return false;
+        }
+
+        // 栏头 26 DIP 才是拖动区，栏内文字仍归按钮点击。
+        Point inPane = Mouse.GetPosition(pane);
+        if (inPane.Y > 26)
+        {
+            return false;
+        }
+
+        _dragPaneId = id;
+        pane.Opacity = 0.5;
+        paneId = id;
+        return true;
+    }
+
+    public bool IsPaneDragging => _dragPaneId is not null;
+
+    public void DragPane(Point screenPoint)
+    {
+        if (_dragPaneId is null)
+        {
+            return;
+        }
+
+        string? target = FindPaneAt(screenPoint);
+        if (string.Equals(target, _dragTargetId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (_dragTargetId is not null && _paneElements.TryGetValue(_dragTargetId, out FrameworkElement? old))
+        {
+            old.Opacity = 1;
+        }
+
+        _dragTargetId = target is not null && !string.Equals(target, _dragPaneId, StringComparison.Ordinal)
+            ? target
+            : null;
+
+        if (_dragTargetId is not null && _paneElements.TryGetValue(_dragTargetId, out FrameworkElement? current))
+        {
+            current.Opacity = 0.7;
+        }
+    }
+
+    public void EndPaneDrag()
+    {
+        string? source = _dragPaneId;
+        string? target = _dragTargetId;
+        _dragPaneId = null;
+        _dragTargetId = null;
+
+        foreach (FrameworkElement element in _paneElements.Values)
+        {
+            element.Opacity = 1;
+        }
+
+        if (source is null || target is null || _board?.Layout is null)
+        {
+            return;
+        }
+
+        _board.Layout = LayoutTree.SwapPanes(_board.Layout, source, target);
+        AppLog.Info($"面板拖栏：{source} ↔ {target}");
+        SaveRequested?.Invoke(this, EventArgs.Empty);
+        Rebuild();
+    }
+
+    private string? FindPaneAt(Point screenPoint)
+    {
+        Point local = PointFromScreen(screenPoint);
+        ContentControl? pane = HitAncestor<ContentControl>(local);
+        if (pane is null)
+        {
+            return null;
+        }
+
+        return _paneElements.FirstOrDefault(kv => ReferenceEquals(kv.Value, pane)).Key;
+    }
+
+    private T? HitAncestor<T>(Point local)
+        where T : DependencyObject
+    {
+        HitTestResult? result = VisualTreeHelper.HitTest(this, local);
+        DependencyObject? current = result?.VisualHit;
+
+        while (current is not null)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
     }
 
     private static void ApplySplitLengths(LayoutNode node, SplitView view)
@@ -261,10 +496,13 @@ public sealed class BoardLayoutHost : Grid
 
     /// <summary>一次 Split 的可视化句柄，拖完分隔条要用它把尺寸设回星号。</summary>
     private sealed record SplitView(
+        LayoutNode Node,
         string Path,
         bool Horizontal,
         ColumnDefinition? FirstColumn,
         ColumnDefinition? SecondColumn,
         RowDefinition? FirstRow,
-        RowDefinition? SecondRow);
+        RowDefinition? SecondRow,
+        GridSplitter Splitter,
+        Brush Divider);
 }

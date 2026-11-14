@@ -34,8 +34,8 @@
 - commit: `git log --grep '^phase-20:' -1`（本阶段提交）
 - 验收: 2/5 自动通过（关闭开关不建宿主、build/test 220 通过）；3 条须人肉眼（docs/verify/phase20.md）
 - 改动: 6 个文件（+136/−264，另新增 BoardLayoutHost.cs）
-- 欠账 / PENDING-HUMAN: 面板内「拖栏/拖条目」未搬入（主窗口拖拽预览与 PaneDataFormat 未进宿主）；
-  分隔条命中优先级只有 `SplitterSize=6` 常量的单测；5 栏横向滚动与双向同步待肉眼。
+- 欠账 / PENDING-HUMAN: 面板内「拖条目到另一栏」未做；分隔条可见 + 拖分隔条 + 栏头换位已补（同日补丁，
+  `docs/verify/phase20.md` §7）；5 栏横向滚动与双向同步待肉眼。
 - 下一步第一条命令: Run A 收口（§9 汇总，停；不进 Run B）。
 
 ## 下一步
