@@ -73,6 +73,28 @@ public sealed class BoardViewModel : ObservableObject
         RequestSave();
     }
 
+    public string PanelMode => Model.PanelMode;
+
+    public event EventHandler? PanelModeChanged;
+
+    /// <summary>切换面板形态；只换窗口内容，两份数据互不迁移（Phase 24）。</summary>
+    public void SetPanelMode(string mode)
+    {
+        var normalized = string.Equals(mode, Board.CanvasPanelMode, StringComparison.OrdinalIgnoreCase)
+            ? Board.CanvasPanelMode
+            : Board.DockPanelMode;
+
+        if (string.Equals(Model.PanelMode, normalized, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        Model.PanelMode = normalized;
+        OnPropertyChanged(nameof(PanelMode));
+        RequestSave();
+        PanelModeChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>隐藏已完成的条目（数据保留，只是不显示）。</summary>
     public bool HideCompleted
     {

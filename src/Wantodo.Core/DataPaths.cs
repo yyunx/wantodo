@@ -46,6 +46,9 @@ public sealed class DataPaths
     /// <summary>便签板数据（原子写：同目录 <c>data.json.tmp</c> → <c>File.Replace</c>）。</summary>
     public string BoardFile => Path.Combine(BoardDir, "data.json");
 
+    /// <summary>形态 B 的自由画布（独立文件，避免拖慢 600 ms 的 data.json 保存）。</summary>
+    public string CanvasFile => Path.Combine(BoardDir, "canvas.json");
+
     /// <summary>应用设置。Phase 7 暂不与板数据拆开，保留给 Phase 8/9 用。</summary>
     public string SettingsFile => Path.Combine(ConfigDir, "settings.json");
 

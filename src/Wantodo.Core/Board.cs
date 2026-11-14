@@ -36,6 +36,13 @@ public sealed class Board
     public double PanelHeight { get; set; } = 320;
 
     /// <summary>下拉面板展开后的宽度比例（工作区宽度 × 比例，夹 0.4–1.0；Phase 19）。</summary>
+    public const string DockPanelMode = "Dock";
+
+    public const string CanvasPanelMode = "Canvas";
+
+    /// <summary>面板形态：Dock = 树布局（默认）；Canvas = 自由画布，读 board/canvas.json。</summary>
+    public string PanelMode { get; set; } = DockPanelMode;
+
     public double PanelWidthRatio { get; set; } = PanelGeometry.DefaultRatio;
 
     /// <summary>下拉面板展开后的高度比例（工作区高度 × 比例，夹 0.4–1.0；Phase 19）。</summary>
@@ -89,6 +96,14 @@ public sealed class Board
 
         PanelWidthRatio = PanelGeometry.ClampRatio(PanelWidthRatio);
         PanelHeightRatio = PanelGeometry.ClampRatio(PanelHeightRatio);
+        if (!string.Equals(PanelMode, CanvasPanelMode, StringComparison.OrdinalIgnoreCase))
+        {
+            PanelMode = DockPanelMode;
+        }
+        else
+        {
+            PanelMode = CanvasPanelMode;
+        }
     }
 
     /// <summary>首次启动（或数据彻底损坏）时的初始内容：两栏，带几条占位条目。</summary>

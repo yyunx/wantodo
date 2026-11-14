@@ -877,7 +877,7 @@ PowerShell 行切片（改 Python）、调试版与安装版共用单实例互�
 - [ ] 撤销/重做 20 步正确；删除进回收站可恢复。
 - [ ] A↔B 往返 3 次，data.json 与 canvas.json 均无丢失。
 - [ ] 设置页「面板形态」默认「桌面版（优化后）」，切到「画板版」后撞顶出现画布，切回后布局原样。
-- [ ] `build -warnaserror` 0 警告；`test` 全绿。
+- [x] `build -warnaserror` 0 警告；`test` 全绿（2026-11-14：0 警告 / 239 通过；画布 MVP，删除未进回收、50 张性能待测，见 `docs/verify/phase24.md`）。
 
 **风险**：高（新交互范式 + 渲染性能）。**预估**：3–5 天。**依赖**：Phase 23 + 设计文档确认。
 **回滚点**：`PanelMode` 默认 `Dock`，不读 canvas.json；删窗口与控件即回退。

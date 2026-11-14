@@ -64,3 +64,12 @@
 
 ## 下一步
 Run B 收口：21/22/23 完成（各有欠账），24 未开工（3–5 天，超出单次 Run 预算）。
+
+## Run B — Phase 24（2026-11-14）
+
+- 状态：**DONE-WITH-DEBT（MVP）**
+- commit：本轮提交 `phase-24: 自由画布 MVP`
+- 验收：`build -warnaserror` 0 警告/0 错误；`test` 239 通过；设置页「面板形态」与撞顶切画布已接；手工人肉眼项 5 条，见 `docs/verify/phase24.md` §5
+- 改动：新增 Core `CanvasItem`/`CanvasStore`、App `CanvasBoard`/`CanvasPanelWindow`、`CanvasStoreTests`（9 例）；`Board.PanelMode`、`DataPaths.CanvasFile`、`BoardViewModel.SetPanelMode`、设置页单选、`TopEdgePanelService` 分流
+- 欠账：删除未进 `trash/`；记事/待办卡片未绑定真实数据；50 张卡片性能未采样；画布 zoom/多显示器未做
+- 下一条命令：等用户肉眼验收；通过后做「卡片绑定 + 删除进回收」，再进 Phase 25（若有）

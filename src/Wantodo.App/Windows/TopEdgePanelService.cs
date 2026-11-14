@@ -18,6 +18,7 @@ public sealed class TopEdgePanelService : IDisposable
     private readonly EventHandler _visibilityHandler;
     private HotZoneWindow? _hotZone;
     private TopPanelWindow? _panel;
+    private CanvasPanelWindow? _canvas;
     private LowLevelMouseHook? _hook;
     private ForegroundWatcher? _foreground;
     private DispatcherTimer? _dwell;
@@ -120,6 +121,12 @@ public sealed class TopEdgePanelService : IDisposable
             _panel = null;
         }
 
+        if (_canvas is not null)
+        {
+            _canvas.Close();
+            _canvas = null;
+        }
+
         AppLog.Info("顶边下拉面板已关闭：热区与钩子都已释放");
     }
 
@@ -138,6 +145,13 @@ public sealed class TopEdgePanelService : IDisposable
     {
         _dwell?.Stop();
 
+        if (string.Equals(_viewModel.Model.PanelMode, Board.CanvasPanelMode, StringComparison.OrdinalIgnoreCase))
+        {
+            _canvas ??= new CanvasPanelWindow();
+            _canvas.ShowCanvas();
+            return;
+        }
+
         _panel ??= new TopPanelWindow(_viewModel);
         _panel.ShowHandle();
     }
@@ -149,6 +163,7 @@ public sealed class TopEdgePanelService : IDisposable
         if (covers)
         {
             _hotZone?.Hide();
+            _canvas?.Hide();
             if (_panel is not null && _panel.IsVisible)
             {
                 _panel.Collapse();

@@ -75,6 +75,9 @@ public partial class SettingsWindow : Window
 
             HideCompletedCheck.IsChecked = _viewModel.HideCompleted;
             TopPanelCheck.IsChecked = _viewModel.Model.ShowTopPanel;
+            var canvasMode = string.Equals(_viewModel.Model.PanelMode, Board.CanvasPanelMode, StringComparison.OrdinalIgnoreCase);
+            PanelModeDockRadio.IsChecked = !canvasMode;
+            PanelModeCanvasRadio.IsChecked = canvasMode;
             AutostartCheck.IsChecked = Shell.Autostart.IsEnabled();
 
             bool md = string.Equals(_viewModel.Model.DefaultNoteFormat, "md", StringComparison.OrdinalIgnoreCase);
@@ -126,6 +129,16 @@ public partial class SettingsWindow : Window
         }
 
         _viewModel.SetThemeEffects(ThemeEffectsCheck.IsChecked == true);
+    }
+
+    private void OnPanelModeChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading || sender is not RadioButton { IsChecked: true } radio || radio.Tag is not string mode)
+        {
+            return;
+        }
+
+        _viewModel.SetPanelMode(mode);
     }
 
     private void OnCustomThemeClick(object sender, RoutedEventArgs e)

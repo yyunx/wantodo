@@ -89,6 +89,18 @@
                     Margin="0,0,0,12"
                     ValueChanged="OnToneChanged" />
 
+            <TextBlock Text="面板形态" Style="{StaticResource FieldLabel}" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <RadioButton x:Name="PanelModeDockRadio" Content="桌面版（优化后）" Tag="Dock" GroupName="panelMode" Margin="0,0,14,0"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnPanelModeChanged" />
+                <RadioButton x:Name="PanelModeCanvasRadio" Content="画板版" Tag="Canvas" GroupName="panelMode"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnPanelModeChanged" />
+            </StackPanel>
+            <TextBlock Style="{StaticResource HintText}" Margin="0,0,0,12"
+                       Text="画板版是自由拖放的卡片；两种形态各存一份数据，互不覆盖。" />
+
             <TextBlock Text="窗口尺寸" Style="{StaticResource FieldLabel}" />
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                 <RadioButton x:Name="AutoFitRadio" Content="跟随栏数" GroupName="sizeMode" Margin="0,0,14,0"
