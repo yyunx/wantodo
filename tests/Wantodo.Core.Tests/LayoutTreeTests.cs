@@ -250,4 +250,30 @@ public sealed class LayoutTreeTests
         Assert.Equal(0.42, loaded.Layout.Ratio, 3);
         Assert.Equal(new[] { "a", "b", "c" }, LayoutTree.LeafIds(loaded.Layout));
     }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(8)]
+    public void Balanced_ManyPanes_StaysWithinMaxDepth(int count)
+    {
+        string[] ids = Enumerable.Range(0, count).Select(i => "p" + i).ToArray();
+        LayoutNode? root = LayoutTree.Balanced(ids);
+
+        Assert.NotNull(root);
+        Assert.True(Depth(root!) <= LayoutTree.MaxDepth, $"Balanced({count}) 深度 {Depth(root!)} 超过 {LayoutTree.MaxDepth}");
+        Assert.Null(LayoutTree.Validate(root, ids));
+    }
+
+    [Fact]
+    public void SplitterSize_IsSixDips_HitPriorityBase()
+    {
+        Assert.Equal(6, LayoutTree.SplitterSize);
+        Assert.True(LayoutTree.SplitterSize > 2, "分隔条必须比顶边 2 DIP 热区宽，才不会被误判成顶边");
+    }
+
+    private static int Depth(LayoutNode node) =>
+        node.Type == LayoutNode.LeafType
+            ? 1
+            : 1 + Math.Max(Depth(node.First!), Depth(node.Second!));
 }

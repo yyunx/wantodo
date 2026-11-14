@@ -30,8 +30,6 @@ public partial class MainWindow : Window
 
     private const string PaneDataFormat = "wantodo/pane";
 
-    private readonly Dictionary<LayoutNode, SplitView> _splitViews = new();
-
     private ColumnViewModel? _paneDragSource;
     private Point _paneDragOrigin;
     private string? _paneDragId;
@@ -83,6 +81,10 @@ public partial class MainWindow : Window
 
         _viewModel = new BoardViewModel(board, store);
         DataContext = _viewModel;
+
+        // 布局渲染搬到共享控件里（Phase 20）：主窗口与顶边面板用同一份树渲染逻辑。
+        LayoutHost.Attach(_viewModel.Model, _viewModel.Columns);
+        LayoutHost.SaveRequested += (_, _) => _viewModel.RequestSave();
 
         _viewModel.Columns.CollectionChanged += OnColumnsChanged;
         Loaded += (_, _) =>
@@ -958,194 +960,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void RebuildLayout()
     {
-        _splitViews.Clear();
-        LayoutHost.Children.Clear();
-        LayoutHost.ColumnDefinitions.Clear();
-        LayoutHost.RowDefinitions.Clear();
-
-        if (Board.Layout is null)
-        {
-            AppLog.Warn("布局为空，界面不渲染任何栏");
-            return;
-        }
-
-        AppLog.Info($"绘制布局：根={Board.Layout.Type}/{Board.Layout.Orientation} 叶={LayoutTree.LeafIds(Board.Layout).Count}");
-
-        if (BuildLayoutElement(Board.Layout, string.Empty) is { } element)
-        {
-            LayoutHost.Children.Add(element);
-        }
-    }
-
-    private FrameworkElement? BuildLayoutElement(LayoutNode node, string path)
-    {
-        if (node.IsLeaf)
-        {
-            var column = _viewModel.Columns.FirstOrDefault(
-                c => string.Equals(c.Id, node.PaneId, StringComparison.Ordinal));
-
-            if (column is null)
-            {
-                return null;
-            }
-
-            return new ContentControl
-            {
-                Content = column,
-                ContentTemplate = (DataTemplate)FindResource("PaneTemplate"),
-                Focusable = false,
-            };
-        }
-
-        if (node.First is null || node.Second is null)
-        {
-            return null;
-        }
-
-        var horizontal = node.IsHorizontal;
-        var ratio = Math.Clamp(node.Ratio, LayoutNode.MinRatio, LayoutNode.MaxRatio);
-        var firstMin = LayoutTree.ComputeMinSize(node.First);
-        var secondMin = LayoutTree.ComputeMinSize(node.Second);
-
-        var grid = new Grid();
-
-        ColumnDefinition? firstColumn = null;
-        ColumnDefinition? secondColumn = null;
-        RowDefinition? firstRow = null;
-        RowDefinition? secondRow = null;
-
-        if (horizontal)
-        {
-            firstColumn = new ColumnDefinition { Width = new GridLength(ratio, GridUnitType.Star), MinWidth = firstMin.Width };
-            secondColumn = new ColumnDefinition { Width = new GridLength(1 - ratio, GridUnitType.Star), MinWidth = secondMin.Width };
-            grid.ColumnDefinitions.Add(firstColumn);
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LayoutTree.SplitterSize) });
-            grid.ColumnDefinitions.Add(secondColumn);
-        }
-        else
-        {
-            firstRow = new RowDefinition { Height = new GridLength(ratio, GridUnitType.Star), MinHeight = firstMin.Height };
-            secondRow = new RowDefinition { Height = new GridLength(1 - ratio, GridUnitType.Star), MinHeight = secondMin.Height };
-            grid.RowDefinitions.Add(firstRow);
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(LayoutTree.SplitterSize) });
-            grid.RowDefinitions.Add(secondRow);
-        }
-
-        var first = BuildLayoutElement(node.First, path + "0");
-        var second = BuildLayoutElement(node.Second, path + "1");
-        if (first is null || second is null)
-        {
-            return grid;
-        }
-
-        var splitter = new GridSplitter
-        {
-            ShowsPreview = false,
-            ResizeBehavior = GridResizeBehavior.PreviousAndNext,
-            ResizeDirection = horizontal ? GridResizeDirection.Columns : GridResizeDirection.Rows,
-            Background = Brushes.Transparent,
-            Focusable = false,
-            Cursor = horizontal ? Cursors.SizeWE : Cursors.SizeNS,
-            // 显式给尺寸：GridSplitter 默认模板按内容量，空内容会量出 0×0，
-            // 结果就是「看得见缝、点不到把手」（UIA 里 BoundingRectangle 是 ∞ 即未排布）。
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            Width = horizontal ? LayoutTree.SplitterSize : double.NaN,
-            Height = horizontal ? double.NaN : LayoutTree.SplitterSize,
-        };
-
-        var accent = (Brush)FindResource("Accent");
-        splitter.MouseEnter += (_, _) => splitter.Background = accent;
-        splitter.MouseLeave += (_, _) => splitter.Background = Brushes.Transparent;
-
-        if (horizontal)
-        {
-            Grid.SetColumn(first, 0);
-            Grid.SetColumn(splitter, 1);
-            Grid.SetColumn(second, 2);
-        }
-        else
-        {
-            Grid.SetRow(first, 0);
-            Grid.SetRow(splitter, 1);
-            Grid.SetRow(second, 2);
-        }
-
-        grid.Children.Add(first);
-        grid.Children.Add(splitter);
-        grid.Children.Add(second);
-
-        var view = new SplitView(path, horizontal, firstColumn, secondColumn, firstRow, secondRow);
-        _splitViews[node] = view;
-        splitter.DragCompleted += (_, _) => OnSplitterDragCompleted(node, view);
-
-        return grid;
-    }
-
-    /// <summary>
-    /// 拖完分隔条：按实际尺寸回算比例写进模型，再把两路设回星号。
-    /// 这一步**不改窗口尺寸**——「缩放时整体窗口保持原样」是 Phase 9 的硬要求。
-    /// </summary>
-    private void OnSplitterDragCompleted(LayoutNode node, SplitView view)
-    {
-        double first;
-        double second;
-
-        if (view.Horizontal)
-        {
-            first = view.FirstColumn?.ActualWidth ?? 0;
-            second = view.SecondColumn?.ActualWidth ?? 0;
-        }
-        else
-        {
-            first = view.FirstRow?.ActualHeight ?? 0;
-            second = view.SecondRow?.ActualHeight ?? 0;
-        }
-
-        var total = first + second;
-        if (total <= 0)
-        {
-            return;
-        }
-
-        if (!LayoutTree.SetRatio(Board.Layout, view.Path, first / total))
-        {
-            return;
-        }
-
-        ApplySplitLengths(node, view);
-        _viewModel.RequestSave();
-        AppLog.Info($"分隔条 {view.Path}：比例 {node.Ratio:F2}");
-    }
-
-    private static void ApplySplitLengths(LayoutNode node, SplitView view)
-    {
-        var ratio = Math.Clamp(node.Ratio, LayoutNode.MinRatio, LayoutNode.MaxRatio);
-
-        if (view.Horizontal)
-        {
-            if (view.FirstColumn is not null)
-            {
-                view.FirstColumn.Width = new GridLength(ratio, GridUnitType.Star);
-            }
-
-            if (view.SecondColumn is not null)
-            {
-                view.SecondColumn.Width = new GridLength(1 - ratio, GridUnitType.Star);
-            }
-        }
-        else
-        {
-            if (view.FirstRow is not null)
-            {
-                view.FirstRow.Height = new GridLength(ratio, GridUnitType.Star);
-            }
-
-            if (view.SecondRow is not null)
-            {
-                view.SecondRow.Height = new GridLength(1 - ratio, GridUnitType.Star);
-            }
-        }
+        LayoutHost.Rebuild();
     }
 
     /// <summary>
@@ -1162,8 +977,6 @@ public partial class MainWindow : Window
 
         AppLog.Info($"绘制布局：根={Board.Layout.Type}/{Board.Layout.Orientation} 叶={LayoutTree.LeafIds(Board.Layout).Count}");
 
-        var min = LayoutTree.ComputeMinSize(Board.Layout);
-
         var viewportWidth = ColumnsScroller.ViewportWidth;
         if (viewportWidth <= 0 || double.IsNaN(viewportWidth))
         {
@@ -1176,8 +989,7 @@ public partial class MainWindow : Window
             viewportHeight = Math.Max(0, ActualHeight - 42);
         }
 
-        LayoutHost.Width = Math.Max(viewportWidth, min.Width);
-        LayoutHost.Height = Math.Max(viewportHeight, min.Height);
+        LayoutHost.FitToViewport(viewportWidth, viewportHeight);
     }
 
     private void OnColumnsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -1197,15 +1009,7 @@ public partial class MainWindow : Window
         UpdateColumnsHostSize();
     }
 
-    /// <summary>一次 Split 的可视化句柄，拖完分隔条要用它把尺寸设回星号。</summary>
-    private sealed record SplitView(
-        string Path,
-        bool Horizontal,
-        ColumnDefinition? FirstColumn,
-        ColumnDefinition? SecondColumn,
-        RowDefinition? FirstRow,
-        RowDefinition? SecondRow);
-
+    /// <summary>一次 Split 的可视化句柄已移入 Controls/BoardLayoutHost.cs（Phase 20）。</summary>
     /// <summary>
     /// 结构变了（加栏 / 删栏）就让窗口收放到「刚好放下这些栏」。
     /// 只在 <see cref="SizeModes.AutoFit"/> 下生效；用户拖过边框就切到 Manual，不再擅自改尺寸。

@@ -21,5 +21,22 @@
   由用户按 docs/verify/phase18.md §4 再点一遍，属确认性质，不阻塞。
 - 下一步第一条命令: 进入 Phase 19（先加 `PanelWidthRatio` 单测，再动 UI）。
 
+## Phase 19 — DONE
+- run: A
+- commit: 2b8b9bf
+- 验收: 2/6 自动通过（build/test、旧 panelHeight 兼容）；4 条须人肉眼（docs/verify/phase19.md）
+- 改动: 15 个文件（+665/−26）
+- 欠账 / PENDING-HUMAN: 系统边缘光标反馈（改用钩子驱动缩放，无 `WM_NCHITTEST`）；四条肉眼项未验。
+- 下一步第一条命令: 进入 Phase 20（先抽 `Controls/BoardLayoutHost`，主窗口切过去后再接面板）。
+
+## Phase 20 — DONE-WITH-DEBT
+- run: A
+- commit: `git log --grep '^phase-20:' -1`（本阶段提交）
+- 验收: 2/5 自动通过（关闭开关不建宿主、build/test 220 通过）；3 条须人肉眼（docs/verify/phase20.md）
+- 改动: 6 个文件（+136/−264，另新增 BoardLayoutHost.cs）
+- 欠账 / PENDING-HUMAN: 面板内「拖栏/拖条目」未搬入（主窗口拖拽预览与 PaneDataFormat 未进宿主）；
+  分隔条命中优先级只有 `SplitterSize=6` 常量的单测；5 栏横向滚动与双向同步待肉眼。
+- 下一步第一条命令: Run A 收口（§9 汇总，停；不进 Run B）。
+
 ## 下一步
-Phase 19 — 面板 V2：比例尺寸与可拖缩放。
+Run A 收口：汇总表、自决清单、人工清单、预算对比，然后停。

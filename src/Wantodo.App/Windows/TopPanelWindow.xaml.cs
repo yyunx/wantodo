@@ -40,6 +40,13 @@ public partial class TopPanelWindow : Window
         _viewModel = viewModel;
         DataContext = viewModel;
 
+        // Phase 20：面板与主窗口共用同一份布局渲染（BoardLayoutHost），只是叶子模板更紧凑。
+        LayoutHost.PaneTemplate = (DataTemplate)FindResource("PanelPaneTemplate");
+        LayoutHost.Attach(viewModel.Model, viewModel.Columns);
+        LayoutHost.SaveRequested += (_, _) => viewModel.RequestSave();
+        viewModel.Columns.CollectionChanged += OnColumnsChanged;
+        ColumnsScroller.SizeChanged += OnSizeChangedFit;
+
         Top = WorkArea.Top;
         Height = CollapsedHeight;
         Opacity = 0;
@@ -87,10 +94,34 @@ public partial class TopPanelWindow : Window
             Opacity = 0;
             BodyBorder.Visibility = Visibility.Collapsed;
             HandlePill.Visibility = Visibility.Visible;
+            LayoutHost.Rebuild();
             Show();
         }
 
         BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(120)));
+    }
+
+    private void OnColumnsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        LayoutHost.Rebuild();
+        FitHost();
+    }
+
+    private void FitHost()
+    {
+        double width = ColumnsScroller.ViewportWidth;
+        if (double.IsNaN(width) || width <= 0)
+        {
+            width = Math.Max(0, ActualWidth - 40);
+        }
+
+        double height = ColumnsScroller.ViewportHeight;
+        if (double.IsNaN(height) || height <= 0)
+        {
+            height = Math.Max(0, ActualHeight - 60);
+        }
+
+        LayoutHost.FitToViewport(width, height);
     }
 
     public void Expand()
@@ -311,6 +342,13 @@ public partial class TopPanelWindow : Window
     {
         SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        _viewModel.Columns.CollectionChanged -= OnColumnsChanged;
+        ColumnsScroller.SizeChanged -= OnSizeChangedFit;
+    }
+
+    private void OnSizeChangedFit(object sender, SizeChangedEventArgs e)
+    {
+        FitHost();
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
