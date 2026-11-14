@@ -8,8 +8,11 @@ public sealed class Board
     /// <summary>窗口层级：Desktop（默认，贴桌面图标层）/ Normal / Topmost。</summary>
     public string Surface { get; set; } = "Desktop";
 
-    /// <summary>外观：Dark / Light / System / Dracula / Nord / Catppuccin / Custom。</summary>
+    /// <summary>外观：Dark / Light / Sakura / Dracula / Nord / Catppuccin / System / Custom。</summary>
     public string Theme { get; set; } = "Dark";
+
+    /// <summary>是否显示主题的形式感（描边/圆角/纹理，Phase 21）；默认开，关掉只换色。</summary>
+    public bool ThemeEffects { get; set; } = true;
 
     /// <summary>自定义主题的背景色（<c>#RRGGBB</c>，仅 <c>Theme=Custom</c> 使用；缺失按深色回退）。</summary>
     public string? CustomBackground { get; set; }

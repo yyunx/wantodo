@@ -48,8 +48,9 @@ public sealed class TrayIcon : IDisposable
         foreach (var (theme, label) in new[]
                  {
                      (ThemePalette.SystemTheme, "跟随系统"),
-                     (ThemePalette.DarkTheme, "GitHub 深色"),
-                     (ThemePalette.LightTheme, "GitHub 浅色"),
+                     (ThemePalette.DarkTheme, "深色"),
+                     (ThemePalette.LightTheme, "浅色"),
+                     (ThemePalette.SakuraTheme, "樱花"),
                      (ThemePalette.DraculaTheme, "Dracula"),
                      (ThemePalette.NordTheme, "Nord"),
                      (ThemePalette.CatppuccinTheme, "Catppuccin Mocha"),

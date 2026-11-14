@@ -12,6 +12,7 @@ public class ThemeContrastTests
     {
         ThemePalette.DarkTheme,
         ThemePalette.LightTheme,
+        ThemePalette.SakuraTheme,
         ThemePalette.DraculaTheme,
         ThemePalette.NordTheme,
         ThemePalette.CatppuccinTheme,
@@ -51,6 +52,38 @@ public class ThemeContrastTests
         Assert.NotEqual(colors.Hover, colors.Selected);
     }
 
+    [Fact]
+    public void StyleFor_MapsSakuraToSoftElseFlat()
+    {
+        Assert.Equal(ThemeStyle.Soft, ThemePalette.StyleFor(ThemePalette.SakuraTheme));
+        Assert.Equal(ThemeStyle.Soft, ThemePalette.For(ThemePalette.SakuraTheme, 0).Style);
+
+        foreach (var theme in new[] { ThemePalette.DarkTheme, ThemePalette.LightTheme, ThemePalette.DraculaTheme, ThemePalette.NordTheme, ThemePalette.CatppuccinTheme })
+        {
+            Assert.Equal(ThemeStyle.Flat, ThemePalette.For(theme, 0).Style);
+        }
+    }
+
+    [Fact]
+    public void EffectsFor_FlatHasNoTexture()
+    {
+        var flat = ThemePalette.EffectsFor(ThemeStyle.Flat);
+        Assert.Null(flat.TextureKey);
+        Assert.Equal(0, flat.StrokeWidth);
+
+        var soft = ThemePalette.EffectsFor(ThemeStyle.Soft);
+        Assert.NotNull(soft.TextureKey);
+        Assert.True(soft.StrokeWidth > 0);
+    }
+
+    [Fact]
+    public void DisplayName_IsFriendly()
+    {
+        Assert.Equal("深色", ThemePalette.DisplayName(ThemePalette.DarkTheme));
+        Assert.Equal("浅色", ThemePalette.DisplayName(ThemePalette.LightTheme));
+        Assert.Equal("樱花", ThemePalette.DisplayName(ThemePalette.SakuraTheme));
+        Assert.Equal("跟随系统", ThemePalette.DisplayName(ThemePalette.SystemTheme));
+    }
     [Fact]
     public void For_PresetNamesAreCaseInsensitive()
     {

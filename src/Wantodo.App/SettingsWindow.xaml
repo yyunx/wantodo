@@ -46,10 +46,13 @@
                 <RadioButton x:Name="SystemRadio" Content="跟随系统" Tag="System" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
-                <RadioButton x:Name="DarkRadio" Content="GitHub 深色" Tag="Dark" GroupName="theme" Margin="0,0,12,6"
+                <RadioButton x:Name="DarkRadio" Content="深色" Tag="Dark" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
-                <RadioButton x:Name="LightRadio" Content="GitHub 浅色" Tag="Light" GroupName="theme" Margin="0,0,12,6"
+                <RadioButton x:Name="LightRadio" Content="浅色" Tag="Light" GroupName="theme" Margin="0,0,12,6"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnThemeChanged" />
+                <RadioButton x:Name="SakuraRadio" Content="樱花" Tag="Sakura" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
                 <RadioButton x:Name="DraculaRadio" Content="Dracula" Tag="Dracula" GroupName="theme" Margin="0,0,12,6"
@@ -69,6 +72,11 @@
                            VerticalAlignment="Center" Margin="10,0,0,0"
                            Text="背景 + 强调两色，其余自动推导" />
             </StackPanel>
+
+            <CheckBox x:Name="ThemeEffectsCheck" Content="主题效果（描边、圆角、纹理）"
+                      Margin="0,0,0,12"
+                      Foreground="{DynamicResource TextPrimary}"
+                      Checked="OnThemeEffectsChanged" Unchecked="OnThemeEffectsChanged" />
 
             <TextBlock Text="色调强度" Style="{StaticResource FieldLabel}" />
             <Slider x:Name="ToneSlider" Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.2"

@@ -99,7 +99,7 @@
         <!-- 一栏的内容（标题 / 列表 / 栏尾输入），由停靠布局的叶子节点实例化 -->
                     <DataTemplate x:Key="PaneTemplate">
                         <Border Background="{DynamicResource CardBackground}"
-                                CornerRadius="10"
+                                CornerRadius="{DynamicResource ThemeCornerRadius}"
                                 Margin="4"
                                 AllowDrop="True"
                                 DragOver="OnPaneDragOver"
@@ -112,7 +112,7 @@
                             <Border.Style>
                                 <Style TargetType="Border">
                                     <Setter Property="BorderThickness" Value="1" />
-                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource ThemeStrokeBrush}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
                                             <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
@@ -121,6 +121,10 @@
                                 </Style>
                             </Border.Style>
 
+                        <Grid>
+                            <Rectangle Fill="{DynamicResource ThemeTextureBrush}"
+                                       IsHitTestVisible="False"
+                                       Opacity="1" />
                         <DockPanel>
                             <!-- 拖动条：像手机小窗顶部的把手，按住它可以把整栏拖到别处 -->
                             <Border DockPanel.Dock="Top"
@@ -378,6 +382,7 @@
                                 </ItemsControl>
                             </ScrollViewer>
                         </DockPanel>
+                        </Grid>
                     </Border>
                 </DataTemplate>
     </Window.Resources>

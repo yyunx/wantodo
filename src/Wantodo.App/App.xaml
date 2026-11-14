@@ -3,7 +3,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
-        <!--
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Appearance/ThemeStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <!--
             这 10 个画刷是主题色，全部用 DynamicResource 引用；
             换主题时由 Appearance/ThemeService 直接换掉这里的值，不用重建窗口。
             这里是 GitHub 深色的默认值，启动后会被 ThemeService.Apply 覆盖。
@@ -188,5 +192,6 @@
             </Style.Triggers>
         </Style>
 
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

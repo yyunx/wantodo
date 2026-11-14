@@ -1,0 +1,80 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 全部是矢量平铺纹理；关掉「主题效果」时 ThemeService 会把对应资源换成透明画刷。 -->
+
+    <DrawingBrush x:Key="TexturePaper" TileMode="Tile" Stretch="None"
+                  Viewport="0,0,24,24" ViewportUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="#0D3A2B31">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="3,4" RadiusX="0.6" RadiusY="0.6" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#0D3A2B31">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="14,11" RadiusX="0.6" RadiusY="0.6" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#0D3A2B31">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="9,20" RadiusX="0.6" RadiusY="0.6" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#0D3A2B31" Thickness="0.4" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <LineGeometry StartPoint="17,18" EndPoint="21,19" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <DrawingBrush x:Key="TextureScanlines" TileMode="Tile" Stretch="None"
+                  Viewport="0,0,4,4" ViewportUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <GeometryDrawing Brush="#1422E0FF">
+                <GeometryDrawing.Geometry>
+                    <RectangleGeometry Rect="0,0,4,1" />
+                </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <DrawingBrush x:Key="TextureHalftone" TileMode="Tile" Stretch="None"
+                  Viewport="0,0,8,8" ViewportUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="#0F171A1F">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="2,2" RadiusX="0.6" RadiusY="0.6" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#0F171A1F">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="6,6" RadiusX="0.6" RadiusY="0.6" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <DrawingBrush x:Key="TextureStripes" TileMode="Tile" Stretch="None"
+                  Viewport="0,0,6,6" ViewportUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <GeometryDrawing>
+                <GeometryDrawing.Pen>
+                    <Pen Brush="#0A9FB0C5" Thickness="1" />
+                </GeometryDrawing.Pen>
+                <GeometryDrawing.Geometry>
+                    <LineGeometry StartPoint="0,6" EndPoint="6,0" />
+                </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+</ResourceDictionary>

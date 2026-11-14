@@ -40,6 +40,27 @@ public readonly record struct Rgb(byte R, byte G, byte B)
     public string ToHex() => $"#{R:X2}{G:X2}{B:X2}";
 }
 
+/// <summary>主题的形式感：只换颜色是 <see cref="Flat"/>，其余三套各自加描边/纹理。</summary>
+public enum ThemeStyle
+{
+    Flat,
+    Soft,
+    Neon,
+    Comic,
+}
+
+/// <summary>形式感参数；纹理键对应 App 层 <c>ThemeStyles.xaml</c> 里的 DrawingBrush。</summary>
+public readonly record struct ThemeEffects(
+    ThemeStyle Style,
+    double StrokeWidth,
+    double CornerRadius,
+    double ShadowOpacity,
+    string? StrokeHex,
+    string? TextureKey)
+{
+    public static ThemeEffects Flat { get; } = new(ThemeStyle.Flat, 0, 10, 0, null, null);
+}
+
 /// <summary>一套主题下的 10 个令牌。</summary>
 public sealed record ThemeColors(
     Rgb WindowBackground,
@@ -51,7 +72,11 @@ public sealed record ThemeColors(
     Rgb Accent,
     Rgb OnAccent,
     Rgb Hover,
-    Rgb Selected);
+    Rgb Selected)
+{
+    /// <summary>这套颜色属于哪种形式感；纯色预设为 <see cref="ThemeStyle.Flat"/>。</summary>
+    public ThemeStyle Style { get; init; } = ThemeStyle.Flat;
+}
 
 /// <summary>
 /// 配色表：GitHub 深/浅色、Dracula、Nord、Catppuccin 五套预设，外加跟随系统与自定义。
@@ -67,12 +92,26 @@ public static class ThemePalette
     public const string DraculaTheme = "Dracula";
     public const string NordTheme = "Nord";
     public const string CatppuccinTheme = "Catppuccin";
+    public const string SakuraTheme = "Sakura";
     public const string CustomTheme = "Custom";
 
     /// <summary>设置页下拉里的顺序：跟随系统在最前，其余按深→浅排。</summary>
     public static readonly IReadOnlyList<string> ThemeNames = new[]
     {
-        SystemTheme, DarkTheme, LightTheme, DraculaTheme, NordTheme, CatppuccinTheme,
+        SystemTheme, DarkTheme, LightTheme, SakuraTheme, DraculaTheme, NordTheme, CatppuccinTheme,
+    };
+
+    /// <summary>界面显示名；枚举值不变，旧数据不受影响。</summary>
+    public static string DisplayName(string? theme) => theme switch
+    {
+        SystemTheme => "跟随系统",
+        LightTheme => "浅色",
+        SakuraTheme => "樱花",
+        DraculaTheme => "Dracula",
+        NordTheme => "Nord",
+        CatppuccinTheme => "Catppuccin Mocha",
+        CustomTheme => "自定义",
+        _ => "深色",
     };
 
     private static readonly ThemeColors DarkBase = Build(
@@ -100,6 +139,15 @@ public static class ThemePalette
         text: "#CDD6F4", secondary: "#BAC2DE", muted: "#A6ADC8",
         accent: "#89B4FA", onAccent: "#1E1E2E", divider: "#45475A");
 
+    /// <summary>樱花：Soft 形式感。令牌与实测值见 docs/design/themes-0.6.0.md §1。</summary>
+    private static readonly ThemeColors SakuraBase = Build(
+        window: "#FFF7F8", card: "#FFFFFF",
+        text: "#3A2B31", secondary: "#6E5560", muted: "#7E6270",
+        accent: "#B23E55", onAccent: "#FFFFFF", divider: "#F0DDE2") with
+    {
+        Style = ThemeStyle.Soft,
+    };
+
     /// <summary>主题名 → 是否浅色底（自定义按背景亮度判断）。</summary>
     public static bool IsLight(string? theme) =>
         theme is not null && string.Equals(theme, LightTheme, StringComparison.OrdinalIgnoreCase);
@@ -112,6 +160,21 @@ public static class ThemePalette
         || string.Equals(theme, DarkTheme, StringComparison.OrdinalIgnoreCase)
         || string.Equals(theme, LightTheme, StringComparison.OrdinalIgnoreCase)
         || string.Equals(theme, CustomTheme, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>主题名的形式感；未知/自定义一律 Flat，关闭效果开关后也按 Flat 用。</summary>
+    public static ThemeStyle StyleFor(string? theme) =>
+        string.Equals(theme, SakuraTheme, StringComparison.OrdinalIgnoreCase)
+            ? ThemeStyle.Soft
+            : ThemeStyle.Flat;
+
+    /// <summary>形式感参数；<see cref="ThemeStyle.Flat"/> 不描边、无纹理，圆角沿用 10。</summary>
+    public static ThemeEffects EffectsFor(ThemeStyle style) => style switch
+    {
+        ThemeStyle.Soft => new(style, 1, 6, 0.12, "#F3D3DA", "TexturePaper"),
+        ThemeStyle.Neon => new(style, 1, 4, 0.45, null, "TextureScanlines"),
+        ThemeStyle.Comic => new(style, 2, 14, 0.65, "#171A1F", "TextureHalftone"),
+        _ => ThemeEffects.Flat,
+    };
 
     /// <summary>按主题名取色；未知主题一律按深色处理（旧文件里可能写着别的东西）。</summary>
     public static ThemeColors For(string? theme, double tone) =>
@@ -137,6 +200,11 @@ public static class ThemePalette
         if (string.Equals(theme, CustomTheme, StringComparison.OrdinalIgnoreCase))
         {
             return ApplyTone(ForCustom(customBackground, customAccent), tone);
+        }
+
+        if (string.Equals(theme, SakuraTheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return SakuraBase;
         }
 
         if (string.Equals(theme, DraculaTheme, StringComparison.OrdinalIgnoreCase))

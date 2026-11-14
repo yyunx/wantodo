@@ -375,4 +375,16 @@ public sealed class JsonBoardStoreTests : IDisposable
         Assert.EndsWith(Path.Combine("wantodo", "data.json"), path);
         Assert.Contains("AppData", path);
     }
-}
+
+    [Fact]
+    public void ThemeEffects_DefaultTrueAndRoundTrips()
+    {
+        var store = NewStore();
+        var board = Board.CreateDefault();
+        Assert.True(board.ThemeEffects);
+
+        board.ThemeEffects = false;
+        store.Save(board);
+
+        Assert.False(store.Load().Board.ThemeEffects);
+    }}

@@ -38,5 +38,13 @@
   `docs/verify/phase20.md` §7）；5 栏横向滚动与双向同步待肉眼。
 - 下一步第一条命令: Run A 收口（§9 汇总，停；不进 Run B）。
 
+## Phase 21 — DONE-WITH-PENDING
+- run: B
+- commit: git log --grep '^phase-21:' -1（本阶段提交）
+- 验收: 2/5 自动通过（樱花对比度单测、无新增图片）；3 条须人肉眼（docs/verify/phase21.md：关效果、DPI 截图、切换耗时）
+- 改动: 12 个文件（+207/−17，新增 Appearance/ThemeStyles.xaml）
+- 欠账 / PENDING-HUMAN: 描边宽度固定 1 px（StrokeWidth 字段已算）；面板/对话框的形式感留 Phase 22。
+- 下一步第一条命令: 进入 Phase 22（补赛博/美漫预设，把 ThemeStrokeWidth 接到 Thickness 资源）。
+
 ## 下一步
-Run A 收口：汇总表、自决清单、人工清单、预算对比，然后停。
+Run B 继续 Phase 22。

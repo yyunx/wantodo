@@ -114,6 +114,13 @@ public sealed class BoardViewModel : ObservableObject
         ApplyAppearance();
     }
 
+    /// <summary>主题效果开关：关掉只剩 10 个令牌，观感回到纯色主题。</summary>
+    public void SetThemeEffects(bool enabled)
+    {
+        Model.ThemeEffects = enabled;
+        ApplyAppearance();
+    }
+
     /// <summary>
     /// 自定义主题：只存背景 + 强调两色，其余 8 个令牌由 <see cref="ThemeDerivation"/> 推导。
     /// 颜色非法时仍切到 <c>Custom</c>，空/坏值让 <see cref="ThemePalette.ForCustom"/> 回退深色，并记一条 WARN。
