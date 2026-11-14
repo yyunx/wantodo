@@ -115,6 +115,10 @@ internal static class NativeMethods
 
     internal const uint WM_LBUTTONDOWN = 0x0201;
 
+    internal const uint WM_LBUTTONUP = 0x0202;
+
+    internal const uint WM_MOUSEMOVE = 0x0200;
+
     internal const uint WS_EX_NOACTIVATE = 0x08000000;
 
     internal const uint WS_EX_TOOLWINDOW = 0x00000080;

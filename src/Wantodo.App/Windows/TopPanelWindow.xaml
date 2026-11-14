@@ -4,21 +4,19 @@
         Width="760" Height="320"
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
         Topmost="True" ShowActivated="False"
-        Background="{DynamicResource WindowBackground}"
+        Background="{DynamicResource CardBackground}"
         FontFamily="Segoe UI" FontSize="13"
         Foreground="{DynamicResource TextPrimary}">
-    <Grid Background="{DynamicResource WindowBackground}">
+    <Grid Background="{DynamicResource CardBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="12" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border x:Name="HandleArea" Grid.Row="0" Background="Transparent" Cursor="SizeNS"
-                MouseLeftButtonDown="OnHandleMouseDown"
-                MouseMove="OnHandleMouseMove"
-                MouseLeftButtonUp="OnHandleMouseUp">
-            <Border x:Name="HandlePill" Width="120" Height="4" Margin="0,4,0,0" CornerRadius="2"
+        <Border x:Name="HandleArea" Grid.Row="0" Background="Transparent" Cursor="SizeNS">
+            <Border x:Name="HandlePill" Width="88" Height="3" Margin="0,5,0,0" CornerRadius="1.5"
                     VerticalAlignment="Top" HorizontalAlignment="Center"
+                    Opacity="0.45"
                     Background="{DynamicResource Accent}" />
         </Border>
 

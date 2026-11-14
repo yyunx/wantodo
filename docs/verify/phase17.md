@@ -90,3 +90,20 @@
 
 - 用户肉眼确认第 5 节；通过后补勾 `docs/plan.md` Phase 17 剩余验收并单独提交 `phase-17: 补肉眼验收结果`。
 - 之后按 docs/plan.md 未排期区的触发条件挑选下一项，或听用户指定（Phase 11–18 已全部完成）。
+
+## 8. 交付后修复（0.5.1，2026-11-14）
+
+用户实测发现三个问题，已修：
+
+1. **拉不下来**：面板 `ShowActivated=false`，窗口未激活时 WPF 的 `CaptureMouse()` 不可靠；
+   按下后鼠标一离开 12 DIP 把手带就收不到 `MouseMove`，高度卡住。
+   改法：拖动改由全局低级鼠标钩子驱动（`LowLevelMouseHook` 新增 `MouseMoved` / `LeftButtonUp`；
+   面板新增 `BeginDrag` / `DragTo` / `EndDrag` / `HitTestHandle`；服务在按下点落在把手带时开始拖）。
+2. **点下拉选项把面板关掉**：`ComboBox` 弹出层是独立 HWND，点选项的坐标在面板矩形外，
+   被钩子判成「点外面」。改法：面板暴露 `IsPickerOpen`，下拉打开时钩子不收起面板。
+3. **顶部条太硬**：整窗背景由 `WindowBackground` 改为 `CardBackground`（展开后与卡片同色），
+   收起时对窗口请求 DWM 圆角（`DesktopLayer.TryRoundCorners`），左右两端磨圆；
+   把手改为 88×3、45% 不透明度。
+
+复测：`build -warnaserror` 0 警告 0 错误；`test --no-build` 206 通过 / 0 失败。
+第 5 节的肉眼项仍需用户在 0.5.1 上重新确认（拖动、选列、圆角观感）。

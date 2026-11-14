@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
+using Wantodo.App.Interop;
 using Wantodo.App.ViewModels;
 using Wantodo.Core;
 
@@ -20,7 +21,7 @@ public partial class TopPanelWindow : Window
     private readonly BoardViewModel _viewModel;
     private bool _dragging;
     private double _dragStartHeight;
-    private Point _dragStartScreen;
+    private int _dragStartY;
 
     public TopPanelWindow(BoardViewModel viewModel)
     {
@@ -41,6 +42,19 @@ public partial class TopPanelWindow : Window
     public double FullHeight => Math.Max(Board.MinPanelHeight, Math.Min(Board.MaxPanelHeight, _viewModel.Model.PanelHeight));
 
     public bool IsExpanded => Height > CollapsedHeight + 2;
+
+    public bool IsDragging => _dragging;
+
+    /// <summary>列选择下拉是否打开：打开时点下拉项会被钩子误判成「点面板外」。</summary>
+    public bool IsPickerOpen => ColumnPicker.IsDropDownOpen;
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+
+        // 收起时是一条 760×12 的窄条，靠 DWM 把左右两端磨圆，避免像一根硬邦邦的横杠。
+        DesktopLayer.TryRoundCorners(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+    }
 
     /// <summary>停留 120 ms 后出把手（只做透明度动画，不抢焦点）。</summary>
     public void ShowHandle()
@@ -73,7 +87,6 @@ public partial class TopPanelWindow : Window
         }
 
         _dragging = false;
-        ReleaseMouseCapture();
         HandlePill.Visibility = Visibility.Visible;
         AnimateHeight(CollapsedHeight, 140, new CubicEase { EasingMode = EasingMode.EaseIn }, () =>
         {
@@ -105,25 +118,41 @@ public partial class TopPanelWindow : Window
         }
     }
 
-    private void OnHandleMouseDown(object sender, MouseButtonEventArgs e)
+    /// <summary>钩子给的屏幕坐标是物理像素；<see cref="PointFromScreen"/> 会换算成窗口内 DIP。</summary>
+    public bool HitTestHandle(int screenX, int screenY)
+    {
+        if (!IsVisible)
+        {
+            return false;
+        }
+
+        try
+        {
+            Point local = PointFromScreen(new Point(screenX, screenY));
+            return local.X >= 0 && local.X <= ActualWidth && local.Y >= 0 && local.Y <= CollapsedHeight;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    public void BeginDrag(int screenY)
     {
         _dragging = true;
         _dragStartHeight = Height;
-        _dragStartScreen = PointToScreen(e.GetPosition(this));
+        _dragStartY = screenY;
         BeginAnimation(HeightProperty, null);
-        CaptureMouse();
-        e.Handled = true;
     }
 
-    private void OnHandleMouseMove(object sender, MouseEventArgs e)
+    public void DragTo(int screenY)
     {
         if (!_dragging)
         {
             return;
         }
 
-        Point current = PointToScreen(e.GetPosition(this));
-        double height = Math.Clamp(_dragStartHeight + (current.Y - _dragStartScreen.Y), CollapsedHeight, FullHeight);
+        double height = Math.Clamp(_dragStartHeight + (screenY - _dragStartY), CollapsedHeight, FullHeight);
         Height = height;
 
         bool showBody = height > CollapsedHeight + 2;
@@ -131,7 +160,7 @@ public partial class TopPanelWindow : Window
         HandlePill.Visibility = Visibility.Visible;
     }
 
-    private void OnHandleMouseUp(object sender, MouseButtonEventArgs e)
+    public void EndDrag()
     {
         if (!_dragging)
         {
@@ -139,8 +168,6 @@ public partial class TopPanelWindow : Window
         }
 
         _dragging = false;
-        ReleaseMouseCapture();
-
         if (Height >= FullHeight * 0.4)
         {
             Expand();

@@ -4,8 +4,9 @@ using System.Runtime.InteropServices;
 namespace Wantodo.App.Interop;
 
 /// <summary>
-/// 低级鼠标钩子：只用来判断「点击落在面板外」，不拦截、不改事件。
+/// 低级鼠标钩子：判断「点击落在面板外」，以及拖动把手时的移动/松手。
 /// 回调在安装线程（UI 线程）上跑；异常必须自己咽掉，不能让钩子把进程带崩。
+/// 不拦截、不改事件，永远把消息往下传。
 /// </summary>
 internal sealed class LowLevelMouseHook : IDisposable
 {
@@ -19,6 +20,12 @@ internal sealed class LowLevelMouseHook : IDisposable
 
     /// <summary>左键按下，参数是屏幕物理像素坐标。</summary>
     public event Action<int, int>? LeftButtonDown;
+
+    /// <summary>鼠标移动，参数是屏幕物理像素坐标。</summary>
+    public event Action<int, int>? MouseMoved;
+
+    /// <summary>左键松开，参数是屏幕物理像素坐标。</summary>
+    public event Action<int, int>? LeftButtonUp;
 
     public bool IsRunning => _handle != IntPtr.Zero;
 
@@ -48,10 +55,25 @@ internal sealed class LowLevelMouseHook : IDisposable
     {
         try
         {
-            if (nCode >= 0 && wParam == (IntPtr)NativeMethods.WM_LBUTTONDOWN)
+            if (nCode >= 0)
             {
-                var data = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
-                LeftButtonDown?.Invoke(data.pt.X, data.pt.Y);
+                uint message = (uint)wParam.ToInt64();
+                if (message is NativeMethods.WM_LBUTTONDOWN or NativeMethods.WM_MOUSEMOVE or NativeMethods.WM_LBUTTONUP)
+                {
+                    var data = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
+                    if (message == NativeMethods.WM_LBUTTONDOWN)
+                    {
+                        LeftButtonDown?.Invoke(data.pt.X, data.pt.Y);
+                    }
+                    else if (message == NativeMethods.WM_MOUSEMOVE)
+                    {
+                        MouseMoved?.Invoke(data.pt.X, data.pt.Y);
+                    }
+                    else
+                    {
+                        LeftButtonUp?.Invoke(data.pt.X, data.pt.Y);
+                    }
+                }
             }
         }
         catch (Exception ex)

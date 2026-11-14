@@ -61,6 +61,8 @@ public sealed class TopEdgePanelService : IDisposable
 
         _hook = new LowLevelMouseHook();
         _hook.LeftButtonDown += OnGlobalLeftButtonDown;
+        _hook.MouseMoved += OnGlobalMouseMoved;
+        _hook.LeftButtonUp += OnGlobalLeftButtonUp;
         if (!_hook.Start())
         {
             AppLog.Warn("顶边下拉面板已打开，但低级鼠标钩子没装上：点面板外不会自动收起");
@@ -98,6 +100,8 @@ public sealed class TopEdgePanelService : IDisposable
         if (_hook is not null)
         {
             _hook.LeftButtonDown -= OnGlobalLeftButtonDown;
+            _hook.MouseMoved -= OnGlobalMouseMoved;
+            _hook.LeftButtonUp -= OnGlobalLeftButtonUp;
             _hook.Dispose();
             _hook = null;
         }
@@ -162,9 +166,40 @@ public sealed class TopEdgePanelService : IDisposable
             return;
         }
 
+        // 面板自己不抢焦点，WPF 的鼠标捕获在未激活窗口上并不可靠；
+        // 拖动改由全局钩子驱动：按下时落在 12 DIP 把手带里就开始拖。
+        if (_panel.HitTestHandle(x, y))
+        {
+            _panel.BeginDrag(y);
+            return;
+        }
+
+        // 下拉框的弹出层是独立 HWND，点它里面的选项会落在面板矩形外；
+        // 不能因为这一下把整个面板收起来，否则选列等于关窗。
+        if (_panel.IsPickerOpen)
+        {
+            return;
+        }
+
         if (!_panel.ContainsScreenPoint(x, y))
         {
             _panel.Collapse();
+        }
+    }
+
+    private void OnGlobalMouseMoved(int x, int y)
+    {
+        if (_panel is not null && _panel.IsDragging)
+        {
+            _panel.DragTo(y);
+        }
+    }
+
+    private void OnGlobalLeftButtonUp(int x, int y)
+    {
+        if (_panel is not null && _panel.IsDragging)
+        {
+            _panel.EndDrag();
         }
     }
 
