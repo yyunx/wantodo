@@ -24,8 +24,7 @@ public sealed class TrayIcon : IDisposable
     private readonly WinForms.ToolStripMenuItem _desktopItem;
     private readonly WinForms.ToolStripMenuItem _normalItem;
     private readonly WinForms.ToolStripMenuItem _topmostItem;
-    private readonly WinForms.ToolStripMenuItem _darkItem;
-    private readonly WinForms.ToolStripMenuItem _lightItem;
+    private readonly List<(WinForms.ToolStripMenuItem Item, string Theme)> _themeItems = new();
     private readonly WinForms.ToolStripMenuItem _hideCompletedItem;
     private readonly WinForms.ToolStripMenuItem _autostartItem;
 
@@ -45,10 +44,21 @@ public sealed class TrayIcon : IDisposable
         var surfaceMenu = new WinForms.ToolStripMenuItem("层级");
         surfaceMenu.DropDownItems.AddRange([_desktopItem, _normalItem, _topmostItem]);
 
-        _darkItem = new WinForms.ToolStripMenuItem("深色", null, (_, _) => _window.SetTheme(ThemePalette.DarkTheme));
-        _lightItem = new WinForms.ToolStripMenuItem("浅色", null, (_, _) => _window.SetTheme(ThemePalette.LightTheme));
         var themeMenu = new WinForms.ToolStripMenuItem("外观");
-        themeMenu.DropDownItems.AddRange([_darkItem, _lightItem]);
+        foreach (var (theme, label) in new[]
+                 {
+                     (ThemePalette.SystemTheme, "跟随系统"),
+                     (ThemePalette.DarkTheme, "GitHub 深色"),
+                     (ThemePalette.LightTheme, "GitHub 浅色"),
+                     (ThemePalette.DraculaTheme, "Dracula"),
+                     (ThemePalette.NordTheme, "Nord"),
+                     (ThemePalette.CatppuccinTheme, "Catppuccin Mocha"),
+                 })
+        {
+            var item = new WinForms.ToolStripMenuItem(label, null, (_, _) => _window.SetTheme(theme));
+            _themeItems.Add((item, theme));
+            themeMenu.DropDownItems.Add(item);
+        }
 
         _hideCompletedItem = new WinForms.ToolStripMenuItem("隐藏已完成", null, (_, _) =>
             _viewModel.HideCompleted = !_viewModel.HideCompleted);
@@ -115,8 +125,13 @@ public sealed class TrayIcon : IDisposable
         _desktopItem.Checked = string.Equals(_viewModel.Model.Surface, DesktopLayer.SurfaceDesktop, StringComparison.OrdinalIgnoreCase);
         _normalItem.Checked = string.Equals(_viewModel.Model.Surface, DesktopLayer.SurfaceNormal, StringComparison.OrdinalIgnoreCase);
         _topmostItem.Checked = string.Equals(_viewModel.Model.Surface, DesktopLayer.SurfaceTopmost, StringComparison.OrdinalIgnoreCase);
-        _darkItem.Checked = !ThemePalette.IsLight(_viewModel.Model.Theme);
-        _lightItem.Checked = ThemePalette.IsLight(_viewModel.Model.Theme);
+        var currentTheme = string.IsNullOrWhiteSpace(_viewModel.Model.Theme)
+            ? ThemePalette.DarkTheme
+            : _viewModel.Model.Theme;
+        foreach (var (item, theme) in _themeItems)
+        {
+            item.Checked = string.Equals(theme, currentTheme, StringComparison.OrdinalIgnoreCase);
+        }
         _hideCompletedItem.Checked = _viewModel.HideCompleted;
         _autostartItem.Checked = Autostart.IsEnabled();
     }

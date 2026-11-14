@@ -44,11 +44,11 @@
 - 验收：`docs/release-0.5.0.md` 四节齐全；`docs/plan.md:468-469` 不再是「待确认」。
 - 砍掉条件：用户坚持不发 0.5.0 说明时，只保留肉眼项结论。
 
-### T1 主题：令牌、预设与全色自定义（P2）
+### T1 主题：5 套开源预设与全色自定义（P2）
 
 - 用户故事：我能选整套配色，也能自己挑背景和强调色，且无论怎么选文字都看得清。
-- 交互步骤：1 设置 → 外观 → 2 选预设或「自定义…」→ 3 取色器里选背景 / 强调色 → 4 看预览与对比度读数 → 5 关闭即生效。
-- 数据模型：`Board.Theme` 取值扩为 `Dark|Light|System|Sakura|Cyber|Comic|Custom`；新增可空
+- 交互步骤：1 设置 → 外观 → 2 选 GitHub 深色 / GitHub 浅色 / Dracula / Nord / Catppuccin Mocha / 跟随系统 / 自定义… → 3 取色器里选背景 / 强调色 → 4 看预览与对比度读数 → 5 关闭即生效。
+- 数据模型：`Board.Theme` 取值扩为 `Dark|Light|System|Dracula|Nord|Catppuccin|Custom`；新增可空
   `CustomBackground`、`CustomAccent`；`Version` 仍为 2；未知值回退深色。
 - 默认开关：新装 `Dark`；老用户保留原值；「自定义」与「跟随系统」默认关（选预设后自动关跟随系统）。
 - 体积/性能：二进制 +≤50 KB、代码 +≈620 行（含测试）、0 新依赖、0 图片；切换不重建窗口、≤16 ms；内存 +≤2 MB。
@@ -162,15 +162,15 @@
 
 | Board 字段 | 类型 | 默认 | 状态 | 说明 |
 |---|---|---|---|---|
-| `Theme` | string | `Dark` | 扩取值 | `Dark\|Light\|System\|Sakura\|Cyber\|Comic\|Custom`；未知按深色 |
+| `Theme` | string | `Dark` | 扩取值 | `Dark\|Light\|System\|Dracula\|Nord\|Catppuccin\|Custom`；未知按深色 |
 | `CustomBackground` | string? | `null` | 新增 | `#RRGGBB`，仅 `Theme=Custom` 使用 |
 | `CustomAccent` | string? | `null` | 新增 | `#RRGGBB`，仅 `Theme=Custom` 使用 |
 | `ShowTopPanel` | bool | `false` | 新增 | 顶边下拉面板开关 |
 | `PanelHeight` | double | `320` | 新增 | 展开高度（DIP），夹取 240–720 |
-| `Tone` | double | 现状 | 复用 | 仅在 `Dark/Light/Custom` 下生效；预设主题忽略 |
+| `Tone` | double | 现状 | 复用 | 仅在 `Dark/Light/Custom` 下生效；Dracula/Nord/Catppuccin 忽略 |
 | `Version` | int | 2 | 不变 | 不加字段不升版本 |
 
-令牌层：`App.xaml` 画刷 7 → 10（新增 `OnAccent`、`Hover`、`Selected`），删除 `App.xaml:32` 的硬编码。
+- 令牌层：`App.xaml` 画刷 7 → 10（新增 `OnAccent`、`Hover`、`Selected`），删除 `IconButton` / `TitleBarButton` 里两处硬编码白色 hover。
 
 ## 4. 旧数据兼容与回滚
 
@@ -183,7 +183,8 @@
 **向后（0.6.0 → 0.5.0 回滚）**
 
 - 0.5.0 能打开 0.6.0 的文件：未知字段被忽略，不崩、不丢条目。
-- 但 `Theme=Sakura/Cyber/Comic/Custom` 在 0.5.0 回退深色（`src/Wantodo.Core/ThemePalette.cs:84-88`），
+- 但 `Theme=Dracula/Nord/Catppuccin/Custom` 在 0.5.0 回退深色（`src/Wantodo.Core/ThemePalette.cs:142-157`），
   自定义颜色不会写回 0.5.0 保存，**会丢**；回滚前先手抄主题名与两个颜色值。
+- `Theme=System` 在 0.5.0 同样回退深色，不需要迁移。
 - `ShowTopPanel` / `PanelHeight` 被忽略，面板自然消失，无副作用。
 - 回滚不修改 `Version`，因此无需迁移脚本。

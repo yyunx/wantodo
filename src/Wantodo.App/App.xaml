@@ -4,16 +4,20 @@
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
         <!--
-            这 7 个画刷是主题色，全部用 DynamicResource 引用；
+            这 10 个画刷是主题色，全部用 DynamicResource 引用；
             换主题时由 Appearance/ThemeService 直接换掉这里的值，不用重建窗口。
+            这里是 GitHub 深色的默认值，启动后会被 ThemeService.Apply 覆盖。
         -->
-        <SolidColorBrush x:Key="WindowBackground" Color="#FF10151C" />
-        <SolidColorBrush x:Key="CardBackground" Color="#FF161E28" />
-        <SolidColorBrush x:Key="TextPrimary" Color="#FFE8EEF6" />
-        <SolidColorBrush x:Key="TextSecondary" Color="#FF9FB0C5" />
-        <SolidColorBrush x:Key="TextMuted" Color="#FF6C7C90" />
-        <SolidColorBrush x:Key="Divider" Color="#1AFFFFFF" />
-        <SolidColorBrush x:Key="Accent" Color="#FF6FA8FF" />
+        <SolidColorBrush x:Key="WindowBackground" Color="#FF0D1117" />
+        <SolidColorBrush x:Key="CardBackground" Color="#FF161B22" />
+        <SolidColorBrush x:Key="TextPrimary" Color="#FFE6EDF3" />
+        <SolidColorBrush x:Key="TextSecondary" Color="#FFB1BAC4" />
+        <SolidColorBrush x:Key="TextMuted" Color="#FF7D8590" />
+        <SolidColorBrush x:Key="Divider" Color="#FF30363D" />
+        <SolidColorBrush x:Key="Accent" Color="#FF2F81F7" />
+        <SolidColorBrush x:Key="OnAccent" Color="#FF0D1117" />
+        <SolidColorBrush x:Key="Hover" Color="#FF2B3037" />
+        <SolidColorBrush x:Key="Selected" Color="#FF1C3151" />
 
         <!-- 顶栏小按钮（主窗与设置窗共用） -->
         <Style x:Key="IconButton" TargetType="Button">
@@ -29,7 +33,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#22FFFFFF" />
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Hover}" />
                                 <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
@@ -58,7 +62,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#1FFFFFFF" />
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Hover}" />
                                 <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">

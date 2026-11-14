@@ -44,10 +44,22 @@ public partial class SettingsWindow : Window
                 DesktopRadio.IsChecked = true;
             }
 
-            DarkRadio.IsChecked = !ThemePalette.IsLight(_viewModel.Model.Theme);
-            LightRadio.IsChecked = ThemePalette.IsLight(_viewModel.Model.Theme);
+            var theme = string.IsNullOrWhiteSpace(_viewModel.Model.Theme)
+                ? ThemePalette.DarkTheme
+                : _viewModel.Model.Theme;
+            foreach (var radio in new[] { SystemRadio, DarkRadio, LightRadio, DraculaRadio, NordRadio, CatppuccinRadio })
+            {
+                radio.IsChecked = string.Equals(radio.Tag as string, theme, StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (SystemRadio.IsChecked != true && DarkRadio.IsChecked != true && LightRadio.IsChecked != true &&
+                DraculaRadio.IsChecked != true && NordRadio.IsChecked != true && CatppuccinRadio.IsChecked != true)
+            {
+                DarkRadio.IsChecked = true;
+            }
 
             ToneSlider.Value = Math.Clamp(_viewModel.Model.Tone, 0, 1);
+            ToneSlider.IsEnabled = ThemePalette.SupportsTone(theme);
 
             bool autoFit = !string.Equals(
                 _viewModel.Model.Placement.SizeMode, SizeModes.Manual, StringComparison.OrdinalIgnoreCase);
@@ -89,12 +101,13 @@ public partial class SettingsWindow : Window
 
     private void OnThemeChanged(object sender, RoutedEventArgs e)
     {
-        if (_loading || sender is not RadioButton { IsChecked: true } radio)
+        if (_loading || sender is not RadioButton { IsChecked: true } radio || radio.Tag is not string theme)
         {
             return;
         }
 
-        _viewModel.SetTheme(ReferenceEquals(radio, LightRadio) ? ThemePalette.LightTheme : ThemePalette.DarkTheme);
+        _viewModel.SetTheme(theme);
+        ToneSlider.IsEnabled = ThemePalette.SupportsTone(theme);
     }
 
     private void OnToneChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

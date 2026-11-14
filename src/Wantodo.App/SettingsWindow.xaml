@@ -42,14 +42,26 @@
             </StackPanel>
 
             <TextBlock Text="外观" Style="{StaticResource FieldLabel}" />
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                <RadioButton x:Name="DarkRadio" Content="深色" GroupName="theme" Margin="0,0,14,0"
+            <WrapPanel Margin="0,0,0,10">
+                <RadioButton x:Name="SystemRadio" Content="跟随系统" Tag="System" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
-                <RadioButton x:Name="LightRadio" Content="浅色" GroupName="theme"
+                <RadioButton x:Name="DarkRadio" Content="GitHub 深色" Tag="Dark" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
-            </StackPanel>
+                <RadioButton x:Name="LightRadio" Content="GitHub 浅色" Tag="Light" GroupName="theme" Margin="0,0,12,6"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnThemeChanged" />
+                <RadioButton x:Name="DraculaRadio" Content="Dracula" Tag="Dracula" GroupName="theme" Margin="0,0,12,6"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnThemeChanged" />
+                <RadioButton x:Name="NordRadio" Content="Nord" Tag="Nord" GroupName="theme" Margin="0,0,12,6"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnThemeChanged" />
+                <RadioButton x:Name="CatppuccinRadio" Content="Catppuccin Mocha" Tag="Catppuccin" GroupName="theme" Margin="0,0,12,6"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Checked="OnThemeChanged" />
+            </WrapPanel>
 
             <TextBlock Text="色调强度" Style="{StaticResource FieldLabel}" />
             <Slider x:Name="ToneSlider" Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.2"

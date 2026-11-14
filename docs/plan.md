@@ -560,27 +560,31 @@ PowerShell 行切片（改 Python）、调试版与安装版共用单实例互�
 
 ## Phase 14 — 主题令牌与五套预设（T1a）　P2
 
-**目的**：配色变成 10 个可替换令牌，提供深色/浅色/樱花/赛博/美漫五套，任意一套下正文、次要、
-弱化文字与强调块文字都达标。
+**目的**：配色变成 10 个可替换令牌，提供 GitHub 深色 / GitHub 浅色 / Dracula / Nord / Catppuccin Mocha
+五套（取自 GitHub 上流行的开源配色），任意一套下正文、次要、弱化文字与强调块文字都达标。
 
 **要做的**
 
-1. `src/Wantodo.App/App.xaml:10-16` 扩为 10 个 `DynamicResource`：新增 `OnAccent`、`Hover`、`Selected`；
-   删除 `App.xaml:32` 的硬编码 `#22FFFFFF`（浅色主题下白叠白不可见，是现存缺陷）。
+1. `src/Wantodo.App/App.xaml:11-20` 扩为 10 个 `DynamicResource`：新增 `OnAccent`、`Hover`、`Selected`；
+   删除 `IconButton` 与 `TitleBarButton` 两处硬编码白色 hover（:36、:65，浅色主题下白叠白不可见，是 0.5.0 现存缺陷）。
 2. `src/Wantodo.Core/ThemePalette.cs`：`ThemeColors` 7 → 10 字段；新增 5 套预设常量；
-   `For` 支持 `Dark|Light|System|Sakura|Cyber|Comic|Custom`，未知值仍按深色（:84-88 现有行为）。
-3. `src/Wantodo.App/Appearance/ThemeService.cs:26-32` 写 10 个 key。
+   `For` 支持 `Dark|Light|System|Dracula|Nord|Catppuccin|Custom`，未知值仍按深色；
+   预设构造时用 `ThemeDerivation.EnsureContrast` 校正文字三档与 `OnAccent`。
+3. `src/Wantodo.App/Appearance/ThemeService.cs:28-37` 写 10 个 key；系统主题由 `Appearance/SystemTheme.cs` 读注册表。
 4. 新增 `src/Wantodo.Core/ThemeDerivation.cs`：对比度计算与校正（Phase 15 复用）。
-5. `SettingsWindow.xaml:46-51` 两个 radio 换成 5 项预设 + 「跟随系统」开关。
+5. 设置页外观区把两个 radio 换成 6 个（跟随系统 + 5 套预设，`WrapPanel` 两行）；色调滑杆只在
+   `Dark/Light/Custom` 下可用。托盘「外观」子菜单同步换成同一组 6 项。
 
 **验收**
 
-- [ ] 单测对 5 套预设逐条断言：`TextPrimary/WindowBackground ≥ 7`、`TextSecondary ≥ 4.5`、
-      `TextMuted ≥ 4.5`、`OnAccent/Accent ≥ 4.5`、`TextPrimary/CardBackground ≥ 7`。
-- [ ] 切换 5 套主题不重建窗口（日志无新窗口、进程句柄数不变），切换 ≤16 ms。
-- [ ] 深色与浅色下悬停底色均可见（截图进 `docs/verify/phase14.md`）。
-- [ ] 0.5.0 的 `data.json`（`Theme=Dark/Light`）直接可读，外观与 0.5.0 一致（弱化文字两处调色除外）。
-- [ ] `build -warnaserror` 0 警告；`test` 全绿。
+- [x] 单测对 5 套预设逐条断言：`TextPrimary/WindowBackground ≥ 7`、`TextSecondary ≥ 4.5`、
+      `TextMuted ≥ 4.5`、`OnAccent/Accent ≥ 4.5`、`TextPrimary/CardBackground ≥ 7`
+      （`ThemeContrastTests` 19 例，2026-11-14 全绿）。
+- [ ] 切换 5 套主题不重建窗口（日志无新窗口、进程句柄数不变），切换 ≤16 ms。需人肉眼确认。
+- [ ] 深色与浅色下悬停底色均可见（截图进 `docs/verify/phase14.md`）。需人肉眼确认。
+- [x] 0.5.0 的 `data.json`（`Theme=Dark/Light`）直接可读，外观与 0.5.0 一致（弱化文字两处调色除外）；
+      `Theme=Deep` 之类的未知值回退 GitHub 深色（同步改了两条旧断言）。
+- [x] `build -warnaserror` 0 警告；`test` 全绿（186 通过 / 0 失败）。
 
 **风险**：中（7→10 令牌波及所有 XAML，漏改会取到空画刷）。**预估**：1 天。**依赖**：Phase 12。
 
