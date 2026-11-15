@@ -72,6 +72,9 @@ public static class ThemeService
             : Brush(colors.BorderSubtle);
         resources["ThemeCardBorderThickness"] = new System.Windows.Thickness(Math.Max(1, effects.StrokeWidth));
         resources["ThemeCardCornerRadius"] = new System.Windows.CornerRadius(effects.CornerRadius == 0 ? 0 : Math.Min(effects.CornerRadius, 10));
+        resources["ThemeGlowVisible"] = effects.Form == ThemeForm.Neon
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
         resources["ThemeShadowBrush"] = effects.ShadowOpacity > 0
             ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(
                 (byte)Math.Round(255 * effects.ShadowOpacity), 0, 0, 0))

@@ -41,6 +41,7 @@ public partial class App : Application
         Resources["ThemeCornerRadiusDouble"] = 10d;
         Resources["ThemeElevation"] = 0;
         Resources["ThemeShadowBrush"] = System.Windows.Media.Brushes.Transparent;
+        Resources["ThemeGlowVisible"] = System.Windows.Visibility.Collapsed;
         Resources["ThemeShadowOffset"] = 0d;
         Resources["ThemeCardAlpha"] = 1d;
 

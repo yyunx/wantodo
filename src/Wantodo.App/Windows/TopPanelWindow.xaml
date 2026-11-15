@@ -90,8 +90,25 @@
                 </Grid.RowDefinitions>
 
                 <DockPanel Margin="0,0,0,10">
-                    <TextBlock Text="便签" FontSize="16" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimary}" />
+                    <!-- 霓虹形式下给 wordmark 叠一层错位发光；其余形式只显示最上面那层 -->
+                    <Grid Margin="0,0,10,0" VerticalAlignment="Center">
+                        <TextBlock Text="便签" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Glow}"
+                                   Visibility="{DynamicResource ThemeGlowVisible}">
+                            <TextBlock.RenderTransform>
+                                <TranslateTransform X="-1" Y="0" />
+                            </TextBlock.RenderTransform>
+                        </TextBlock>
+                        <TextBlock Text="便签" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Accent}"
+                                   Visibility="{DynamicResource ThemeGlowVisible}">
+                            <TextBlock.RenderTransform>
+                                <TranslateTransform X="1" Y="0" />
+                            </TextBlock.RenderTransform>
+                        </TextBlock>
+                        <TextBlock Text="便签" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimary}" />
+                    </Grid>
                     <TextBlock Text="按住顶部把手拖动；Esc 或点面板外收起"
                                Foreground="{DynamicResource TextMuted}" FontSize="11"
                                HorizontalAlignment="Right" VerticalAlignment="Center" />

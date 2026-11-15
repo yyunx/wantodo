@@ -73,3 +73,10 @@ brutal 增量：private **+1.1 MB**（红线 <3 MB），首帧无退化。玻璃
 ## 7. 下一步第一条命令
 
 按 v6 §6：补 `glass` 的 DWM 分支（Win10 降级），再给 `neon` 做双层文字，最后视时间决定 clay/neumorph。
+
+## 4.1 霓虹 wordmark（同日补）
+
+`src/Wantodo.App/Windows/TopPanelWindow.xaml` 的「便签」标题改为三层：Glow 色偏移 (-1,0)、Accent 色偏移 (+1,0)、TextPrimary 正层；
+后两层显隐由 `ThemeGlowVisible` 控制（`ThemeService` 只在 `form=neon` 时设 Visible）。
+实测：neon 形式启动首帧 1078 ms、private 112 MB（单次，6 s 采样），无异常日志；正式 60 s 采样未做。
+欠账：只给 wordmark 做了发光，计时数字/标题未接；`BlurEffect` 复制层未用（当前是零效果层方案）。
