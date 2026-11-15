@@ -82,11 +82,15 @@ public sealed class JsonBoardStore
     {
         if (!File.Exists(DataPath) && !File.Exists(BackupPath))
         {
-            return new BoardLoadResult(Board.CreateDefault(), BoardLoadStatus.FirstRun);
+            var first = Board.CreateDefault();
+            BoardMigration.Upgrade(first, Diagnostics);
+            MergeLegacyCanvas(first);
+            return new BoardLoadResult(first, BoardLoadStatus.FirstRun);
         }
 
         if (TryRead(DataPath, out var board, out var primaryError))
         {
+            MergeLegacyCanvas(board!);
             return new BoardLoadResult(board!, BoardLoadStatus.Loaded);
         }
 
@@ -96,13 +100,27 @@ public sealed class JsonBoardStore
             Diagnostics.Add(
                 $"主文件不可用（{primaryError}），已回退 data.bak；" +
                 (quarantined is null ? "主文件隔离失败" : $"主文件已隔离为 {quarantined}"));
+            MergeLegacyCanvas(backup!);
             return new BoardLoadResult(backup!, BoardLoadStatus.RecoveredFromBackup, primaryError);
         }
 
         var a = Quarantine(DataPath);
         var b = Quarantine(BackupPath);
         Diagnostics.Add($"主文件与备份都不可用（{primaryError}），已隔离：{a ?? "无"} / {b ?? "无"}");
-        return new BoardLoadResult(Board.CreateDefault(), BoardLoadStatus.RecreatedAfterCorruption, primaryError);
+        var recreated = Board.CreateDefault();
+        BoardMigration.Upgrade(recreated, Diagnostics);
+        return new BoardLoadResult(recreated, BoardLoadStatus.RecreatedAfterCorruption, primaryError);
+    }
+
+    /// <summary>把旧 <c>canvas.json</c> 并入内存中的板并立即落盘（旧文件随即改名保留）。</summary>
+    private void MergeLegacyCanvas(Board board)
+    {
+        var legacyPath = Path.Combine(DirectoryPath, "canvas.json");
+        var result = CanvasLegacyImport.Import(board, legacyPath, Diagnostics);
+        if (result.Imported)
+        {
+            Save(board);
+        }
     }
 
     public void Save(Board board)
@@ -150,7 +168,7 @@ public sealed class JsonBoardStore
         stream.Flush(flushToDisk: true);
     }
 
-    private static bool TryRead(string path, out Board? board, out string? error)
+    private bool TryRead(string path, out Board? board, out string? error)
     {
         board = null;
         error = null;
@@ -177,6 +195,7 @@ public sealed class JsonBoardStore
                 return false;
             }
 
+            EnsurePreUpgradeBackup(path, parsed);
             Normalize(parsed);
             board = parsed;
             return true;
@@ -185,6 +204,31 @@ public sealed class JsonBoardStore
         {
             error = $"{ex.GetType().Name}: {ex.Message}";
             return false;
+        }
+    }
+
+    /// <summary>schema 升级前留一份原样备份（只生成一次，存在则跳过）；失败只记诊断，不阻塞打开。</summary>
+    private void EnsurePreUpgradeBackup(string path, Board board)
+    {
+        if (!BoardMigration.NeedsUpgrade(board))
+        {
+            return;
+        }
+
+        var backup = Path.Combine(DirectoryPath, BoardMigration.PreUpgradeBackupName);
+        if (File.Exists(backup))
+        {
+            return;
+        }
+
+        try
+        {
+            File.Copy(path, backup, overwrite: false);
+            Diagnostics.Add($"[迁移] 已备份原文件为 {BoardMigration.PreUpgradeBackupName}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Diagnostics.Add($"[迁移] 备份失败：{ex.Message}");
         }
     }
 
@@ -248,7 +292,7 @@ public sealed class JsonBoardStore
         }
 
         board.NormalizePanel();
-        board.Version = 2;
+        BoardMigration.Upgrade(board, diagnostics);
     }
 
     private static string? Quarantine(string path)

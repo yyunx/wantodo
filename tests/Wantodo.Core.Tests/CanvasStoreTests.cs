@@ -98,7 +98,7 @@ public sealed class CanvasStoreTests : IDisposable
     {
         var loaded = Store().Load();
 
-        Assert.Equal(1, loaded.Version);
+        Assert.Equal(2, loaded.Version);
         Assert.Empty(loaded.Items);
     }
 

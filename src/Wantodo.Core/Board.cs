@@ -3,7 +3,13 @@ namespace Wantodo.Core;
 /// <summary>整块便签板的数据。持久化对象就是它，字段变化要考虑旧文件兼容。</summary>
 public sealed class Board
 {
-    public int Version { get; set; } = 2;
+    public int Version { get; set; } = BoardMigration.CurrentVersion;
+
+    /// <summary>
+    /// 画布文档（0.7.0）：两棵集合 + 每表面视口，住在本文件里，不再单独写 <c>canvas.json</c>。
+    /// 旧数据由 <see cref="CanvasLegacyImport"/> 一次性并入。
+    /// </summary>
+    public CanvasDocument Canvas { get; set; } = new();
 
     /// <summary>窗口层级：Desktop（默认，贴桌面图标层）/ Normal / Topmost。</summary>
     public string Surface { get; set; } = "Desktop";
