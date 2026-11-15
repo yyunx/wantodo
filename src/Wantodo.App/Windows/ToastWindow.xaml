@@ -1,0 +1,27 @@
+<Window x:Class="Wantodo.App.Windows.ToastWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="wantodo 提醒"
+        Width="300"
+        SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="False"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        Background="{DynamicResource CardBackground}">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" ResizeBorderThickness="0" />
+    </WindowChrome.WindowChrome>
+
+    <Border BorderThickness="1" BorderBrush="{DynamicResource Accent}"
+            Background="{DynamicResource CardBackground}" Padding="14,12">
+        <StackPanel>
+            <TextBlock x:Name="TitleText" FontSize="13" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap" />
+            <TextBlock x:Name="BodyText" FontSize="12" Margin="0,4,0,0"
+                       Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</Window>

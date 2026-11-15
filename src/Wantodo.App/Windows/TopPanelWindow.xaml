@@ -113,7 +113,6 @@
                             <Button Content="记事" Click="OnCanvasAddNote" Padding="8,3" Margin="0,0,4,0" />
                             <Button Content="待办" Click="OnCanvasAddTodo" Padding="8,3" Margin="0,0,4,0" />
                             <Button Content="计时" Click="OnCanvasAddTimer" Padding="8,3" Margin="0,0,4,0" />
-                            <Button Content="链接" Click="OnCanvasAddLink" Padding="8,3" Margin="0,0,4,0" />
                             <Button Content="图片" Click="OnCanvasAddImage" Padding="8,3" Margin="0,0,4,0" />
                             <TextBlock x:Name="CanvasStatus" VerticalAlignment="Center" Margin="8,0,0,0"
                                        FontSize="11" Foreground="{DynamicResource TextMuted}" />

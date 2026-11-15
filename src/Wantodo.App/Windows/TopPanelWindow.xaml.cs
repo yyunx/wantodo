@@ -49,7 +49,7 @@ public partial class TopPanelWindow : Window
         ColumnsScroller.SizeChanged += OnSizeChangedFit;
 
         var canvasStore = new CanvasStore(DataRootService.Paths.CanvasFile);
-        CanvasBoard.Attach(canvasStore.Load(), canvasStore);
+        CanvasBoard.Attach(canvasStore.Load(), canvasStore, DataRootService.Paths.CanvasImagesDir);
         CanvasBoard.StatusChanged += (_, _) => UpdateCanvasStatus();
         ApplyMode();
         UpdateCanvasStatus();
@@ -113,17 +113,51 @@ public partial class TopPanelWindow : Window
 
     private void OnCanvasAddTodo(object sender, RoutedEventArgs e) => AddCanvasCard("todo");
 
-    private void OnCanvasAddTimer(object sender, RoutedEventArgs e) => AddCanvasCard("timer");
+    private void OnCanvasAddTimer(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Dialogs.TimerSetupDialog(TimerMode.Countdown, CanvasClock.DefaultCountdownSeconds) { Owner = this };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
 
-    private void OnCanvasAddLink(object sender, RoutedEventArgs e) => AddCanvasCard("link");
+        var center = CanvasCenter();
+        CanvasBoard.AddTimer(dialog.Mode, dialog.Seconds, center.X, center.Y);
+        UpdateCanvasStatus();
+    }
 
-    private void OnCanvasAddImage(object sender, RoutedEventArgs e) => AddCanvasCard("image");
+    private void OnCanvasAddImage(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "选择图片",
+            Filter = "图片|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|所有文件|*.*",
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        var center = CanvasCenter();
+        if (CanvasBoard.AddImage(dialog.FileName, center.X, center.Y) is null)
+        {
+            AppLog.Warn($"画板插入图片失败：{dialog.FileName}");
+        }
+
+        UpdateCanvasStatus();
+    }
+
+    private Point CanvasCenter()
+    {
+        return new Point(
+            CanvasScroller.HorizontalOffset + Math.Max(0, CanvasScroller.ViewportWidth / 2),
+            CanvasScroller.VerticalOffset + Math.Max(0, CanvasScroller.ViewportHeight / 2));
+    }
 
     private void AddCanvasCard(string kind)
     {
-        var centerX = CanvasScroller.HorizontalOffset + Math.Max(0, CanvasScroller.ViewportWidth / 2);
-        var centerY = CanvasScroller.VerticalOffset + Math.Max(0, CanvasScroller.ViewportHeight / 2);
-        CanvasBoard.Add(kind, centerX, centerY);
+        var center = CanvasCenter();
+        CanvasBoard.Add(kind, center.X, center.Y);
         UpdateCanvasStatus();
     }
 

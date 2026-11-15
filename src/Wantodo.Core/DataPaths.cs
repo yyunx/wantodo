@@ -49,6 +49,9 @@ public sealed class DataPaths
     /// <summary>形态 B 的自由画布（独立文件，避免拖慢 600 ms 的 data.json 保存）。</summary>
     public string CanvasFile => Path.Combine(BoardDir, "canvas.json");
 
+    /// <summary>画布卡片用到的图片副本。原图可能被用户移走，所以粘贴/拖入时复制一份。</summary>
+    public string CanvasImagesDir => Path.Combine(BoardDir, "canvas-images");
+
     /// <summary>应用设置。Phase 7 暂不与板数据拆开，保留给 Phase 8/9 用。</summary>
     public string SettingsFile => Path.Combine(ConfigDir, "settings.json");
 

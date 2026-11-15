@@ -71,5 +71,7 @@ Run B 收口：21/22/23 完成（各有欠账），24 未开工（3–5 天，�
 - commit：本轮提交 `phase-24: 自由画布 MVP`
 - 验收：`build -warnaserror` 0 警告/0 错误；`test` 239 通过；设置页「面板形态」与撞顶切画布已接；手工人肉眼项 5 条，见 `docs/verify/phase24.md` §5
 - 改动：新增 Core `CanvasItem`/`CanvasStore`、App `CanvasBoard`/`CanvasPanelWindow`、`CanvasStoreTests`（9 例）；`Board.PanelMode`、`DataPaths.CanvasFile`、`BoardViewModel.SetPanelMode`、设置页单选、`TopEdgePanelService` 分流
-- 欠账：删除未进 `trash/`；记事/待办卡片未绑定真实数据；50 张卡片性能未采样；画布 zoom/多显示器未做
-- 下一条命令：等用户肉眼验收；通过后做「卡片绑定 + 删除进回收」，再进 Phase 25（若有）
+- 欠账：删除未进 `trash/`；50 张卡片性能未采样；画布 zoom/多显示器未做
+- 2026-11-15 补丁（未单独 commit，并入 phase-24 文档）：标题可改、链接内嵌记事/待办、图片选择/拖入/粘贴、
+  计时四玩法 + 右下角提醒一次 + 提示音；`TextLinks`/`CanvasClock` 纯逻辑 + 2 组测试；`build` 0 警告、`test` 261 通过
+- 下一条命令：等用户肉眼验收 `docs/verify/phase24.md` §11 五步；通过后再决定是否把删除进回收与 50 张性能补上

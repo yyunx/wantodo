@@ -149,3 +149,35 @@ $ dotnet test --no-build
 1. 撞顶展开画布 → 点「记事」插卡 → 点正文直接打字，收起再展开文字还在。
 2. 重新打开程序（重启进程）后文字仍在（写进 canvas.json 的 payload.text）。
 3. 右下角应看到两条斜线；悬停变亮；拖动它卡片尺寸跟着变。
+
+## 11. 同日补全：标题可改、链接内嵌、图片导入、计时提醒
+
+用户要求（2026-11-15）：卡片标题都能改，默认用类型名；取消独立「链接」类型，链接合进记事/待办；
+图片支持工具条选择、资源管理器拖入、Ctrl+V 粘贴；计时支持正计时/倒计时/闹钟/番茄钟，到点右下角提醒一次并响一声。
+
+改动：
+
+- 新 `src/Wantodo.Core/TextLinks.cs`：从正文挑 `http/https/www` 链接，去重、去尾部标点，单词中间的伪链接跳过。
+- 新 `src/Wantodo.Core/CanvasClock.cs`：四种玩法的纯逻辑（只存开始时刻 + 总秒数，显示时按当前时间算），
+  含 `ParseMode/ModeKey/ModeLabel/DefaultSeconds/ElapsedSeconds/DisplaySeconds/IsFinished/Format`。
+- `src/Wantodo.Core/DataPaths.cs`：新增 `CanvasImagesDir`（`board/canvas-images`）。
+- `src/Wantodo.App/Controls/CanvasBoard.cs`：
+  - 标题改成无边框 `TextBox`，默认显示类型名，输入写 `payload.title`，失焦保存。
+  - 记事正文下列出链接按钮（`Process.Start(UseShellExecute)`）；待办正文同样列链接。
+  - 图片卡片按 `payload.path` 显示（复制进数据根，原图移走也不丢）；支持 `FileDrop` 拖入与 `Ctrl+V` 粘贴（PNG 落盘）。
+  - 计时卡片：玩法/剩余时间 + ▶／■／↺／设置；`DispatcherTimer` 每秒刷新；到点写 `payload.fired=1`，
+    右下角 `ToastWindow` 提醒一次，`SystemSounds.Exclamation` 响一声，然后停下等待重置。
+  - 工具条去掉「链接」；`TimerSetupDialog` 选玩法与时长；`OpenFileDialog` 选图片。
+- 新 `src/Wantodo.App/Dialogs/TimerSetupDialog.xaml(.cs)`：四种玩法、分钟/秒输入、正计时隐藏时长。
+- 新 `src/Wantodo.App/Windows/ToastWindow.xaml(.cs)`：右下角、`ShowActivated=False`、Topmost、4 秒自动关、同时只留一条。
+- 测试：`tests/Wantodo.Core.Tests/TextLinksTests.cs`、`CanvasClockTests.cs`。
+
+证据（2026-11-15）：`build -warnaserror` 0 警告 0 错误（12.92s）；`test --no-build` **261 通过 / 0 失败 / 634 ms**；
+Debug 构建启动 PID 15172，日志「顶边下拉面板已启用」「首帧 1259ms；WS=135MB private=108MB；线程=14」。
+
+待肉眼：
+1. 撞顶展开 → 记事卡标题改成「周末」，收起再展开/重启后仍是「周末」。
+2. 记事正文输入 `https://example.com`，下方出现链接按钮，点一下用默认浏览器打开。
+3. 工具条「图片」选一张 → 显示；把另一张图从资源管理器拖进画板 → 新卡片；复制一张图后点画板按 Ctrl+V → 新卡片。
+4. 工具条「计时」选倒计时 1 分钟 → ▶ 开始 → 到 0 时右下角弹提醒并响一声，只响一次。
+5. 已存在的旧「链接」卡仍能显示 url（兼容旧 canvas.json），但工具栏不再新增。
