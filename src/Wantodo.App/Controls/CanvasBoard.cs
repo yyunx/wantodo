@@ -25,8 +25,6 @@ public sealed class CanvasBoard : Canvas
 {
     private const double GridStep = 8;
 
-    private static readonly string[] ImageExtensions = { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp" };
-
     private readonly SurfaceUndo _undo = new();
     private readonly Dictionary<string, Border> _cards = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBlock> _timerTexts = new(StringComparer.OrdinalIgnoreCase);
@@ -83,6 +81,15 @@ public sealed class CanvasBoard : Canvas
     public int UndoDepth => _undo.Depth(Surface);
 
     public event EventHandler? StatusChanged;
+
+    /// <summary>
+    /// 结构化表面收到图片粘贴/拖放。计划书 §4.7：图片只存在于自由表面，
+    /// 所以这里不落卡片，只把意图交给宿主（切面 + 在自由表面落位）。
+    /// </summary>
+    public event EventHandler? ImagePasteRequested;
+
+    /// <summary>结构化表面被拖入图片文件；宿主负责切到自由表面并逐个插入。</summary>
+    public event EventHandler<IReadOnlyList<string>>? ImageDropRequested;
 
     /// <param name="document">数据源；0.7.0 起就是 <c>Board.Canvas</c> 那份实例。</param>
     /// <param name="persist">落盘回调：宿主把文档挂回 Board 并触发 600 ms 合并保存。</param>
@@ -147,21 +154,6 @@ public sealed class CanvasBoard : Canvas
         item.Payload["seconds"] = Math.Max(0, seconds).ToString(CultureInfo.InvariantCulture);
         item.Payload["startedAt"] = string.Empty;
         item.Payload["fired"] = string.Empty;
-        Mount(item);
-        Save();
-        return item;
-    }
-
-    public CanvasItem? AddImage(string sourcePath, double centerX, double centerY)
-    {
-        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
-        {
-            return null;
-        }
-
-        PushUndo();
-        var item = _document.Add("image", Math.Max(0, centerX - 110), Math.Max(0, centerY - 80));
-        item.Payload["path"] = CopyImage(sourcePath, item.Id);
         Mount(item);
         Save();
         return item;
@@ -391,7 +383,7 @@ public sealed class CanvasBoard : Canvas
         string? path = ResolveImage(item);
         if (path is not null && File.Exists(path))
         {
-            image.Source = LoadBitmap(path);
+            image.Source = LoadBitmap(path, item.W);
         }
 
         var clipHost = new Border
@@ -696,7 +688,7 @@ public sealed class CanvasBoard : Canvas
         {
             var image = new Image
             {
-                Source = LoadBitmap(path),
+                Source = LoadBitmap(path, item.W),
                 Stretch = Stretch.Uniform,
                 ToolTip = path,
             };
@@ -980,12 +972,19 @@ public sealed class CanvasBoard : Canvas
         }
     }
 
-    private static BitmapImage LoadBitmap(string path)
+    private static BitmapImage LoadBitmap(string path, double displayWidth)
     {
         var image = new BitmapImage();
         image.BeginInit();
         image.CacheOption = BitmapCacheOption.OnLoad;
         image.UriSource = new Uri(path, UriKind.Absolute);
+        // 按显示尺寸解码：50 张图的显存增量才守得住 ≤8 MB（plan §4.8）
+        var pixelWidth = (int)Math.Round(displayWidth);
+        if (pixelWidth > 0)
+        {
+            image.DecodePixelWidth = pixelWidth;
+        }
+
         image.EndInit();
         image.Freeze();
         return image;
@@ -1002,25 +1001,6 @@ public sealed class CanvasBoard : Canvas
         return Path.IsPathRooted(name) ? name : Path.Combine(_imagesDir ?? string.Empty, name);
     }
 
-    private string CopyImage(string sourcePath, string id)
-    {
-        if (string.IsNullOrWhiteSpace(_imagesDir))
-        {
-            return sourcePath;
-        }
-
-        Directory.CreateDirectory(_imagesDir);
-        string extension = Path.GetExtension(sourcePath);
-        string target = Path.Combine(_imagesDir, id + extension);
-        for (int n = 2; File.Exists(target); n++)
-        {
-            target = Path.Combine(_imagesDir, $"{id}-{n}{extension}");
-        }
-
-        File.Copy(sourcePath, target, overwrite: false);
-        return Path.GetFileName(target);
-    }
-
     private void OnDrop(object sender, DragEventArgs e)
     {
         if (!e.Data.GetDataPresent(DataFormats.FileDrop) || e.Data.GetData(DataFormats.FileDrop) is not string[] files)
@@ -1028,23 +1008,15 @@ public sealed class CanvasBoard : Canvas
             return;
         }
 
-        var point = e.GetPosition(this);
-        bool any = false;
-        foreach (var file in files)
+        // 图片不属于结构化表面（§4.7）：把文件列表交给宿主，由它切到自由表面再落位
+        var images = files.Where(ImageAssets.IsSupported).ToList();
+        if (images.Count == 0)
         {
-            if (!ImageExtensions.Contains(Path.GetExtension(file), StringComparer.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            any |= AddImage(file, point.X, point.Y) is not null;
-            point.Y += 24;
+            return;
         }
 
-        if (any)
-        {
-            e.Handled = true;
-        }
+        ImageDropRequested?.Invoke(this, images);
+        e.Handled = true;
     }
 
     private static void OnDragOver(object sender, DragEventArgs e)
@@ -1078,25 +1050,8 @@ public sealed class CanvasBoard : Canvas
         {
             if (Clipboard.ContainsImage())
             {
-                var source = Clipboard.GetImage();
-                if (source is null || string.IsNullOrWhiteSpace(_imagesDir))
-                {
-                    return false;
-                }
-
-                Directory.CreateDirectory(_imagesDir);
-                string name = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".png";
-                string path = Path.Combine(_imagesDir, name);
-                var encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(source));
-                using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                {
-                    encoder.Save(stream);
-                    stream.Flush(true);
-                }
-
-                var center = CenterOfViewport();
-                AddImage(path, center.X, center.Y);
+                // 结构化表面不产图片卡（§4.7）；交给宿主切到自由表面再粘贴
+                ImagePasteRequested?.Invoke(this, EventArgs.Empty);
                 return true;
             }
 

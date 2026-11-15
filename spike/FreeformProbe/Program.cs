@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Ink;
 using System.Windows.Input;
 using Wantodo.App.Controls;
@@ -120,6 +121,9 @@ internal static class Program
         // ⑧ P1.2：图形创建 / 文本创建 / 笔迹落盘 / 每表面撤销隔离
         P12Checks();
 
+        // ⑨ P1.3：图片资产去重 / 无外框 / 撤销
+        P13Checks();
+
         Console.WriteLine(_failed == 0 ? "PROBE PASS" : $"PROBE FAIL ({_failed})");
         return _failed == 0 ? 0 : 1;
     }
@@ -239,6 +243,93 @@ internal static class Program
         resources["ThemeCardBorderBrush"] = System.Windows.Media.Brushes.Gray;
         resources["ThemeCardBorderThickness"] = new Thickness(1);
         resources["ThemeCardCornerRadius"] = new CornerRadius(8);
+    }
+
+    private static void P13Checks()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "wantodo-070", "probe-images");
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, true);
+        }
+
+        Directory.CreateDirectory(root);
+        var imagesDir = Path.Combine(root, "canvas-images");
+        string source = Path.Combine(root, "shot.png");
+        WritePng(source, 64, 40, System.Windows.Media.Colors.SteelBlue);
+        string twin = Path.Combine(root, "shot-copy.png");
+        File.Copy(source, twin);
+
+        var one = ImageAssets.Import(source, imagesDir);
+        var two = ImageAssets.Import(twin, imagesDir);
+        Check("图片按 sha256 前 16 位命名", one.Imported && Path.GetFileNameWithoutExtension(one.RelativePath!) == ImageAssets.ShortHash(source),
+            $"relative={one.RelativePath}");
+        Check("同图两次导入只留一份", two.Imported && two.Deduplicated && one.RelativePath == two.RelativePath
+            && Directory.GetFiles(imagesDir, "*.png").Length == 1,
+            $"files={Directory.GetFiles(imagesDir).Length} dedupe={two.Deduplicated}");
+        Check("payload 用相对路径", one.RelativePath!.StartsWith("canvas-images/", StringComparison.Ordinal)
+            && !Path.IsPathRooted(one.RelativePath), $"relative={one.RelativePath}");
+
+        var document = new CanvasDocument();
+        var board = new FreeformBoard { Width = 800, Height = 600 };
+        board.Attach(document, null, imagesDir, Path.Combine(root, "ink"));
+        board.Measure(new Size(800, 600));
+        board.Arrange(new Rect(0, 0, 800, 600));
+
+        var placed = board.AddImageObject(source, new Point(300, 200));
+        Check("图片落模型", placed is not null && placed.Kind == CanvasObject.KindImage, $"objects={document.Objects.Count}");
+        Check("图片带原始尺寸", placed is not null && placed.Get("naturalW") == "64" && placed.Get("naturalH") == "40",
+            placed is null ? "no object" : $"w={placed.Get("naturalW")} h={placed.Get("naturalH")}");
+        var visual = placed is null ? null : board.VisualOf(placed.Id);
+        board.ClearSelection();
+        visual = placed is null ? null : board.VisualOf(placed.Id);
+        Check("图片无外框（未选中时）", visual is Border { } frame && frame.BorderThickness == new Thickness(0),
+            visual is Border b ? $"thickness={b.BorderThickness.Left}" : visual?.GetType().Name ?? "null");
+        Check("图片插在点击处", placed is not null && placed.X < 300 && placed.X + placed.W > 300 && placed.Y < 200 && placed.Y + placed.H > 200,
+            placed is null ? "no object" : $"x={placed.X:0} y={placed.Y:0} w={placed.W:0} h={placed.H:0}");
+
+        // 再插同一张：复用文件，对象多一个
+        var again = board.AddImageObject(twin, new Point(600, 400));
+        Check("粘贴同图复用文件", again is not null && document.Objects.Count == 2
+            && Directory.GetFiles(imagesDir, "*.png").Length == 1,
+            $"objects={document.Objects.Count} files={Directory.GetFiles(imagesDir, "*.png").Length}");
+        Check("两对象指向同一资产", again is not null && placed is not null && again.Get("path") == placed.Get("path"),
+            $"a={placed?.Get("path")} b={again?.Get("path")}");
+
+        board.Undo();
+        Check("撤销图片后只剩一个", document.Objects.Count == 1, $"objects={document.Objects.Count}");
+
+        // 不支持的扩展名不该进模型
+        string textFile = Path.Combine(root, "note.txt");
+        File.WriteAllText(textFile, "not an image");
+        Check("非图片不进模型", board.AddImageObject(textFile) is null && document.Objects.Count == 1,
+            $"objects={document.Objects.Count}");
+
+        // 结构化表面不再能产图片卡：方法和旧扩展名白名单都该消失，只剩两个转交事件
+        var canvasType = typeof(Wantodo.App.Controls.CanvasBoard);
+        Check("结构化表面没有 AddImage", canvasType.GetMethod("AddImage") is null,
+            canvasType.GetMethods().Any(m => m.Name == "AddImage") ? "still there" : "removed");
+        Check("结构化表面改抛事件",
+            canvasType.GetEvent("ImagePasteRequested") is not null && canvasType.GetEvent("ImageDropRequested") is not null,
+            "ImagePasteRequested/ImageDropRequested");
+        Check("旧扩展名白名单已删", canvasType.GetField("ImageExtensions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static) is null,
+            "ImageExtensions");
+    }
+
+    private static void WritePng(string path, int width, int height, System.Windows.Media.Color color)
+    {
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (var context = visual.RenderOpen())
+        {
+            context.DrawRectangle(new System.Windows.Media.SolidColorBrush(color), null, new Rect(0, 0, width, height));
+        }
+
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(width, height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using var stream = File.Create(path);
+        encoder.Save(stream);
     }
 
     private static void CreateShape(FreeformBoard board, FreeformTool tool, Point from, Point to)

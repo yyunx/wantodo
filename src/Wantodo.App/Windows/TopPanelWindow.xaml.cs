@@ -64,6 +64,10 @@ public partial class TopPanelWindow : Window
         CanvasBoard.StatusChanged += (_, _) => UpdateCanvasStatus();
         FreeformBoard.ViewportChanged += (_, _) => UpdateFreeformStatus();
         FreeformBoard.SelectionChanged += (_, _) => UpdateFreeformStatus();
+        FreeformBoard.ImagePickRequested += OnFreeformImageRequested;
+        // 图片只活在自由表面（§4.7）：结构化表面只把粘贴/拖放意图转过来
+        CanvasBoard.ImagePasteRequested += OnCanvasImagePasteRequested;
+        CanvasBoard.ImageDropRequested += OnCanvasImageDropRequested;
         CanvasBoard.ColumnsProvider = () => viewModel.Model.Columns;
         CanvasBoard.ColumnCreator = CreateCanvasColumn;
         ApplyPanelVisibility();
@@ -306,25 +310,89 @@ public partial class TopPanelWindow : Window
         UpdateCanvasStatus();
     }
 
+    /// <summary>
+    /// 插入图片（plan §4.7）：图片只存在于自由表面，所以这个按钮在结构化表面下等于
+    /// 「切到自由表面 + 在视口中心落位」两步一次完成，插入后焦点留在自由表面。
+    /// </summary>
     private void OnCanvasAddImage(object sender, RoutedEventArgs e)
+    {
+        if (!IsFreeformActive)
+        {
+            SetSurface(CanvasSurfaces.Freeform);
+        }
+
+        if (PickImage() is not { } file)
+        {
+            return;
+        }
+
+        if (FreeformBoard.AddImageObject(file) is null)
+        {
+            AppLog.Warn($"画板插入图片失败：{file}");
+        }
+
+        UpdateFreeformStatus();
+    }
+
+    private string? PickImage()
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Title = "选择图片",
             Filter = "图片|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|所有文件|*.*",
         };
-        if (dialog.ShowDialog(this) != true)
+        return dialog.ShowDialog(this) == true ? dialog.FileName : null;
+    }
+
+    /// <summary>自由表面插入图片失败：宿主只负责报错与刷新状态行。</summary>
+    private void OnFreeformImageRequested(object? sender, EventArgs e)
+    {
+        if (PickImage() is not { } file)
         {
             return;
         }
 
-        var center = CanvasCenter();
-        if (CanvasBoard.AddImage(dialog.FileName, center.X, center.Y) is null)
+        if (FreeformBoard.AddImageObject(file, FreeformBoard.PendingImagePoint) is null)
         {
-            AppLog.Warn($"画板插入图片失败：{dialog.FileName}");
+            AppLog.Warn($"自由表面插入图片失败：{file}");
         }
 
-        UpdateCanvasStatus();
+        UpdateFreeformStatus();
+    }
+
+    /// <summary>结构化表面 Ctrl+V 到图片：先切面，再让自由表面自己读剪贴板。</summary>
+    private void OnCanvasImagePasteRequested(object? sender, EventArgs e)
+    {
+        if (!IsFreeformActive)
+        {
+            SetSurface(CanvasSurfaces.Freeform);
+        }
+
+        if (!FreeformBoard.Paste())
+        {
+            AppLog.Warn("画板粘贴图片失败：剪贴板内容读不出来");
+        }
+
+        UpdateFreeformStatus();
+    }
+
+    /// <summary>结构化表面被拖入图片：切面后逐个落位，位置交给自由表面算。</summary>
+    private void OnCanvasImageDropRequested(object? sender, IReadOnlyList<string> files)
+    {
+        if (!IsFreeformActive)
+        {
+            SetSurface(CanvasSurfaces.Freeform);
+        }
+
+        foreach (var file in files)
+        {
+            if (FreeformBoard.AddImageObject(file) is null)
+            {
+                AppLog.Warn($"画板拖入图片失败：{file}");
+            }
+        }
+
+        UpdateFreeformStatus();
     }
 
     private Point CanvasCenter()

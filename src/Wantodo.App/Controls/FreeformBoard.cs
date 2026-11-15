@@ -168,10 +168,19 @@ public sealed class FreeformBoard : Grid
     /// <summary>InkCanvas 里当前的笔画数，探针用来确认「模型有笔迹」和「画布上真看得见」是一回事。</summary>
     internal int InkStrokeCount => _ink.Strokes.Count;
 
+    /// <summary>某个图元当前的视觉元素（探针用来确认图片真的没外框）。</summary>
+    internal FrameworkElement? VisualOf(string id) => _visuals.TryGetValue(id, out var element) ? element : null;
+
     /// <summary>缩放/平移结束后触发，供状态行刷新（不参与保存）。</summary>
     public event EventHandler? ViewportChanged;
 
     public event EventHandler? SelectionChanged;
+
+    /// <summary>图片工具点下去时触发：文件对话框由宿主开，落位点记在 <see cref="PendingImagePoint"/>。</summary>
+    public event EventHandler? ImagePickRequested;
+
+    /// <summary>图片工具点击处的画布坐标；宿主选完文件后交给 <see cref="AddImageObject"/>。</summary>
+    public Point? PendingImagePoint { get; private set; }
 
     public void Attach(CanvasDocument document, Action? persist, string? imagesDir, string? inkDir = null)
     {
@@ -935,6 +944,135 @@ public sealed class FreeformBoard : Grid
         Flush();
     }
 
+    /// <summary>
+    /// 插入一张图片（P1.3）：资产策略在 <see cref="ImageAssets"/>（sha256 去重、20 MB 上限、相对路径），
+    /// 这里只决定落位与显示尺寸。图片不画边框——V-06 要求「像直接贴在画布上」。
+    /// </summary>
+    public CanvasObject? AddImageObject(string sourcePath, Point? canvasPoint = null)
+    {
+        var document = _document;
+        if (document is null || string.IsNullOrWhiteSpace(_imagesDir))
+        {
+            return null;
+        }
+
+        var asset = ImageAssets.Import(sourcePath, _imagesDir);
+        if (!asset.Imported || asset.RelativePath is null)
+        {
+            AppLog.Warn(asset.Error ?? "[图片] 导入失败");
+            return null;
+        }
+
+        if (asset.Warning is not null)
+        {
+            AppLog.Warn(asset.Warning);
+        }
+
+        var (naturalWidth, naturalHeight) = ReadNaturalSize(asset.AbsolutePath!);
+        const double defaultWidth = 320;
+        double width = naturalWidth > 0 ? Math.Min(defaultWidth, naturalWidth) : defaultWidth;
+        double height = naturalHeight > 0
+            ? Math.Clamp(width * naturalHeight / Math.Max(1, naturalWidth), 80, 640)
+            : width * 0.625;
+        if (naturalWidth > 0 && naturalHeight > 0 && height > 480)
+        {
+            height = 480;
+            width = height * naturalWidth / naturalHeight;
+        }
+
+        var point = canvasPoint ?? ToCanvas(new Point(ActualWidth / 2, ActualHeight / 2));
+        PushUndo();
+        var item = new CanvasObject
+        {
+            Id = document.NextObjectId(),
+            Kind = CanvasObject.KindImage,
+            Surface = SurfaceId,
+            X = Math.Max(0, point.X - (width / 2)),
+            Y = Math.Max(0, point.Y - (height / 2)),
+            W = width,
+            H = height,
+            ZIndex = NextZ(document),
+        };
+        item.Normalize();
+        item.Payload["path"] = asset.RelativePath;
+        if (naturalWidth > 0)
+        {
+            item.Payload["naturalW"] = naturalWidth.ToString(CultureInfo.InvariantCulture);
+            item.Payload["naturalH"] = naturalHeight.ToString(CultureInfo.InvariantCulture);
+        }
+
+        document.Objects.Add(item);
+        SelectOnly(item.Id);
+        _dirty = true;
+        Rebuild();
+        Flush();
+        AppLog.Info($"[图片] 插入 {asset.RelativePath} 尺寸 {item.W:0}x{item.H:0}"
+            + (asset.Deduplicated ? "（复用已有文件）" : string.Empty));
+        return item;
+    }
+
+    /// <summary>剪贴板两形态（plan §5.4）：位图编码成临时 PNG，文件/路径按扩展名判定。</summary>
+    public bool Paste()
+    {
+        try
+        {
+            if (Clipboard.ContainsImage() && Clipboard.GetImage() is { } bitmap)
+            {
+                string temporary = IOPath.Combine(
+                    IOPath.GetTempPath(),
+                    "wantodo-freeform-" + Guid.NewGuid().ToString("N") + ".png");
+                try
+                {
+                    var encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                    using (var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
+                        encoder.Save(stream);
+                        stream.Flush(true);
+                    }
+
+                    return AddImageObject(temporary) is not null;
+                }
+                finally
+                {
+                    try
+                    {
+                        if (File.Exists(temporary))
+                        {
+                            File.Delete(temporary);
+                        }
+                    }
+                    catch (IOException)
+                    {
+                        // 临时文件删不掉不影响粘贴结果
+                    }
+                }
+            }
+
+            if (Clipboard.ContainsFileDropList())
+            {
+                foreach (var file in Clipboard.GetFileDropList())
+                {
+                    if (file is null || !ImageAssets.IsSupported(file))
+                    {
+                        continue;
+                    }
+
+                    if (AddImageObject(file) is not null)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
+        {
+            AppLog.Warn($"[图片] 粘贴失败：{ex.GetType().Name}: {ex.Message}");
+        }
+
+        return false;
+    }
+
     /// <summary>删掉笔迹对象对应的 ISF；文件已被别处删掉也不报错。</summary>
     private void RemoveStrokeFile(string id)
     {
@@ -1021,8 +1159,13 @@ public sealed class FreeformBoard : Grid
                 case FreeformTool.Arrow:
                     BeginCreate(board, _tool);
                     break;
+                case FreeformTool.Image:
+                    // 文件对话框归宿主管（控件不该自己弹窗）；落位点就是这次点击的位置
+                    PendingImagePoint = board;
+                    ImagePickRequested?.Invoke(this, EventArgs.Empty);
+                    break;
                 default:
-                    // 图片要接剪贴板与资产目录（P1.3），画笔走 InkCanvas 的 StrokeCollected
+                    // 画笔走 InkCanvas 的 StrokeCollected，不在这里建对象
                     AppLog.Info($"[画布] 工具 {FreeformToolCatalog.IdOf(_tool)} 的创建行为在 P1.3 接入");
                     break;
             }
@@ -1373,6 +1516,32 @@ public sealed class FreeformBoard : Grid
 
     private static double Parse(string? text, double fallback) =>
         double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : fallback;
+
+    private static (int Width, int Height) ReadNaturalSize(string path)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+            var frame = BitmapFrame.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+            return (frame.PixelWidth, frame.PixelHeight);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            return (0, 0);
+        }
+    }
+
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        base.OnPreviewKeyDown(e);
+        if (e.Key == Key.V && Keyboard.Modifiers == ModifierKeys.Control && !(_textEditor is { IsKeyboardFocusWithin: true }))
+        {
+            if (Paste())
+            {
+                e.Handled = true;
+            }
+        }
+    }
 
 
     private FrameworkElement? BuildImage(CanvasObject item)

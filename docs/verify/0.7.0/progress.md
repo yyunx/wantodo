@@ -11,7 +11,7 @@
 | P0.5 | 液态玻璃探针 + 材质 + Win10 降级 | DONE（含 4 项 PENDING-HUMAN） | [p0.5.md](p0.5.md) · [探针](p0.5-probe.md) |
 | P1.1 | 自由表面工具组 + 缩放 + 平移 | DONE（含 5 项 PENDING-HUMAN） | [p1.1.md](p1.1.md) · [探针日志](p1.1-probe.log) |
 | P1.2 | 笔迹与图形 + 每表面撤销 | DONE（含 5 项 PENDING-HUMAN） | [p1.2.md](p1.2.md) · [探针日志](p1.2-probe.log) |
-| P1.3 | 无铬图片 + 剪贴板 + 资产策略 | TODO | — |
+| P1.3 | 无铬图片 + 剪贴板 + 资产策略 | DONE（含 6 项 PENDING-HUMAN） | [p1.3.md](p1.3.md) · [探针日志](p1.3-probe.log) |
 | P1.4 | 待办投影 / 拖动改名分离 / 计时状态机 | TODO | — |
 | P2.1 | 颜色键 + 右键菜单 + 滚动条 + 空状态 | TODO | — |
 | P2.2 | 笔迹静态化 + 性能 + 包体积 | TODO | — |
@@ -19,15 +19,23 @@
 
 ## 下一步
 
-P1.3 无铬图片 + 剪贴板两形态（文件/位图）+ 资产策略（`board/canvas-images/<sha256 前 16>.<ext>`、相对路径、`DecodePixelWidth`、单张 ≤20 MB、总量 >200 MB 提示，Q4 已裁决不生成缩略图）。
-先读 `docs/plan-0.7.0.md` §4.7（图片归属）与 §5.3，再读 `src/Wantodo.App/Controls/CanvasBoard.cs` 现有的 `AddImage` 与 `BuildImage`（块 B 去框实现可直接复用）。
+P1.4 功能与交互修正（V-14 / V-15 / V-16）：
+
+1. 待办卡改成栏目投影（live view，不持有独立列表，Q5 已裁决）；
+2. 卡头拖拽 = 移动卡片，双击 / `F2` 才改名（单击 100 次不进编辑态）；
+3. 计时状态机：设置完成 / 开始 / 暂停 / 继续四态，配置完不自动跑；
+4. 分段番茄钟（`PomodoroPlan` 已有分段时间轴，接 UI 即可）。
+
+先读 `docs/plan-0.7.0.md` §5.5（拖动与改名分离、待办投影）与 `src/Wantodo.App/Controls/CanvasBoard.cs`
+现有的卡头拖拽 / 改名逻辑、`src/Wantodo.Core/PomodoroPlan.cs`。
 
 未偿清单（收口时必须交代）：
 - 面板 `TopPanelWindow` 未启用材质（D16，留 P2.1）
 - 笔迹静态化与 500 笔阈值未做（P2.2 / V-12）
 - 笔迹层是新增渲染层，P2.2 必须复测首帧与内存
-- 删除图元不删 `.isf`，会有孤儿文件（D23，P2.2 清理）
+- 删除图元不删 `.isf` 与图片资产，会有孤儿文件（D23 / D27，P2.2 清理）
 - Win10 Acrylic 降级只有代码路径与 WARN，无真机（A4）
+- 图片资产总量 200 MB 提示只有逻辑层测试，未用真实大目录验（P1.3）
 
 ## 下一步第一条命令
 
