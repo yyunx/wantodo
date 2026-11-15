@@ -12,30 +12,30 @@
 | P1.1 | 自由表面工具组 + 缩放 + 平移 | DONE（含 5 项 PENDING-HUMAN） | [p1.1.md](p1.1.md) · [探针日志](p1.1-probe.log) |
 | P1.2 | 笔迹与图形 + 每表面撤销 | DONE（含 5 项 PENDING-HUMAN） | [p1.2.md](p1.2.md) · [探针日志](p1.2-probe.log) |
 | P1.3 | 无铬图片 + 剪贴板 + 资产策略 | DONE（含 6 项 PENDING-HUMAN） | [p1.3.md](p1.3.md) · [探针日志](p1.3-probe.log) |
-| P1.4 | 待办投影 / 拖动改名分离 / 计时状态机 | TODO | — |
+| P1.4 | 待办投影 / 拖动改名分离 / 计时状态机 | DONE（含 6 项 PENDING-HUMAN） | [p1.4.md](p1.4.md) · [探针日志](p1.4-probe.log) |
 | P2.1 | 颜色键 + 右键菜单 + 滚动条 + 空状态 | TODO | — |
 | P2.2 | 笔迹静态化 + 性能 + 包体积 | TODO | — |
 | P2.3 | release-0.7.0 + README + 两个包 + 总结 | TODO | — |
 
 ## 下一步
 
-P1.4 功能与交互修正（V-14 / V-15 / V-16）：
+P2.1 打磨（控件 × 令牌矩阵 23 行逐行有实现或写明未做）：
 
-1. 待办卡改成栏目投影（live view，不持有独立列表，Q5 已裁决）；
-2. 卡头拖拽 = 移动卡片，双击 / `F2` 才改名（单击 100 次不进编辑态）；
-3. 计时状态机：设置完成 / 开始 / 暂停 / 继续四态，配置完不自动跑；
-4. 分段番茄钟（`PomodoroPlan` 已有分段时间轴，接 UI 即可）。
+1. 颜色键：设置页主入口 + 画板状态行 7 个色点（Q7）；
+2. 右键菜单（卡片/画布）、滚动条模板、空状态、`＋` 预留行 3 项（日历/参考文件/图片库，标「未实现」，点击不崩）；
+3. 面板 `TopPanelWindow` 启用材质（D16：`GlassSurface.Prepare/TryApply` + 内容层 α 两道），观感项留人眼。
 
-先读 `docs/plan-0.7.0.md` §5.5（拖动与改名分离、待办投影）与 `src/Wantodo.App/Controls/CanvasBoard.cs`
-现有的卡头拖拽 / 改名逻辑、`src/Wantodo.Core/PomodoroPlan.cs`。
+先读 `docs/plan-0.7.0.md` §3.3（控件 × 令牌矩阵）与 §5.4（预留行）、`src/Wantodo.App/App.xaml` 现有样式、
+`src/Wantodo.App/Windows/TopPanelWindow.xaml` 的三层工具栏。
 
 未偿清单（收口时必须交代）：
-- 面板 `TopPanelWindow` 未启用材质（D16，留 P2.1）
+- 面板 `TopPanelWindow` 未启用材质（D16，P2.1 做）
 - 笔迹静态化与 500 笔阈值未做（P2.2 / V-12）
 - 笔迹层是新增渲染层，P2.2 必须复测首帧与内存
 - 删除图元不删 `.isf` 与图片资产，会有孤儿文件（D23 / D27，P2.2 清理）
 - Win10 Acrylic 降级只有代码路径与 WARN，无真机（A4）
 - 图片资产总量 200 MB 提示只有逻辑层测试，未用真实大目录验（P1.3）
+- 待办投影每秒重建行（D30），超过 50 条走截断，未做虚拟化（P2.2 视性能再定）
 
 ## 下一步第一条命令
 

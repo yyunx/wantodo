@@ -903,6 +903,14 @@ public partial class TopPanelWindow : Window
             return;
         }
 
+        // F2 改名：结构化卡片走 CanvasBoard，自由表面暂无「改名」概念（plan §5.5）
+        if (IsCanvasMode && e.Key == Key.F2 && !IsFreeformActive && !IsTextEditing)
+        {
+            CanvasBoard.BeginRenameSelected();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.N && Keyboard.Modifiers == ModifierKeys.Control)
         {
             QuickBox.Clear();

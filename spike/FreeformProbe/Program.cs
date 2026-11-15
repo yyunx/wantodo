@@ -1,8 +1,10 @@
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Ink;
 using System.Windows.Input;
+using System.Windows.Media;
 using Wantodo.App.Controls;
 using Wantodo.Core;
 
@@ -123,6 +125,9 @@ internal static class Program
 
         // ⑨ P1.3：图片资产去重 / 无外框 / 撤销
         P13Checks();
+
+        // ⑩ P1.4：待办投影 / 改名分离 / 计时状态机 / 分段番茄钟
+        P14Checks();
 
         Console.WriteLine(_failed == 0 ? "PROBE PASS" : $"PROBE FAIL ({_failed})");
         return _failed == 0 ? 0 : 1;
@@ -314,6 +319,115 @@ internal static class Program
             "ImagePasteRequested/ImageDropRequested");
         Check("旧扩展名白名单已删", canvasType.GetField("ImageExtensions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static) is null,
             "ImageExtensions");
+    }
+
+    private static void P14Checks()
+    {
+        var model = Board.CreateDefault();
+        var column = model.Columns[0];
+        var document = model.Canvas;
+
+        var board = new CanvasBoard { Width = 800, Height = 600, ColumnsProvider = () => model.Columns };
+        board.Attach(document, null, null);
+        board.Measure(new Size(800, 600));
+        board.Arrange(new Rect(0, 0, 800, 600));
+
+        // ⑪ 待办卡 = 栏目投影：桌面加一条，卡片 1 s（一次 Tick）内出现
+        var todo = document.Add("todo", 100, 100);
+        todo.Payload["columnId"] = column.Id;
+        board.Rebuild();
+        Check("待办卡不持有独立列表", document.Items.Count(i => i.Kind == "todo") == 1 && todo.Payload.ContainsKey("columnId"),
+            $"payload={string.Join(",", todo.Payload.Keys)}");
+
+        Check("桌面加条目后卡片里出现",
+            BoardEditor.TryAddNote(column, "投影进来的第一条", out var projected)
+            && TickAndFind(board, "投影进来的第一条") is { } text
+            && text.Text == "投影进来的第一条",
+            $"notes={column.Notes.Count}");
+
+        Check("卡内勾选写回栏目",
+            projected is not null && ToggleThroughCard(board, "投影进来的第一条", true) && projected.Completed,
+            $"completed={projected?.Completed}");
+
+        Check("栏目勾选后卡片同步划线",
+            TickAndFind(board, "投影进来的第一条") is { } struck && struck.TextDecorations is { Count: > 0 },
+            $"decorations={TickAndFind(board, "投影进来的第一条")?.TextDecorations?.Count}");
+
+        // ⑫ 拖动与改名分离：选中后 F2 才进改名，改名不改模型直到提交
+        var note = document.Add("note", 300, 100);
+        board.Rebuild();
+        Check("正常态没有改名框", !board.IsRenamingForTest, "renaming=false");
+        Check("选中卡片", board.SelectForTest(note.Id), $"id={note.Id}");
+        board.BeginRenameSelected();
+        Check("F2 进改名态", board.IsRenamingForTest, "renaming=true");
+        Check("拖动阈值是 4 DIP", Math.Abs(CanvasBoard.DragThresholdForTest - 4) < 0.0001, $"{CanvasBoard.DragThresholdForTest}");
+        Check("进改名不改模型", string.IsNullOrEmpty(note.Get("title")), $"title={note.Get("title") ?? "<null>"}");
+
+        // ⑬ 计时状态机：配置完停在 Configured，且中央数字按计划总时长显示
+        var timer = document.Add("timer", 500, 300);
+        timer.Payload["mode"] = CanvasClock.ModeKey(TimerMode.Pomodoro);
+        timer.Payload["plan"] = PomodoroPlan.CreateDefault().ToKey();
+        timer.Payload["seconds"] = PomodoroPlan.CreateDefault().TotalSeconds().ToString(CultureInfo.InvariantCulture);
+        timer.Payload["state"] = TimerStates.Configured;
+        timer.Payload["startedAt"] = string.Empty;
+        timer.Payload["elapsed"] = "0";
+        board.Rebuild();
+        board.TickForTest();
+        string expected = CanvasClock.Format(PomodoroPlan.CreateDefault().TotalSeconds());
+        Check("配置完不自动跑", timer.Get("state") == TimerStates.Configured, $"state={timer.Get("state")}");
+        Check("番茄钟显示整份剩余", TreeTexts(board).Contains(expected), $"expected={expected} got=[{string.Join("|", TreeTexts(board).Where(t => t.Contains(':')))}]");
+        Check("番茄钟按钮文案为开始", TimerStates.ActionLabel(TimerState.Configured) == "开始", TimerStates.ActionLabel(TimerState.Configured));
+
+        // ⑭ 跑起来再暂停：剩余秒数不丢（用同一份 payload 直接推 90 秒）
+        timer.Payload["state"] = TimerStates.Running;
+        timer.Payload["startedAt"] = DateTimeOffset.Now.AddSeconds(-90).ToString("O", CultureInfo.InvariantCulture);
+        board.Rebuild();
+        board.TickForTest();
+        string after = CanvasClock.Format(PomodoroPlan.CreateDefault().TotalSeconds() - 90);
+        Check("跑到第 90 秒剩余正确", TreeTexts(board).Contains(after), $"expected={after}");
+    }
+
+    private static TextBlock? ProjectedText(CanvasBoard board, string content)
+        => Descendants(board).OfType<TextBlock>().FirstOrDefault(t => t.Text == content);
+
+    /// <summary>先跑一次 Tick（模拟 1 s 定时器）再找文本，验证「桌面加一条，画板 1 s 内出现」。</summary>
+    private static TextBlock? TickAndFind(CanvasBoard board, string content)
+    {
+        board.TickForTest();
+        // ScrollViewer 里的行要等模板套上才进可视树
+        board.UpdateLayout();
+        return ProjectedText(board, content);
+    }
+
+    /// <summary>点卡片里的复选框（走 Checked 处理器），而不是直接改模型。</summary>
+    private static bool ToggleThroughCard(CanvasBoard board, string text, bool completed)
+    {
+        var box = Descendants(board).OfType<CheckBox>().FirstOrDefault(c =>
+            c.Parent is Grid row && row.Children.OfType<TextBlock>().Any(t => t.Text == text));
+        if (box is null)
+        {
+            return false;
+        }
+
+        box.IsChecked = completed;
+        return true;
+    }
+
+    private static List<string> TreeTexts(CanvasBoard board)
+        => Descendants(board).OfType<TextBlock>().Select(t => t.Text).ToList();
+
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        int count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var nested in Descendants(child))
+            {
+                yield return nested;
+            }
+        }
     }
 
     private static void WritePng(string path, int width, int height, System.Windows.Media.Color color)

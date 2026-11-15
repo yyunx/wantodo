@@ -50,8 +50,53 @@
                            Foreground="{DynamicResource TextSecondary}" />
             </StackPanel>
 
+            <StackPanel x:Name="PomodoroPanel" Margin="0,10,0,0" Visibility="Collapsed">
+                <CheckBox x:Name="CustomCheck" Content="自定义分段（最多 4 段）"
+                          Checked="OnCustomChanged" Unchecked="OnCustomChanged"
+                          Foreground="{DynamicResource TextPrimary}" />
+                <Grid x:Name="SimplePanel" Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="组数" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox x:Name="GroupsBox" Grid.Column="1" Width="44" Height="28" Padding="6,0" Text="4"
+                             VerticalContentAlignment="Center"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Background="{DynamicResource CardBackground}"
+                             BorderBrush="{DynamicResource Divider}" />
+                    <TextBlock Grid.Column="2" Text="专注" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="12,0,6,0" />
+                    <TextBox x:Name="FocusBox" Grid.Column="3" Width="44" Height="28" Padding="6,0" Text="25"
+                             VerticalContentAlignment="Center"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Background="{DynamicResource CardBackground}"
+                             BorderBrush="{DynamicResource Divider}" />
+                    <TextBlock Grid.Column="4" Text="休息" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="12,0,6,0" />
+                    <TextBox x:Name="BreakBox" Grid.Column="5" Width="44" Height="28" Padding="6,0" Text="5"
+                             VerticalContentAlignment="Center"
+                             Foreground="{DynamicResource TextPrimary}"
+                             Background="{DynamicResource CardBackground}"
+                             BorderBrush="{DynamicResource Divider}" />
+                </Grid>
+                <StackPanel x:Name="CustomPanel" Margin="0,6,0,0" Visibility="Collapsed">
+                    <StackPanel x:Name="SegmentRows" />
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Content="＋ 再加一段" Height="24" Padding="8,0" FontSize="11"
+                                Click="OnAddSegment" ToolTip="最多 4 段" />
+                        <Button Content="删掉最后一段" Height="24" Padding="8,0" FontSize="11" Margin="8,0,0,0"
+                                Click="OnRemoveSegment" />
+                    </StackPanel>
+                </StackPanel>
+                <TextBlock x:Name="PomodoroHint" Style="{StaticResource HintText}" Margin="0,6,0,0" />
+            </StackPanel>
+
             <TextBlock x:Name="Hint" Text="到点后右下角提醒一次，并响一声。"
                        Style="{StaticResource HintText}" Margin="0,8,0,0" />
+
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
                 <Button Style="{StaticResource TitleBarButton}" Height="28" Padding="14,0"
