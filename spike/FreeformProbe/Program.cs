@@ -1,4 +1,6 @@
+using System.IO;
 using System.Windows;
+using System.Windows.Ink;
 using System.Windows.Input;
 using Wantodo.App.Controls;
 using Wantodo.Core;
@@ -19,6 +21,7 @@ internal static class Program
     private static int Main()
     {
         _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        SeedResources();
 
         var board = new FreeformBoard { Width = 800, Height = 600 };
         var document = new CanvasDocument();
@@ -114,9 +117,143 @@ internal static class Program
         // ⑦ 每次手势结束都落盘（回调次数 ≥ 手势次数的 1/2，至少不为 0）
         Check("手势后触发保存", saves > 0, $"saves={saves}");
 
+        // ⑧ P1.2：图形创建 / 文本创建 / 笔迹落盘 / 每表面撤销隔离
+        P12Checks();
+
         Console.WriteLine(_failed == 0 ? "PROBE PASS" : $"PROBE FAIL ({_failed})");
         return _failed == 0 ? 0 : 1;
     }
+
+    private static void P12Checks()
+    {
+        var inkDir = Path.Combine(Path.GetTempPath(), "wantodo-070", "probe-ink");
+        if (Directory.Exists(inkDir))
+        {
+            Directory.Delete(inkDir, true);
+        }
+
+        var document = new CanvasDocument();
+        var board = new FreeformBoard { Width = 800, Height = 600 };
+        var saves = 0;
+        board.Attach(document, () => saves++, null, inkDir);
+        board.Measure(new Size(800, 600));
+        board.Arrange(new Rect(0, 0, 800, 600));
+
+        // 矩形：拖 60×50
+        CreateShape(board, FreeformTool.Rect, new Point(100, 100), new Point(160, 150));
+        var rect = ShapeWithKind(document, "rect");
+        Check("矩形创建落模型", rect is not null, Describe(document));
+        Check("矩形坐标来自拖动", rect is not null
+            && Math.Abs(double.Parse(rect.Get("x1")!, System.Globalization.CultureInfo.InvariantCulture) - 100) < 0.01
+            && Math.Abs(double.Parse(rect.Get("y2")!, System.Globalization.CultureInfo.InvariantCulture) - 150) < 0.01,
+            rect is null ? "no rect" : $"x1={rect.Get("x1")} y2={rect.Get("y2")}");
+
+        board.Undo();
+        Check("撤销矩形后图元归零", document.Objects.Count == 0, $"objects={document.Objects.Count}");
+        board.Redo();
+        Check("重做矩形后图元回来", document.Objects.Count == 1, $"objects={document.Objects.Count}");
+
+        // 线 / 箭头：形状字段必须区分
+        CreateShape(board, FreeformTool.Line, new Point(300, 200), new Point(360, 240));
+        CreateShape(board, FreeformTool.Arrow, new Point(400, 260), new Point(470, 320));
+        Check("线创建落模型", ShapeWithKind(document, "line") is not null, Describe(document));
+        Check("箭头创建落模型", ShapeWithKind(document, "arrow") is not null, Describe(document));
+
+        // 文本：点一下建对象，但空文本不应留下
+        board.Tool = FreeformTool.Text;
+        board.PointerDown(new Point(600, 400), ModifierKeys.None);
+        board.PointerUp();
+        var text = document.Objects.FirstOrDefault(o => o.Kind == CanvasObject.KindText);
+        Check("文本工具建出文本图元", text is not null, Describe(document));
+        board.Tool = FreeformTool.Select; // 切工具 = 提交编辑，空文本应被删掉
+        Check("空文本切工具后不留对象", document.Objects.All(o => o.Kind != CanvasObject.KindText), Describe(document));
+
+        // 笔迹：走 OnStrokeCollected 的同一条路径，ISF 必须落盘
+        var stroke = new Stroke(new StylusPointCollection
+        {
+            new StylusPoint(120, 320),
+            new StylusPoint(180, 360),
+            new StylusPoint(220, 380),
+        })
+        {
+            DrawingAttributes = new DrawingAttributes { Color = System.Windows.Media.Colors.SteelBlue, Width = 3, Height = 3 },
+        };
+        board.CommitStroke(stroke);
+        var ink = document.Objects.FirstOrDefault(o => o.Kind == CanvasObject.KindStroke);
+        Check("笔迹落模型", ink is not null, Describe(document));
+        Check("笔迹 ISF 落盘", ink is not null && File.Exists(Path.Combine(inkDir, ink.Get("path")!)),
+            ink is null ? "no stroke" : $"path={ink.Get("path")}");
+        Check("笔迹进 InkCanvas 层", board.InkStrokeCount == 1, $"strokes={board.InkStrokeCount}");
+        board.Undo();
+        Check("撤销笔迹后模型干净", document.Objects.All(o => o.Kind != CanvasObject.KindStroke), Describe(document));
+
+        // V-13：每表面一条撤销栈，来回撤不串
+        var shared = new CanvasDocument();
+        var freeform = new FreeformBoard { Width = 800, Height = 600 };
+        freeform.Attach(shared, null, null, inkDir);
+        freeform.Measure(new Size(800, 600));
+        freeform.Arrange(new Rect(0, 0, 800, 600));
+
+        var structured = new CanvasBoard { Width = 800, Height = 600 };
+        structured.Attach(shared, null, null);
+        structured.Measure(new Size(800, 600));
+        structured.Arrange(new Rect(0, 0, 800, 600));
+
+        CreateShape(freeform, FreeformTool.Rect, new Point(10, 10), new Point(40, 40));
+        CreateShape(freeform, FreeformTool.Line, new Point(50, 10), new Point(90, 40));
+        CreateShape(freeform, FreeformTool.Arrow, new Point(10, 60), new Point(60, 90));
+        structured.Add("note", 200, 200);
+        structured.Add("note", 400, 200);
+        Check("两面各建三步/两张", shared.Objects.Count == 3 && shared.Cards.Count == 2,
+            $"objects={shared.Objects.Count} cards={shared.Cards.Count}");
+        Check("两面栈深各自记账", freeform.UndoDepth == 3 && structured.UndoDepth == 2,
+            $"freeform={freeform.UndoDepth} structured={structured.UndoDepth}");
+
+        freeform.Undo();
+        freeform.Undo();
+        freeform.Undo();
+        Check("自由面撤 3 次回到空", shared.Objects.Count == 0, $"objects={shared.Objects.Count}");
+        Check("结构面不受自由面撤销影响", shared.Cards.Count == 2 && structured.UndoDepth == 2,
+            $"cards={shared.Cards.Count} depth={structured.UndoDepth}");
+        Check("结构面此刻仍可撤销", structured.CanUndo, $"canUndo={structured.CanUndo}");
+
+        structured.Undo();
+        Check("结构面撤 1 次剩 1 张", shared.Cards.Count == 1, $"cards={shared.Cards.Count}");
+        Check("结构面撤销不清自由面重做栈", freeform.CanRedo, $"canRedo={freeform.CanRedo}");
+
+        Console.WriteLine($"P1.2 saves={saves}");
+    }
+
+    /// <summary>
+    /// 探针不启动真正的 App（那会带壳、抢单实例 Mutex），所以这里补一份最小的主题资源，
+    /// 只为让 <see cref="CanvasBoard"/> 的 <c>SetResourceReference</c> 有东西可取。断言的都不是颜色。
+    /// </summary>
+    private static void SeedResources()
+    {
+        var resources = Application.Current.Resources;
+        foreach (var key in new[] { "SurfaceCard", "TextPrimary", "TextSecondary", "TextMuted", "Accent", "BorderActive", "CardBackground", "Divider" })
+        {
+            resources[key] = System.Windows.Media.Brushes.DimGray;
+        }
+
+        resources["ThemeCardBorderBrush"] = System.Windows.Media.Brushes.Gray;
+        resources["ThemeCardBorderThickness"] = new Thickness(1);
+        resources["ThemeCardCornerRadius"] = new CornerRadius(8);
+    }
+
+    private static void CreateShape(FreeformBoard board, FreeformTool tool, Point from, Point to)
+    {
+        board.Tool = tool;
+        board.PointerDown(from, ModifierKeys.None);
+        board.PointerMove(to);
+        board.PointerUp();
+    }
+
+    private static CanvasObject? ShapeWithKind(CanvasDocument document, string kind) =>
+        document.Objects.FirstOrDefault(o => o.Kind == CanvasObject.KindShape && o.Get("shape") == kind);
+
+    private static string Describe(CanvasDocument document) =>
+        $"objects=[{string.Join(",", document.Objects.Select(o => o.Kind + ":" + (o.Get("shape") ?? "-")))}]";
 
     private static CanvasObject MakeText(string id, double x, double y, double w, double h, string text)
     {

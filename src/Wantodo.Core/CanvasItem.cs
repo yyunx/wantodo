@@ -15,6 +15,12 @@ public sealed class CanvasItem
     /// <summary>note / todo / timer / link / image。</summary>
     public string Kind { get; set; } = "note";
 
+    /// <summary>
+    /// 属于哪个表面。0.7.0 的卡片恒定 <see cref="CanvasSurfaces.Structured"/>；
+    /// 字段本身是给第三表面与「跨表面」预留的判别位（plan §4.4），别拿它当冗余删掉。
+    /// </summary>
+    public string Surface { get; set; } = CanvasSurfaces.Structured;
+
     public double X { get; set; }
 
     public double Y { get; set; }
@@ -39,6 +45,7 @@ public sealed class CanvasItem
         Y = double.IsNaN(Y) || double.IsInfinity(Y) ? 0 : Math.Max(0, Y);
         ZIndex = Math.Clamp(ZIndex, 1, 999);
         Kind = string.IsNullOrWhiteSpace(Kind) ? "note" : Kind;
+        Surface = CanvasSurfaces.Normalize(Surface);
         Style = string.IsNullOrWhiteSpace(Style) ? "paper" : Style;
         Payload ??= new Dictionary<string, string>();
         return this;

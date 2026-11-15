@@ -56,7 +56,11 @@ public partial class TopPanelWindow : Window
 
         // 0.7.0：画布住 data.json，写盘走 Board 的合并保存（600 ms 去抖），不再有 canvas.json。
         CanvasBoard.Attach(viewModel.Model.Canvas, PersistCanvas, DataRootService.Paths.CanvasImagesDir);
-        FreeformBoard.Attach(viewModel.Model.Canvas, () => PersistCanvas(viewModel.Model.Canvas), DataRootService.Paths.CanvasImagesDir);
+        FreeformBoard.Attach(
+            viewModel.Model.Canvas,
+            () => PersistCanvas(viewModel.Model.Canvas),
+            DataRootService.Paths.CanvasImagesDir,
+            DataRootService.Paths.CanvasInkDir);
         CanvasBoard.StatusChanged += (_, _) => UpdateCanvasStatus();
         FreeformBoard.ViewportChanged += (_, _) => UpdateFreeformStatus();
         FreeformBoard.SelectionChanged += (_, _) => UpdateFreeformStatus();
@@ -175,7 +179,7 @@ public partial class TopPanelWindow : Window
         var freeform = string.Equals(CanvasSurfaces.Normalize(document?.ActiveSurfaceId), CanvasSurfaces.Freeform, StringComparison.OrdinalIgnoreCase);
         CanvasStatus.Text = freeform
             ? string.Empty
-            : $"{document?.Cards.Count ?? 0} 张卡 · Ctrl+Z 撤销";
+            : $"{document?.Cards.Count ?? 0} 张卡 · 撤销 {CanvasBoard.UndoDepth} 步";
         UpdateFreeformStatus();
     }
 
@@ -784,7 +788,8 @@ public partial class TopPanelWindow : Window
         {
             if (IsFreeformActive)
             {
-                AppLog.Info("[画布] 自由表面的撤销栈在 P1.2 接入");
+                FreeformBoard.Undo();
+                UpdateFreeformStatus();
             }
             else
             {
@@ -800,7 +805,8 @@ public partial class TopPanelWindow : Window
         {
             if (IsFreeformActive)
             {
-                AppLog.Info("[画布] 自由表面的重做栈在 P1.2 接入");
+                FreeformBoard.Redo();
+                UpdateFreeformStatus();
             }
             else
             {

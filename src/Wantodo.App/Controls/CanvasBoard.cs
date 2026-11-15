@@ -24,18 +24,10 @@ namespace Wantodo.App.Controls;
 public sealed class CanvasBoard : Canvas
 {
     private const double GridStep = 8;
-    private const int UndoLimit = 20;
 
     private static readonly string[] ImageExtensions = { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp" };
 
-    private static readonly JsonSerializerOptions SnapshotOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        WriteIndented = false,
-    };
-
-    private readonly Stack<string> _undo = new();
-    private readonly Stack<string> _redo = new();
+    private readonly SurfaceUndo _undo = new();
     private readonly Dictionary<string, Border> _cards = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBlock> _timerTexts = new(StringComparer.OrdinalIgnoreCase);
 
@@ -80,9 +72,15 @@ public sealed class CanvasBoard : Canvas
 
     public CanvasDocument Document => _document;
 
-    public bool CanUndo => _undo.Count > 0;
+    /// <summary>本面所属的撤销栈键（0.7.0 P1.2：每表面一条栈，计划书 §4.6）。</summary>
+    private const string Surface = CanvasSurfaces.Structured;
 
-    public bool CanRedo => _redo.Count > 0;
+    public bool CanUndo => _undo.CanUndo(Surface);
+
+    public bool CanRedo => _undo.CanRedo(Surface);
+
+    /// <summary>当前表面还能撤销几步（状态行显示）。</summary>
+    public int UndoDepth => _undo.Depth(Surface);
 
     public event EventHandler? StatusChanged;
 
@@ -186,25 +184,23 @@ public sealed class CanvasBoard : Canvas
 
     public void Undo()
     {
-        if (_undo.Count == 0)
+        if (!_undo.TryUndo(Surface, Snapshot(), out var json))
         {
             return;
         }
 
-        _redo.Push(Snapshot());
-        Restore(_undo.Pop());
+        Restore(json);
         Save();
     }
 
     public void Redo()
     {
-        if (_redo.Count == 0)
+        if (!_undo.TryRedo(Surface, Snapshot(), out var json))
         {
             return;
         }
 
-        _undo.Push(Snapshot());
-        Restore(_redo.Pop());
+        Restore(json);
         Save();
     }
 
@@ -1312,37 +1308,18 @@ public sealed class CanvasBoard : Canvas
 
     private static double Snap(double value) => Math.Round(value / GridStep, MidpointRounding.AwayFromZero) * GridStep;
 
-    private string Snapshot() => JsonSerializer.Serialize(_document, SnapshotOptions);
+    private string Snapshot() => CanvasSnapshot.Capture(_document, Surface);
 
     private void Restore(string json)
     {
-        var restored = JsonSerializer.Deserialize<CanvasDocument>(json, SnapshotOptions);
-        if (restored is null)
-        {
-            return;
-        }
-
-        restored.Normalize();
-        _document = restored;
-        _selected = null;
+        // 只换回本表面的卡片：自由表面的图元不能被结构化表面的 Ctrl+Z 动到（V-13）。
+        CanvasSnapshot.Restore(_document, Surface, json);
+        _selected = _document.Items.FirstOrDefault(item =>
+            string.Equals(item.Id, _selected?.Id, StringComparison.OrdinalIgnoreCase));
         Rebuild();
     }
 
-    private void PushUndo()
-    {
-        _undo.Push(Snapshot());
-        if (_undo.Count > UndoLimit)
-        {
-            var newest = _undo.ToArray().Take(UndoLimit).ToArray();
-            _undo.Clear();
-            for (var i = newest.Length - 1; i >= 0; i--)
-            {
-                _undo.Push(newest[i]);
-            }
-        }
-
-        _redo.Clear();
-    }
+    private void PushUndo() => _undo.Push(Surface, Snapshot());
 
     private void Save()
     {

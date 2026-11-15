@@ -10,7 +10,7 @@
 | P0.4 | 双表面宿主 + 分段控件（只切 Visibility） | DONE | [p0.4.md](p0.4.md) |
 | P0.5 | 液态玻璃探针 + 材质 + Win10 降级 | DONE（含 4 项 PENDING-HUMAN） | [p0.5.md](p0.5.md) · [探针](p0.5-probe.md) |
 | P1.1 | 自由表面工具组 + 缩放 + 平移 | DONE（含 5 项 PENDING-HUMAN） | [p1.1.md](p1.1.md) · [探针日志](p1.1-probe.log) |
-| P1.2 | 笔迹与图形 + 每表面撤销 | TODO | — |
+| P1.2 | 笔迹与图形 + 每表面撤销 | DONE（含 5 项 PENDING-HUMAN） | [p1.2.md](p1.2.md) · [探针日志](p1.2-probe.log) |
 | P1.3 | 无铬图片 + 剪贴板 + 资产策略 | TODO | — |
 | P1.4 | 待办投影 / 拖动改名分离 / 计时状态机 | TODO | — |
 | P2.1 | 颜色键 + 右键菜单 + 滚动条 + 空状态 | TODO | — |
@@ -19,8 +19,15 @@
 
 ## 下一步
 
-P1.2 笔迹（`InkCanvas`）+ 矩形/线/箭头/文本创建 + 每表面撤销 50 步（V-13：A 面 3 步 → B 面 2 步 → 回 A 撤 3 次，A 复原、B 不变）。
-先读 `docs/plan-0.7.0.md` §4.6（撤销作用域）与 §5.3，再读 `src/Wantodo.App/Controls/CanvasBoard.cs` 里现有的撤销栈实现（`Ctrl+Z/Y` 已能用），把它抽成两个表面共用的一份。
+P1.3 无铬图片 + 剪贴板两形态（文件/位图）+ 资产策略（`board/canvas-images/<sha256 前 16>.<ext>`、相对路径、`DecodePixelWidth`、单张 ≤20 MB、总量 >200 MB 提示，Q4 已裁决不生成缩略图）。
+先读 `docs/plan-0.7.0.md` §4.7（图片归属）与 §5.3，再读 `src/Wantodo.App/Controls/CanvasBoard.cs` 现有的 `AddImage` 与 `BuildImage`（块 B 去框实现可直接复用）。
+
+未偿清单（收口时必须交代）：
+- 面板 `TopPanelWindow` 未启用材质（D16，留 P2.1）
+- 笔迹静态化与 500 笔阈值未做（P2.2 / V-12）
+- 笔迹层是新增渲染层，P2.2 必须复测首帧与内存
+- 删除图元不删 `.isf`，会有孤儿文件（D23，P2.2 清理）
+- Win10 Acrylic 降级只有代码路径与 WARN，无真机（A4）
 
 ## 下一步第一条命令
 

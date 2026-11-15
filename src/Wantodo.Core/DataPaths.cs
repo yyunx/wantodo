@@ -49,6 +49,12 @@ public sealed class DataPaths
     /// <summary>画布卡片用到的图片副本。原图可能被用户移走，所以粘贴/拖入时复制一份。</summary>
     public string CanvasImagesDir => Path.Combine(BoardDir, "canvas-images");
 
+    /// <summary>
+    /// 自由表面笔迹的 ISF 文件目录（plan §4.4：二进制不进 <c>data.json</c>，只存相对路径）。
+    /// 一笔一个 <c>&lt;id&gt;.isf</c>，删除图元时一起删。
+    /// </summary>
+    public string CanvasInkDir => Path.Combine(BoardDir, "ink");
+
     /// <summary>应用设置。Phase 7 暂不与板数据拆开，保留给 Phase 8/9 用。</summary>
     public string SettingsFile => Path.Combine(ConfigDir, "settings.json");
 

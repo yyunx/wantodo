@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Ink;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -11,16 +13,14 @@ using IOPath = System.IO.Path;
 namespace Wantodo.App.Controls;
 
 /// <summary>
-/// 自由表面宿主（0.7.0 P0.4 渲染 / P1.1 交互）：渲染 <see cref="CanvasObject"/>，
+/// 自由表面宿主（0.7.0 P0.4 渲染 / P1.1 交互 / P1.2 创建与撤销）：渲染 <see cref="CanvasObject"/>，
 /// 并按 <see cref="CanvasViewport"/> 做缩放与平移。与结构化表面共用同一份
 /// <see cref="CanvasDocument"/>、同一个窗口、同一套主题——切换时只改 <c>Visibility</c>，
 /// 不重建控件、不换窗口。
 /// </summary>
 /// <remarks>
-/// 0.7.0 P1.1 的交互范围：十工具的选择与互斥、缩放 25–400%（含「适应」）、
-/// 手形/空格平移、选择工具的点选与框选、拖动图元、橡皮删除。
-/// 创建类工具（文本/图片/矩形/线/箭头/画笔）在 P1.2 接入，本步只保证「选中即高亮、
-/// 光标正确、不吞手势」；撤销栈也在 P1.2。
+/// P1.2 起：矩形/线/箭头/文本可创建，笔画由 <see cref="InkCanvas"/> 承载并落 ISF，
+/// 撤销按表面分开（<see cref="SurfaceUndo"/>，深度 50，只存单表面快照）。
 /// </remarks>
 public sealed class FreeformBoard : Grid
 {
@@ -29,7 +29,20 @@ public sealed class FreeformBoard : Grid
     private readonly ScaleTransform _scale = new(1, 1);
     private readonly TranslateTransform _offset = new(0, 0);
     private readonly Dictionary<string, FrameworkElement> _visuals = new(StringComparer.Ordinal);
+
+    /// <summary>图形图元的可视元素（绝对坐标，不套 <see cref="Wrap"/>，所以单独记）。</summary>
+    private readonly Dictionary<string, Shape> _shapeVisuals = new(StringComparer.Ordinal);
     private readonly HashSet<string> _selected = new(StringComparer.Ordinal);
+
+    /// <summary>笔迹层：只承载 stroke 图元，其余图元由 <see cref="_plane"/> 自绘（plan §4.8）。</summary>
+    private readonly InkCanvas _ink = new();
+
+    /// <summary>每个笔迹图元对应的 ISF 内容；重建时按 <c>payload.path</c> 回读。</summary>
+    private readonly Dictionary<string, StrokeCollection> _strokes = new(StringComparer.Ordinal);
+
+    /// <summary>每个表面一条撤销栈（P1.2，plan §4.6）。</summary>
+    private readonly SurfaceUndo _undo = new();
+
     private readonly TextBlock _empty = new()
     {
         Text = "还没有内容",
@@ -42,6 +55,7 @@ public sealed class FreeformBoard : Grid
     private CanvasDocument? _document;
     private Action? _persist;
     private string? _imagesDir;
+    private string? _inkDir;
 
     private FreeformTool _tool = FreeformTool.Select;
     private bool _spaceHeld;
@@ -60,6 +74,22 @@ public sealed class FreeformBoard : Grid
     private readonly Dictionary<string, Point> _moveStart = new(StringComparer.Ordinal);
     private bool _dirty;
 
+    /// <summary>框选/拖动是否已经压过撤销（一次手势只压一份）。</summary>
+    private bool _gestureUndo;
+
+    /// <summary>手势开始时抓的快照，等真的发生位移才压栈（纯点击不污染撤销栈）。</summary>
+    private string? _pendingUndo;
+
+    /// <summary>最后一次指针位置（控件坐标）；PointerUp 不带参数，落点要用它。</summary>
+    private Point _lastBoard;
+
+    private bool _creating;
+    private Point _createStart;
+    private FrameworkElement? _createPreview;
+
+    private TextBox? _textEditor;
+    private CanvasObject? _editingItem;
+
     public FreeformBoard()
     {
         ClipToBounds = true;
@@ -72,7 +102,17 @@ public sealed class FreeformBoard : Grid
         _overlay.IsHitTestVisible = false;
         _plane.IsHitTestVisible = false;
 
+        // 笔迹层跟内容层吃同一套缩放/平移；非笔迹工具时整层不参与命中，鼠标照样落到本控件。
+        _ink.RenderTransform = new TransformGroup { Children = { _scale, _offset } };
+        _ink.Background = Brushes.Transparent;
+        _ink.EditingMode = InkCanvasEditingMode.None;
+        _ink.IsHitTestVisible = false;
+        _ink.UseCustomCursor = true;
+        _ink.Cursor = Cursors.Pen;
+        _ink.StrokeCollected += OnStrokeCollected;
+
         Children.Add(_plane);
+        Children.Add(_ink);
         Children.Add(_overlay);
         Children.Add(_empty);
 
@@ -91,7 +131,14 @@ public sealed class FreeformBoard : Grid
         get => _tool;
         set
         {
+            if (_tool == value)
+            {
+                return;
+            }
+
+            CommitTextEdit(commit: true);
             _tool = value;
+            UpdateInkLayer();
             ApplyCursor();
         }
     }
@@ -118,18 +165,80 @@ public sealed class FreeformBoard : Grid
 
     public int ObjectCount => _document?.Objects.Count(o => Matches(o)) ?? 0;
 
+    /// <summary>InkCanvas 里当前的笔画数，探针用来确认「模型有笔迹」和「画布上真看得见」是一回事。</summary>
+    internal int InkStrokeCount => _ink.Strokes.Count;
+
     /// <summary>缩放/平移结束后触发，供状态行刷新（不参与保存）。</summary>
     public event EventHandler? ViewportChanged;
 
     public event EventHandler? SelectionChanged;
 
-    public void Attach(CanvasDocument document, Action? persist, string? imagesDir)
+    public void Attach(CanvasDocument document, Action? persist, string? imagesDir, string? inkDir = null)
     {
         _document = document ?? new CanvasDocument();
         _persist = persist;
         _imagesDir = imagesDir;
+        _inkDir = inkDir;
         _selected.Clear();
+        _undo.Clear(SurfaceId);
         Rebuild();
+    }
+
+    /// <summary>当前表面还能撤销几步。</summary>
+    public int UndoDepth => _undo.Depth(SurfaceId);
+
+    public bool CanUndo => _undo.CanUndo(SurfaceId);
+
+    public bool CanRedo => _undo.CanRedo(SurfaceId);
+
+    /// <summary>撤销本表面一步（不动另一表面，plan §4.6）。</summary>
+    public void Undo()
+    {
+        if (_document is null || !_undo.TryUndo(SurfaceId, Snapshot(), out var json))
+        {
+            return;
+        }
+
+        CanvasSnapshot.Restore(_document, SurfaceId, json);
+        AfterRestore();
+    }
+
+    public void Redo()
+    {
+        if (_document is null || !_undo.TryRedo(SurfaceId, Snapshot(), out var json))
+        {
+            return;
+        }
+
+        CanvasSnapshot.Restore(_document, SurfaceId, json);
+        AfterRestore();
+    }
+
+    private string Snapshot() => _document is null ? string.Empty : CanvasSnapshot.Capture(_document, SurfaceId);
+
+    private void PushUndo()
+    {
+        if (_document is not null)
+        {
+            _undo.Push(SurfaceId, Snapshot());
+        }
+    }
+
+    /// <summary>撤销/重做之后：丢掉已不存在的选择、清掉过期的笔迹缓存、重画并落盘。</summary>
+    private void AfterRestore()
+    {
+        if (_document is null)
+        {
+            return;
+        }
+
+        CommitTextEdit(commit: false);
+        var alive = _document.Objects.Where(Matches).Select(o => o.Id).ToHashSet(StringComparer.Ordinal);
+        _selected.RemoveWhere(id => !alive.Contains(id));
+        Rebuild();
+        _dirty = true;
+        Flush();
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>文档变了（切表面回来、撤销、外部导入）就整块重画；控件本身常驻。</summary>
@@ -138,6 +247,7 @@ public sealed class FreeformBoard : Grid
         _plane.Children.Clear();
         _overlay.Children.Clear();
         _visuals.Clear();
+        _shapeVisuals.Clear();
         _marqueeVisual = null;
 
         if (_document is null)
@@ -151,6 +261,25 @@ public sealed class FreeformBoard : Grid
 
         foreach (var item in _document.Objects.Where(Matches).OrderBy(o => o.ZIndex))
         {
+            // 笔画由 InkCanvas 层负责；这里再画一遍就会出现两套描边
+            if (item.Kind == CanvasObject.KindStroke)
+            {
+                continue;
+            }
+
+            if (item.Kind == CanvasObject.KindShape)
+            {
+                var shape = BuildShape(item);
+                if (shape is not null)
+                {
+                    Panel.SetZIndex(shape, item.ZIndex);
+                    _plane.Children.Add(shape);
+                    _shapeVisuals[item.Id] = shape;
+                }
+
+                continue;
+            }
+
             var element = BuildObject(item);
             if (element is null)
             {
@@ -166,7 +295,8 @@ public sealed class FreeformBoard : Grid
         }
 
         // 文档里已经没有的 id 不能继续算「选中」
-        _selected.RemoveWhere(id => !_visuals.ContainsKey(id));
+        _selected.RemoveWhere(id => !_visuals.ContainsKey(id) && !_shapeVisuals.ContainsKey(id));
+        RebuildInk();
         ApplySelectionVisuals();
         UpdateEmpty();
     }
@@ -177,6 +307,383 @@ public sealed class FreeformBoard : Grid
     private void UpdateEmpty()
     {
         _empty.Visibility = ObjectCount == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // ---- 笔迹层（plan §4.8：InkCanvas 只承载笔画，几何图元自绘）-------------
+
+    /// <summary>笔迹工具时让 InkCanvas 接管指针，其余工具放行。</summary>
+    private void UpdateInkLayer()
+    {
+        var ink = _tool == FreeformTool.Ink;
+        _ink.IsHitTestVisible = ink;
+        _ink.EditingMode = ink ? InkCanvasEditingMode.Ink : InkCanvasEditingMode.None;
+        if (ink)
+        {
+            var width = 3.0;
+            var color = (FindResource("Accent") as SolidColorBrush)?.Color ?? Colors.White;
+            _ink.DefaultDrawingAttributes = new DrawingAttributes
+            {
+                Color = color,
+                Width = width,
+                Height = width,
+                FitToCurve = true,
+                StylusTip = StylusTip.Ellipse,
+            };
+        }
+    }
+
+    /// <summary>从文档重建笔迹层：一笔一个对象，内容来自 <c>payload.path</c> 指向的 ISF。</summary>
+    private void RebuildInk()
+    {
+        _ink.Strokes.Clear();
+        _strokes.Clear();
+        if (_document is null)
+        {
+            return;
+        }
+
+        foreach (var item in _document.Objects.Where(Matches).Where(o => o.Kind == CanvasObject.KindStroke))
+        {
+            var strokes = LoadStroke(item);
+            if (strokes is null)
+            {
+                continue;
+            }
+
+            _strokes[item.Id] = strokes;
+            _ink.Strokes.Add(strokes);
+        }
+    }
+
+    private StrokeCollection? LoadStroke(CanvasObject item)
+    {
+        var relative = item.Get("path");
+        if (string.IsNullOrWhiteSpace(relative))
+        {
+            return null;
+        }
+
+        var full = IOPath.IsPathRooted(relative)
+            ? relative
+            : IOPath.Combine(_inkDir ?? string.Empty, relative);
+        if (!File.Exists(full))
+        {
+            AppLog.Warn($"[画布] 笔迹文件缺失：{full}");
+            return null;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(full);
+            return new StrokeCollection(stream);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        {
+            AppLog.Warn($"[画布] 笔迹文件读不出：{full}（{ex.Message}）");
+            return null;
+        }
+    }
+
+    private string? StrokePath(CanvasObject item) =>
+        item.Get("path") is { Length: > 0 } relative
+            ? (IOPath.IsPathRooted(relative) ? relative : IOPath.Combine(_inkDir ?? string.Empty, relative))
+            : null;
+
+    private void OnStrokeCollected(object sender, InkCanvasStrokeCollectedEventArgs e) => CommitStroke(e.Stroke);
+
+    /// <summary>
+    /// 把一笔落成模型 + ISF 文件。抽出来是为了让探针能不经真实触控笔就走到同一条路径
+    /// （<c>spike/FreeformProbe</c> 通过 InternalsVisibleTo 访问）。
+    /// </summary>
+    internal void CommitStroke(Stroke stroke)
+    {
+        var document = _document;
+        if (document is null || string.IsNullOrWhiteSpace(_inkDir))
+        {
+            return;
+        }
+
+        PushUndo();
+
+        var id = document.NextObjectId();
+        var bounds = stroke.GetBounds();
+        var item = new CanvasObject
+        {
+            Id = id,
+            Kind = CanvasObject.KindStroke,
+            Surface = SurfaceId,
+            X = Math.Max(0, bounds.X),
+            Y = Math.Max(0, bounds.Y),
+            W = Math.Max(CanvasObject.MinWidth, bounds.Width),
+            H = Math.Max(CanvasObject.MinHeight, bounds.Height),
+            ZIndex = NextZ(document),
+        };
+        item.Normalize();
+        var fileName = id + ".isf";
+
+        try
+        {
+            Directory.CreateDirectory(_inkDir);
+            var single = new StrokeCollection { stroke };
+            using var stream = File.Create(IOPath.Combine(_inkDir, fileName));
+            single.Save(stream);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // 写不出 ISF 就不要往文档里塞一个指向空文件的图元
+            AppLog.Warn($"[画布] 笔迹保存失败：{ex.Message}");
+            _ink.Strokes.Remove(stroke);
+            return;
+        }
+
+        item.Payload["path"] = fileName;
+        item.Payload["color"] = "accent";
+        item.Payload["strokeWidth"] = "3";
+        document.Objects.Add(item);
+        _strokes[id] = new StrokeCollection { stroke };
+        _ink.Strokes.Add(stroke);
+        _dirty = true;
+        Flush();
+        UpdateEmpty();
+        AppLog.Info($"[画布] 新增笔迹 {id} 顶点={stroke.StylusPoints.Count} 尺寸={item.W:0}x{item.H:0}");
+    }
+
+    private static int NextZ(CanvasDocument document) =>
+        document.Objects.Count == 0 ? 1 : Math.Clamp(document.Objects.Max(o => o.ZIndex) + 1, 1, 999);
+
+    // ---- 图形与文本创建 -----------------------------------------------------
+
+    /// <summary>拖动式创建（矩形/线/箭头）：按下记起点，移动画预览，抬起落模型。</summary>
+    private void BeginCreate(Point board, FreeformTool tool)
+    {
+        _creating = true;
+        _createStart = ToCanvas(board);
+        _createPreview = new Rectangle
+        {
+            StrokeThickness = 1,
+            StrokeDashArray = new DoubleCollection { 3, 3 },
+            Fill = Brushes.Transparent,
+            IsHitTestVisible = false,
+        };
+        _createPreview.SetResourceReference(Shape.StrokeProperty, "Accent");
+        Canvas.SetLeft(_createPreview, _createStart.X);
+        Canvas.SetTop(_createPreview, _createStart.Y);
+        _plane.Children.Add(_createPreview);
+        _ = tool;
+    }
+
+    private void UpdateCreate(Point board)
+    {
+        if (!_creating || _createPreview is null)
+        {
+            return;
+        }
+
+        var current = ToCanvas(board);
+        var rect = new Rect(_createStart, current);
+        Canvas.SetLeft(_createPreview, rect.X);
+        Canvas.SetTop(_createPreview, rect.Y);
+        _createPreview.Width = Math.Max(1, rect.Width);
+        _createPreview.Height = Math.Max(1, rect.Height);
+    }
+
+    private void EndCreate(Point board)
+    {
+        var tool = _tool;
+        var start = _createStart;
+        var end = ToCanvas(board);
+        _creating = false;
+        if (_createPreview is not null)
+        {
+            _plane.Children.Remove(_createPreview);
+            _createPreview = null;
+        }
+
+        var rect = new Rect(start, end);
+        // 手抖点一下不该落图元：线类要求 6 px 以上的位移，矩形要求 8×8
+        if (tool is FreeformTool.Line or FreeformTool.Arrow)
+        {
+            if (Math.Abs(end.X - start.X) < 6 && Math.Abs(end.Y - start.Y) < 6)
+            {
+                return;
+            }
+        }
+        else if (rect.Width < 8 || rect.Height < 8)
+        {
+            return;
+        }
+
+        if (_document is null)
+        {
+            return;
+        }
+
+        PushUndo();
+        var id = _document.NextObjectId();
+        var item = new CanvasObject
+        {
+            Id = id,
+            Kind = CanvasObject.KindShape,
+            Surface = SurfaceId,
+            X = Math.Max(0, rect.X),
+            Y = Math.Max(0, rect.Y),
+            W = Math.Max(CanvasObject.MinWidth, rect.Width),
+            H = Math.Max(CanvasObject.MinHeight, rect.Height),
+            ZIndex = NextZ(_document),
+        };
+        item.Normalize();
+        item.Payload["shape"] = tool switch
+        {
+            FreeformTool.Rect => "rect",
+            FreeformTool.Line => "line",
+            _ => "arrow",
+        };
+        item.Payload["x1"] = start.X.ToString("0.##", CultureInfo.InvariantCulture);
+        item.Payload["y1"] = start.Y.ToString("0.##", CultureInfo.InvariantCulture);
+        item.Payload["x2"] = end.X.ToString("0.##", CultureInfo.InvariantCulture);
+        item.Payload["y2"] = end.Y.ToString("0.##", CultureInfo.InvariantCulture);
+        item.Payload["color"] = "accent";
+        item.Payload["strokeWidth"] = "2";
+        _document.Objects.Add(item);
+        SelectOnly(id);
+        Rebuild();
+        _dirty = true;
+        Flush();
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>文本工具：点一下落一个文本框，并直接进入编辑（Enter 提交、Esc 取消）。</summary>
+    private void CreateText(Point board)
+    {
+        if (_document is null)
+        {
+            return;
+        }
+
+        var canvas = ToCanvas(board);
+        PushUndo();
+        var id = _document.NextObjectId();
+        var item = new CanvasObject
+        {
+            Id = id,
+            Kind = CanvasObject.KindText,
+            Surface = SurfaceId,
+            X = Math.Max(0, canvas.X - 8),
+            Y = Math.Max(0, canvas.Y - 10),
+            W = 160,
+            H = 40,
+            ZIndex = NextZ(_document),
+        };
+        item.Normalize();
+        item.Payload["text"] = "";
+        item.Payload["color"] = "textPrimary";
+        _document.Objects.Add(item);
+        Rebuild();
+        BeginTextEdit(item);
+    }
+
+    /// <summary>在画布上开一个与缩放同步的输入框（放在控件坐标里，用 zoom 换算尺寸）。</summary>
+    public void BeginTextEdit(CanvasObject item)
+    {
+        CommitTextEdit(commit: true);
+        _editingItem = item;
+
+        var zoom = Math.Max(0.25, _scale.ScaleX);
+        var topLeft = ToBoard(new Point(item.X, item.Y));
+        _textEditor = new TextBox
+        {
+            Text = item.Get("text") ?? string.Empty,
+            FontSize = 14 * zoom,
+            Width = Math.Max(60, item.W * zoom),
+            Height = Math.Max(24, item.H * zoom),
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        _textEditor.SetResourceReference(TextBox.ForegroundProperty, "TextPrimary");
+        _textEditor.SetResourceReference(TextBox.BackgroundProperty, "SurfaceCard");
+        _textEditor.SetResourceReference(TextBox.CaretBrushProperty, "Accent");
+
+        Children.Add(_textEditor);
+        Canvas.SetLeft(_textEditor, topLeft.X);
+        Canvas.SetTop(_textEditor, topLeft.Y);
+        _textEditor.KeyDown += OnTextEditorKeyDown;
+        _textEditor.LostKeyboardFocus += (_, _) => CommitTextEdit(commit: true);
+        _textEditor.Focus();
+        _textEditor.SelectAll();
+    }
+
+    /// <summary>双击图元进入编辑（文本编辑；其它类型 P2.1 再接）。</summary>
+    public void BeginEdit(string id)
+    {
+        var item = _document?.Objects.FirstOrDefault(o => string.Equals(o.Id, id, StringComparison.Ordinal));
+        if (item is null)
+        {
+            return;
+        }
+
+        if (item.Kind == CanvasObject.KindText)
+        {
+            BeginTextEdit(item);
+        }
+    }
+
+    private void OnTextEditorKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+        {
+            CommitTextEdit(commit: true);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CommitTextEdit(commit: false);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>提交/放弃文本编辑；空文本的对象会被删掉（避免留一个看不见的空图元）。</summary>
+    public void CommitTextEdit(bool commit)
+    {
+        if (_textEditor is null || _editingItem is null)
+        {
+            return;
+        }
+
+        var editor = _textEditor;
+        var item = _editingItem;
+        _textEditor = null;
+        _editingItem = null;
+        editor.KeyDown -= OnTextEditorKeyDown;
+        Children.Remove(editor);
+
+        var text = commit ? editor.Text : null;
+        if (commit)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                _document?.Objects.RemoveAll(o => string.Equals(o.Id, item.Id, StringComparison.Ordinal));
+                _selected.Remove(item.Id);
+            }
+            else
+            {
+                item.Payload["text"] = text;
+            }
+
+            Rebuild();
+            _dirty = true;
+            Flush();
+            return;
+        }
+
+        // 取消：新建的空文本框整个拿掉，已有文本保持原样
+        if (string.IsNullOrWhiteSpace(item.Get("text")))
+        {
+            _document?.Objects.RemoveAll(o => string.Equals(o.Id, item.Id, StringComparison.Ordinal));
+            _selected.Remove(item.Id);
+            Rebuild();
+            _dirty = true;
+            Flush();
+        }
     }
 
     // ---- 缩放与平移 ---------------------------------------------------------
@@ -368,15 +875,28 @@ public sealed class FreeformBoard : Grid
                 border.SetResourceReference(Border.BorderBrushProperty, "Accent");
             }
         }
+
+        foreach (var (id, shape) in _shapeVisuals)
+        {
+            var selected = _selected.Contains(id);
+            shape.StrokeThickness = selected ? 3 : 2;
+            shape.SetResourceReference(Shape.StrokeProperty, selected ? "Accent" : "BorderActive");
+        }
     }
 
-    /// <summary>删除选中图元（P1.1 无撤销；P1.2 接撤销栈后走同一入口）。</summary>
+    /// <summary>删除选中图元（一笔一块撤销，ISF 文件一并清掉）。</summary>
     public void DeleteSelected()
     {
         var document = _document;
         if (document is null || _selected.Count == 0)
         {
             return;
+        }
+
+        PushUndo();
+        foreach (var id in _selected.ToArray())
+        {
+            RemoveStrokeFile(id);
         }
 
         var removed = document.Objects.RemoveAll(o => _selected.Contains(o.Id));
@@ -400,15 +920,48 @@ public sealed class FreeformBoard : Grid
             return;
         }
 
-        if (document.Objects.RemoveAll(o => string.Equals(o.Id, id, StringComparison.Ordinal)) == 0)
+        var target = document.Objects.FirstOrDefault(o => string.Equals(o.Id, id, StringComparison.Ordinal));
+        if (target is null)
         {
             return;
         }
 
+        PushUndo();
+        RemoveStrokeFile(id);
+        document.Objects.RemoveAll(o => string.Equals(o.Id, id, StringComparison.Ordinal));
         _selected.Remove(id);
         Rebuild();
         _dirty = true;
         Flush();
+    }
+
+    /// <summary>删掉笔迹对象对应的 ISF；文件已被别处删掉也不报错。</summary>
+    private void RemoveStrokeFile(string id)
+    {
+        var item = _document?.Objects.FirstOrDefault(o => string.Equals(o.Id, id, StringComparison.Ordinal));
+        if (item is null || item.Kind != CanvasObject.KindStroke)
+        {
+            return;
+        }
+
+        var path = StrokePath(item);
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // 文件在别处被占用不算致命：模型里已经删了，留下的孤儿文件下次清理
+            AppLog.Warn($"[画布] 笔迹文件删不掉：{path}（{ex.Message}）");
+        }
     }
 
     // ---- 指针手势（鼠标事件与探针共用同一入口）------------------------------
@@ -425,6 +978,8 @@ public sealed class FreeformBoard : Grid
             return;
         }
 
+        _lastBoard = board;
+        CommitTextEdit(commit: true);
         var canvas = ToCanvas(board);
         var shift = (modifiers & ModifierKeys.Shift) != 0;
 
@@ -456,8 +1011,22 @@ public sealed class FreeformBoard : Grid
 
         if (_tool != FreeformTool.Select)
         {
-            // 创建类工具在 P1.2 接入：这里明确记一条，避免「点了没反应也看不出为什么」。
-            AppLog.Info($"[画布] 工具 {FreeformToolCatalog.IdOf(_tool)} 的创建行为在 P1.2 接入");
+            switch (_tool)
+            {
+                case FreeformTool.Text:
+                    CreateText(board);
+                    break;
+                case FreeformTool.Rect:
+                case FreeformTool.Line:
+                case FreeformTool.Arrow:
+                    BeginCreate(board, _tool);
+                    break;
+                default:
+                    // 图片要接剪贴板与资产目录（P1.3），画笔走 InkCanvas 的 StrokeCollected
+                    AppLog.Info($"[画布] 工具 {FreeformToolCatalog.IdOf(_tool)} 的创建行为在 P1.3 接入");
+                    break;
+            }
+
             return;
         }
 
@@ -474,6 +1043,8 @@ public sealed class FreeformBoard : Grid
             }
 
             _moving = true;
+            _gestureUndo = false;
+            _pendingUndo = Snapshot();
             _moveOrigin = board;
             _moveStart.Clear();
             foreach (var item in _document.Objects.Where(o => _selected.Contains(o.Id)))
@@ -503,6 +1074,13 @@ public sealed class FreeformBoard : Grid
 
     public void PointerMove(Point board)
     {
+        _lastBoard = board;
+        if (_creating)
+        {
+            UpdateCreate(board);
+            return;
+        }
+
         if (_panning)
         {
             _offset.X = _panStartX + (board.X - _panOrigin.X);
@@ -514,6 +1092,19 @@ public sealed class FreeformBoard : Grid
         {
             var dx = (board.X - _moveOrigin.X) / Math.Max(0.0001, _scale.ScaleX);
             var dy = (board.Y - _moveOrigin.Y) / Math.Max(0.0001, _scale.ScaleY);
+            if (!_gestureUndo && (Math.Abs(dx) > 0.5 || Math.Abs(dy) > 0.5))
+            {
+                // 手势开始前的快照在 PointerDown 就抓好了：一次拖动只压一份，
+                // 撤销一步回到拖动前，而不是回到上一帧。
+                if (_pendingUndo is not null)
+                {
+                    _undo.Push(SurfaceId, _pendingUndo);
+                }
+
+                _pendingUndo = null;
+                _gestureUndo = true;
+            }
+
             foreach (var item in _document?.Objects ?? [])
             {
                 if (!_moveStart.TryGetValue(item.Id, out var start))
@@ -561,6 +1152,12 @@ public sealed class FreeformBoard : Grid
 
     public void PointerUp()
     {
+        if (_creating)
+        {
+            EndCreate(_lastBoard);
+            return;
+        }
+
         if (_panning)
         {
             _panning = false;
@@ -598,9 +1195,20 @@ public sealed class FreeformBoard : Grid
             return;
         }
 
+        if (e.ClickCount == 2 && _tool == FreeformTool.Select)
+        {
+            var hit = HitTest(ToCanvas(e.GetPosition(this)));
+            if (hit is not null)
+            {
+                BeginEdit(hit.Id);
+                e.Handled = true;
+                return;
+            }
+        }
+
         Focus();
         PointerDown(e.GetPosition(this), Keyboard.Modifiers);
-        if (_panning || _moving || _marquee)
+        if (_panning || _moving || _marquee || _creating)
         {
             CaptureMouse();
         }
@@ -690,19 +1298,82 @@ public sealed class FreeformBoard : Grid
                 return BuildImage(item);
             case CanvasObject.KindText:
                 return BuildText(item);
+            case CanvasObject.KindStroke:
+                // 笔画在 InkCanvas 层，这里不要占位框
+                return null;
             default:
-                // 笔迹/图形留给 P1.2；先画一个方框占位，避免「数据在但看不见」。
-                var placeholder = new Border
-                {
-                    Width = item.W,
-                    Height = item.H,
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(4),
-                };
-                placeholder.SetResourceReference(Border.BorderBrushProperty, "BorderSubtle");
-                return placeholder;
+                return MissingItem(item);
         }
     }
+
+    /// <summary>
+    /// 图形图元按绝对画布坐标画（不套 <see cref="Wrap"/>）：线段不能用一个矩形框代表，
+    /// 端点与走向必须来自 <c>payload</c>。颜色走令牌名，换色板自动跟随。
+    /// </summary>
+    private Shape? BuildShape(CanvasObject item)
+    {
+        var shape = item.Get("shape") ?? "rect";
+        var x1 = Parse(item.Get("x1"), item.X);
+        var y1 = Parse(item.Get("y1"), item.Y);
+        var x2 = Parse(item.Get("x2"), item.X + item.W);
+        var y2 = Parse(item.Get("y2"), item.Y + item.H);
+        var width = Math.Max(1, Math.Abs(x2 - x1));
+        var height = Math.Max(1, Math.Abs(y2 - y1));
+
+        Shape element;
+        switch (shape)
+        {
+            case "line":
+                element = new Line { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2 };
+                break;
+            case "arrow":
+                // 箭头必须看得出朝向：线 + 两条回折的头部（线本身没有头，两者不能画成一样）
+                var geometry = new StreamGeometry();
+                using (var context = geometry.Open())
+                {
+                    context.BeginFigure(new Point(x1, y1), false, false);
+                    context.LineTo(new Point(x2, y2), true, false);
+                    var angle = Math.Atan2(y2 - y1, x2 - x1);
+                    const double headLength = 12;
+                    const double headSpread = Math.PI / 7;
+                    context.BeginFigure(new Point(x2, y2), false, false);
+                    context.LineTo(
+                        new Point(x2 - (headLength * Math.Cos(angle - headSpread)), y2 - (headLength * Math.Sin(angle - headSpread))),
+                        true,
+                        false);
+                    context.BeginFigure(new Point(x2, y2), false, false);
+                    context.LineTo(
+                        new Point(x2 - (headLength * Math.Cos(angle + headSpread)), y2 - (headLength * Math.Sin(angle + headSpread))),
+                        true,
+                        false);
+                }
+
+                geometry.Freeze();
+                element = new System.Windows.Shapes.Path { Data = geometry };
+                break;
+            default:
+                element = new Rectangle
+                {
+                    Width = width,
+                    Height = height,
+                    RadiusX = 4,
+                    RadiusY = 4,
+                    Fill = Brushes.Transparent,
+                };
+                Canvas.SetLeft(element, Math.Min(x1, x2));
+                Canvas.SetTop(element, Math.Min(y1, y2));
+                break;
+        }
+
+        element.StrokeThickness = 2;
+        element.SetResourceReference(Shape.StrokeProperty, "BorderActive");
+        element.IsHitTestVisible = false;
+        return element;
+    }
+
+    private static double Parse(string? text, double fallback) =>
+        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : fallback;
+
 
     private FrameworkElement? BuildImage(CanvasObject item)
     {
