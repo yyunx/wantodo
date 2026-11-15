@@ -371,6 +371,14 @@ public partial class TopPanelWindow : Window
         }
 
         _resizing = false;
+
+        // 收到 12 DIP 的收起条上时不算一次缩放：否则会把「1% 工作区高」夹成 0.4 存下去。
+        if (ActualHeight <= CollapsedHeight + 2 || ActualWidth <= 0)
+        {
+            ApplyWorkArea();
+            return;
+        }
+
         (double widthRatio, double heightRatio) = PanelGeometry.RatiosFromSize(
             WorkArea,
             new PanelSize(ActualWidth, ActualHeight));

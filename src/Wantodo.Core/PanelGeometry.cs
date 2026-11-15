@@ -129,8 +129,10 @@ public static class PanelGeometry
     {
         double maxWidth = Math.Max(1, workArea.Width * MaxWorkAreaFraction);
         double maxHeight = Math.Max(1, workArea.Height * MaxWorkAreaFraction);
-        double minWidth = Math.Min(MinWidth, maxWidth);
-        double minHeight = Math.Min(MinHeight, maxHeight);
+        // 尺寸下限与记忆比例下限保持一致：否则拖到 240 DIP 会存下 0.4，
+        // 下次展开按 0.4×工作区算，窗口比松手时大一圈，看起来像「自己变大了/变小了」。
+        double minWidth = Math.Min(Math.Max(MinWidth, workArea.Width * MinRatio), maxWidth);
+        double minHeight = Math.Min(Math.Max(MinHeight, workArea.Height * MinRatio), maxHeight);
 
         double left = start.Left;
         double top = start.Top;

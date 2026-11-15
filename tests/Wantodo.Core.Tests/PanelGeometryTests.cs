@@ -76,14 +76,21 @@ public sealed class PanelGeometryTests
     }
 
     [Fact]
-    public void Resize_BottomEdge_ClampsToMinimumHeightAndKeepsWidth()
+    public void Resize_BottomEdge_ClampsToRatioMinimumAndSavedRatioMatchesHeight()
     {
         var start = new PanelRect(100, 0, 800, 600);
 
         var resized = PanelGeometry.Resize(start, PanelEdge.Bottom, 0, -1000, Work1366);
 
-        Assert.Equal(PanelGeometry.MinHeight, resized.Height, 3);
+        // 728 × 0.4 = 291.2 > MinHeight 240：下限跟比例下限对齐，
+        // 这样松手时存回的 0.4 和窗口实际高度一致，下次展开不会跳。
+        Assert.Equal(Work1366.Height * PanelGeometry.MinRatio, resized.Height, 3);
         Assert.Equal(800, resized.Width, 3);
+
+        var (_, heightRatio) = PanelGeometry.RatiosFromSize(
+            Work1366,
+            new PanelSize(resized.Width, resized.Height));
+        Assert.Equal(PanelGeometry.MinRatio, heightRatio, 3);
     }
 
     [Fact]

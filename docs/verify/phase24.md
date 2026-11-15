@@ -104,3 +104,27 @@ $ dotnet test --no-build
 1. 画布展开后点桌面空白处 → 面板在 140 ms 内收回成窄条。
 2. 从收起状态按住把手往下拖 → 高度跟手，到 40% 松手展开；按住往上拖 → 跟手收到 12 DIP。
 3. 再点外部、按 Esc，行为与桌面版一致；日志不再出现上面的 WARN。
+## 9. 同日修复：面板被拖一次后「变小一半」
+
+症状：整块面板高度变成约 40% 工作区，比之前的 3/4 小了一半；重启后仍然小。
+
+根因：
+1. 拖底边缩小时下限是固定的 `MinHeight = 240` DIP；而记忆比例 `MinRatio = 0.4`。
+   在 1067 DIP 高的工作区上，240 DIP 只有 0.22，`RatiosFromSize` 夹成 0.4 存盘；
+   下次 `Expand()` 按 `0.4 × 工作区 ≈ 427` DIP 展开 —— 但 240 DIP 的下限让用户以为「只能拖到这么高」，
+   实际存的是 0.4。拖过一次，面板就永久变成 40%。
+2. 收起成 12 DIP 时若触发一次 `EndResize`，也会把 12 DIP 夹成 0.4 存下去。
+
+修法：
+- `src/Wantodo.Core/PanelGeometry.cs`：`Resize` 的最小宽/高改为
+  `max(MinWidth/MinHeight, 工作区 × MinRatio)`，松手高度与存回比例一一对应。
+- `src/Wantodo.App/Windows/TopPanelWindow.xaml.cs`：`EndResize` 在高度 ≤ 14 DIP 时直接放弃本次缩放并回退记忆尺寸。
+- 测试：`PanelGeometryTests.Resize_BottomEdge_ClampsToRatioMinimumAndSavedRatioMatchesHeight` 改为断言
+  `728 × 0.4 = 291.2` 且回算比例正好 0.4。
+
+数据修复：`E:\Wantodo\board\data.json` 的 `panelHeightRatio` 被存成了 0.4，已改回 **0.75**
+（原文件备份为 `data.json.bak-prepanel`，未删）。
+
+证据：`build -warnaserror` 0 警告 0 错误；`test --no-build` 239 通过 / 585 ms。
+
+待肉眼：撞顶展开应回到约 3/4 屏；拖底边缩到最小后松手，再收起、再展开，高度应与松手时一致（不再跳）。
