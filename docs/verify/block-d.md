@@ -80,3 +80,10 @@ brutal 增量：private **+1.1 MB**（红线 <3 MB），首帧无退化。玻璃
 后两层显隐由 `ThemeGlowVisible` 控制（`ThemeService` 只在 `form=neon` 时设 Visible）。
 实测：neon 形式启动首帧 1078 ms、private 112 MB（单次，6 s 采样），无异常日志；正式 60 s 采样未做。
 欠账：只给 wordmark 做了发光，计时数字/标题未接；`BlurEffect` 复制层未用（当前是零效果层方案）。
+## 8. 包体积（2026-11-15，FDD Release 发布复测）
+
+`dotnet publish -c Release -r win-x64 --self-contained false -o publish\fdd-0.7.0-dev` → 5 文件、payload **1,616,223 B**；
+zip（排除 pdb）**247,796 B**。对照 0.6.0 基线 1,556,831 B / 199,765 B：payload **+59,392 B**，zip **+48,031 B**，
+超过 v6 的 FDD 红线 229,376 B（超 18,420 B）。原因主要是 Phase 24 画布（CanvasBoard 约 1,350 行）与块 C 的 7 套色板/迁移表；
+本块的形式层只加代码，没有二进制素材。**欠账：发布前需要一次减重**（候选：删无入口的 ThemeColorPicker、旧 BuildImageBody、
+ThemeStyles 纹理若未使用则删）。
