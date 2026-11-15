@@ -67,6 +67,9 @@ public partial class TopPanelWindow : Window
 
     private bool IsCanvasMode => string.Equals(_viewModel.Model.PanelMode, Board.CanvasPanelMode, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>桌面版（布局宿主可见）时才有分隔条/栏头拖动可以命中。</summary>
+    public bool IsDockMode => !IsCanvasMode;
+
     /// <summary>形态 A / B 只换同一块面板里的内容，不换窗口。</summary>
     private void ApplyMode()
     {
@@ -266,7 +269,13 @@ public partial class TopPanelWindow : Window
             return;
         }
 
-        double height = Math.Clamp(_dragStartHeight + (screenY - _dragStartY), CollapsedHeight, FullHeight);
+        double scale = VisualTreeHelper.GetDpi(this).DpiScaleY;
+        if (scale <= 0)
+        {
+            scale = 1;
+        }
+
+        double height = Math.Clamp(_dragStartHeight + (screenY - _dragStartY) / scale, CollapsedHeight, FullHeight);
         Height = height;
 
         bool showBody = height > CollapsedHeight + 2;

@@ -184,15 +184,19 @@ public sealed class TopEdgePanelService : IDisposable
         }
 
         // 分隔条 6 DIP > 栏头 26 DIP 拖动区：先判分隔条，避免贴边时两边抢。
-        var screenPoint = new System.Windows.Point(x, y);
-        if (_panel.TryBeginSplitDrag(screenPoint))
+        // 画布模式下布局宿主是 Collapsed 的，这两类命中没有意义，直接跳过。
+        if (_panel.IsDockMode)
         {
-            return;
-        }
+            var screenPoint = new System.Windows.Point(x, y);
+            if (_panel.TryBeginSplitDrag(screenPoint))
+            {
+                return;
+            }
 
-        if (_panel.TryBeginPaneDrag(screenPoint, out _))
-        {
-            return;
+            if (_panel.TryBeginPaneDrag(screenPoint, out _))
+            {
+                return;
+            }
         }
 
         // 下拉框的弹出层是独立 HWND，点它里面的选项会落在面板矩形外；

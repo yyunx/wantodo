@@ -70,3 +70,37 @@ $ dotnet test --no-build
 - 画布展开时面板主动 `Activate()`（未激活窗口上 WPF 捕获不可靠）；`Ctrl+Z/Y`、`Delete` 在画布模式下生效。
 - 证据：`build -warnaserror` 0 警告 0 错误；`test --no-build` 239 通过。
 - 待肉眼：撞顶下拉应出现画布而不是栏位布局；拖动卡片、点工具插卡、重启后位置保留。
+
+## 8. 同日修复（用户反馈）：点外部不收起、上拉卡住
+
+症状：
+1. 画布展开后点面板外部，面板不收起。
+2. 按住顶部把手往上拖，拖到一半高度就不动了。
+
+根因：
+1. `BoardLayoutHost.TryBeginSplitDrag` / `TryBeginPaneDrag` 无条件调 `PointFromScreen`。
+   画布模式下这块布局被 `Collapsed`，`PointFromScreen` 抛
+   `InvalidOperationException`（"This Visual is not connected to a PresentationSource"）；
+   钩子回调最外层吞掉异常并记 WARN，`OnGlobalLeftButtonDown` 还没走到
+   `ContainsScreenPoint → Collapse()` 就中断了 —— 所以「点外部不收起」。
+   日志 `app-20261115.log` 里同一秒多条
+   `[WARN] 鼠标钩子回调异常（已忽略）：This Visual is not connected to a PresentationSource.` 即此。
+2. `TopPanelWindow.DragTo` 把钩子的物理像素位移直接加到 DIP 高度上。
+   150% 缩放下 1 物理像素 = 1.5 DIP，上拉时高度按 1.5 倍速度下降，还没拉到位置就先触底
+   （12 DIP），看起来就是「拉一半不动」。
+
+修法：
+- `src/Wantodo.App/Controls/BoardLayoutHost.cs`：新增 `TryToLocal(screenPoint, out local)`，
+  先判 `PresentationSource.FromVisual(this)`，再 try/catch `InvalidOperationException`；
+  三处 `PointFromScreen` 全部改走它，失败返回 false/null。
+- `src/Wantodo.App/Windows/TopPanelWindow.xaml.cs`：新增 `public bool IsDockMode => !IsCanvasMode;`；
+  `DragTo` 用 `VisualTreeHelper.GetDpi(this).DpiScaleY` 把物理像素差换算成 DIP。
+- `src/Wantodo.App/Windows/TopEdgePanelService.cs`：分隔条/栏头命中仅在 `_panel.IsDockMode` 时执行，
+  画布模式直接跳过，少两次无意义的命中测试。
+
+证据：`build -warnaserror` 0 警告 0 错误；`test --no-build` 239 通过 / 675 ms。
+
+待肉眼：
+1. 画布展开后点桌面空白处 → 面板在 140 ms 内收回成窄条。
+2. 从收起状态按住把手往下拖 → 高度跟手，到 40% 松手展开；按住往上拖 → 跟手收到 12 DIP。
+3. 再点外部、按 Esc，行为与桌面版一致；日志不再出现上面的 WARN。

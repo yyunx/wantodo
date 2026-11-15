@@ -263,7 +263,11 @@ public sealed class BoardLayoutHost : Grid
             return false;
         }
 
-        Point local = PointFromScreen(screenPoint);
+        if (!TryToLocal(screenPoint, out Point local))
+        {
+            return false;
+        }
+
         GridSplitter? splitter = HitAncestor<GridSplitter>(local);
         if (splitter is null || !_splitViews.TryGetValue(splitter, out SplitView? view))
         {
@@ -354,7 +358,11 @@ public sealed class BoardLayoutHost : Grid
             return false;
         }
 
-        Point local = PointFromScreen(screenPoint);
+        if (!TryToLocal(screenPoint, out Point local))
+        {
+            return false;
+        }
+
         ContentControl? pane = HitAncestor<ContentControl>(local);
         if (pane is null)
         {
@@ -435,7 +443,11 @@ public sealed class BoardLayoutHost : Grid
 
     private string? FindPaneAt(Point screenPoint)
     {
-        Point local = PointFromScreen(screenPoint);
+        if (!TryToLocal(screenPoint, out Point local))
+        {
+            return null;
+        }
+
         ContentControl? pane = HitAncestor<ContentControl>(local);
         if (pane is null)
         {
@@ -443,6 +455,29 @@ public sealed class BoardLayoutHost : Grid
         }
 
         return _paneElements.FirstOrDefault(kv => ReferenceEquals(kv.Value, pane)).Key;
+    }
+
+    /// <summary>
+    /// 屏坐标换算成控件内坐标。画布模式下这块布局被 Collapsed、
+    /// 甚至可能还没挂到 PresentationSource，直接调 PointFromScreen 会抛 InvalidOperationException。
+    /// </summary>
+    private bool TryToLocal(Point screenPoint, out Point local)
+    {
+        local = default;
+        if (PresentationSource.FromVisual(this) is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            local = PointFromScreen(screenPoint);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private T? HitAncestor<T>(Point local)
