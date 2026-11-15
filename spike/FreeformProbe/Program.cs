@@ -129,8 +129,49 @@ internal static class Program
         // ⑩ P1.4：待办投影 / 改名分离 / 计时状态机 / 分段番茄钟
         P14Checks();
 
+        // ⑪ P2.1：空状态 / 右键菜单 / 全选
+        P21Checks();
+
         Console.WriteLine(_failed == 0 ? "PROBE PASS" : $"PROBE FAIL ({_failed})");
         return _failed == 0 ? 0 : 1;
+    }
+
+    private static void P21Checks()
+    {
+        // 空状态：没有卡片时有一句引导，放上卡片就消失
+        var document = new CanvasDocument();
+        var board = new CanvasBoard { Width = 900, Height = 700 };
+        board.Attach(document, _ => { }, null);
+        board.Measure(new Size(900, 700));
+        board.Arrange(new Rect(0, 0, 900, 700));
+        Check("结构化空状态出现", TreeTexts(board).Any(t => t.Contains("还没有卡片")), "no empty hint");
+
+        document.Add("note", 100, 100);
+        board.Rebuild();
+        board.Measure(new Size(900, 700));
+        board.Arrange(new Rect(0, 0, 900, 700));
+        Check("有卡片后空状态消失", TreeTexts(board).All(t => !t.Contains("还没有卡片")), "empty hint still there");
+
+        // 卡片右键菜单：改名 / 置顶 / 删除
+        var card = Descendants(board).OfType<Border>().FirstOrDefault(b => b.Tag is CanvasItem);
+        List<string?> headers = card?.ContextMenu?.Items.OfType<MenuItem>().Select(i => i.Header?.ToString()).ToList() ?? new List<string?>();
+        Check("卡片右键菜单三项", headers.SequenceEqual(new[] { "改名", "置顶", "删除" }), $"headers=[{string.Join("|", headers)}]");
+
+        // 自由表面：右键菜单三项 + 全选
+        var board2 = new FreeformBoard { Width = 800, Height = 600 };
+        var document2 = new CanvasDocument();
+        board2.Attach(document2, () => { }, null, null);
+        board2.Measure(new Size(800, 600));
+        board2.Arrange(new Rect(0, 0, 800, 600));
+        List<string?> items = board2.ContextMenu?.Items.OfType<MenuItem>().Select(i => i.Header?.ToString()).ToList() ?? new List<string?>();
+        Check("画布右键菜单三项", items.SequenceEqual(new[] { "粘贴图片", "全选", "删除所选" }), $"items=[{string.Join("|", items)}]");
+        document2.AddObject(CanvasObject.KindText, 40, 40, 120, 40);
+        document2.AddObject(CanvasObject.KindText, 200, 40, 120, 40);
+        board2.Rebuild();
+        board2.SelectAll();
+        Check("全选选中两个图元", board2.Selected.Count == 2, $"selected={board2.Selected.Count}");
+        board2.DeleteSelected();
+        Check("删除所选清空并落模型", document2.Objects.Count == 0, $"objects={document2.Objects.Count}");
     }
 
     private static void P12Checks()

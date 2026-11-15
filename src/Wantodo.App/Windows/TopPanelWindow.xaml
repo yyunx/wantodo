@@ -66,7 +66,7 @@
             </Border>
         </DataTemplate>
     </Window.Resources>
-    <Grid Background="{DynamicResource CardBackground}">
+    <Grid Background="{DynamicResource ThemeGlassContentBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="12" />
             <RowDefinition Height="*" />
@@ -80,7 +80,7 @@
         </Border>
 
         <Border x:Name="BodyBorder" Grid.Row="1" Visibility="Collapsed"
-                Background="{DynamicResource CardBackground}"
+                Background="{DynamicResource ThemeGlassContentBrush}"
                 BorderBrush="{DynamicResource Divider}" BorderThickness="1,0,1,1">
             <Grid Margin="18,8,18,14">
                 <Grid.RowDefinitions>
@@ -127,7 +127,7 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <!-- 固定三层工具栏（plan §5.4）：① 切换器行 ② 当前表面工具组 ③ 状态行；合计 ≤88 DIP -->
-                        <StackPanel Margin="0,0,0,6">
+                        <StackPanel Margin="0,0,0,6" Background="{DynamicResource ThemeGlassControlBrush}">
                             <DockPanel>
                                 <Border DockPanel.Dock="Left" Padding="2" CornerRadius="8"
                                         Background="{DynamicResource BorderSubtle}">
@@ -188,8 +188,14 @@
                                 </StackPanel>
                             </DockPanel>
 
-                            <TextBlock x:Name="CanvasStatus" Margin="0,6,0,0" FontSize="11"
-                                       Foreground="{DynamicResource TextMuted}" />
+                            <!-- 状态行：左状态文本，右 7 个色点（Q7：颜色键主入口在设置页，状态行是快捷位） -->
+                            <DockPanel Margin="0,6,0,0">
+                                <StackPanel x:Name="PaletteDots" DockPanel.Dock="Right"
+                                            Orientation="Horizontal" VerticalAlignment="Center" />
+                                <TextBlock x:Name="CanvasStatus" FontSize="11" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{DynamicResource TextMuted}" />
+                            </DockPanel>
                         </StackPanel>
                         <Grid Grid.Row="1">
                             <ScrollViewer x:Name="CanvasScroller"

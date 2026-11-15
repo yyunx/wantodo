@@ -64,6 +64,16 @@ public sealed class CanvasBoard : Canvas
     private double _resizeOriginX;
     private double _resizeOriginY;
 
+    /// <summary>结构化表面空状态（plan §3.3「空状态」行：一句文案，不抢鼠标）。</summary>
+    private readonly TextBlock _empty = new()
+    {
+        Text = "还没有卡片 · 用上面的「记事 / 待办 / 计时」放一张",
+        FontSize = 12,
+        TextWrapping = TextWrapping.Wrap,
+        Width = 320,
+        IsHitTestVisible = false,
+    };
+
     public CanvasBoard()
     {
         ClipToBounds = true;
@@ -75,6 +85,10 @@ public sealed class CanvasBoard : Canvas
         DragOver += OnDragOver;
         PreviewKeyDown += OnPreviewKeyDown;
         MouseDown += (_, _) => Focus();
+        ContextMenu = BuildCanvasMenu();
+        _empty.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
+        Canvas.SetLeft(_empty, 20);
+        Canvas.SetTop(_empty, 14);
     }
 
     public CanvasDocument Document => _document;
@@ -151,7 +165,100 @@ public sealed class CanvasBoard : Canvas
         }
 
         EnsureTicker();
+        ToggleEmptyHint();
         StatusChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ToggleEmptyHint()
+    {
+        if (_document.Items.Count > 0)
+        {
+            Children.Remove(_empty);
+            return;
+        }
+
+        if (!Children.Contains(_empty))
+        {
+            Children.Add(_empty);
+            Panel.SetZIndex(_empty, -1);
+        }
+    }
+
+    /// <summary>卡片右键菜单：改名 / 置顶 / 删除（plan §3.3「右键菜单」行）。</summary>
+    private ContextMenu BuildCardMenu(CanvasItem item)
+    {
+        var menu = new ContextMenu();
+        menu.Items.Add(MenuItemFor("改名", () => BeginRename(item)));
+        menu.Items.Add(MenuItemFor("置顶", () => BringToFrontFromMenu(item)));
+        menu.Items.Add(MenuItemFor("删除", () => Delete(item)));
+        return menu;
+    }
+
+    /// <summary>画布空白处右键菜单：新建记事 / 新建待办 / 粘贴图片。</summary>
+    private ContextMenu BuildCanvasMenu()
+    {
+        var menu = new ContextMenu();
+        menu.Opened += (_, _) =>
+        {
+            // 右击卡片时卡片自己的菜单会先吃掉事件，这里只在空白处出现。
+            foreach (var entry in menu.Items.OfType<MenuItem>())
+            {
+                entry.Tag = null;
+            }
+        };
+        menu.Items.Add(MenuItemFor("新建记事", () =>
+        {
+            Add("note", ActualWidth / 2, ActualHeight / 2);
+            Rebuild();
+        }));
+        menu.Items.Add(MenuItemFor("新建待办", () =>
+        {
+            Add("todo", ActualWidth / 2, ActualHeight / 2);
+            Rebuild();
+        }));
+        menu.Items.Add(MenuItemFor("粘贴图片", () =>
+        {
+            if (!TryPaste())
+            {
+                StatusChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }));
+        return menu;
+    }
+
+    private static MenuItem MenuItemFor(string header, Action action)
+    {
+        var item = new MenuItem { Header = header };
+        item.Click += (_, _) => action();
+        return item;
+    }
+
+    /// <summary>右键菜单「置顶」：与点选时同一套 z 序逻辑，但单独入撤销栈并落盘。</summary>
+    private void BringToFrontFromMenu(CanvasItem item)
+    {
+        var max = _document.Items.Count == 0 ? 0 : _document.Items.Max(i => i.ZIndex);
+        if (item.ZIndex >= max)
+        {
+            return;
+        }
+
+        PushUndo();
+        BringToFront(item);
+        Save();
+        Rebuild();
+    }
+
+    private void Delete(CanvasItem item)
+    {
+        PushUndo();
+        _document.Items.Remove(item);
+        if (_selected?.Id == item.Id)
+        {
+            _selected = null;
+        }
+
+        Save();
+        Rebuild();
     }
 
     /// <summary>在 <paramref name="centerX"/> 附近插入一张新卡片。</summary>
@@ -374,6 +481,7 @@ public sealed class CanvasBoard : Canvas
         gripHost.MouseLeftButtonDown += OnGripMouseDown;
         gripHost.MouseMove += OnGripMouseMove;
         gripHost.MouseLeftButtonUp += OnGripMouseUp;
+        card.ContextMenu = BuildCardMenu(item);
         return card;
     }
 

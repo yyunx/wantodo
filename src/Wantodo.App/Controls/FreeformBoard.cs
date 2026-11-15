@@ -45,7 +45,7 @@ public sealed class FreeformBoard : Grid
 
     private readonly TextBlock _empty = new()
     {
-        Text = "还没有内容",
+        Text = "还没有内容 · 选上面的笔 / 矩形 / 文本，或直接 Ctrl+V 贴一张图",
         FontSize = 12,
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
@@ -118,6 +118,41 @@ public sealed class FreeformBoard : Grid
 
         _empty.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
         UseLayoutRounding = true;
+
+        // 自由表面右键：粘图 / 全选 / 删除所选（plan §3.3「右键菜单」行；图元本身无铬，菜单挂在画布上）
+        var menu = new ContextMenu();
+        var paste = new MenuItem { Header = "粘贴图片" };
+        paste.Click += (_, _) => Paste();
+        var selectAll = new MenuItem { Header = "全选" };
+        selectAll.Click += (_, _) => SelectAll();
+        var delete = new MenuItem { Header = "删除所选" };
+        delete.Click += (_, _) => DeleteSelected();
+        menu.Items.Add(paste);
+        menu.Items.Add(selectAll);
+        menu.Items.Add(delete);
+        menu.Opened += (_, _) => delete.IsEnabled = _selected.Count > 0;
+        ContextMenu = menu;
+    }
+
+    /// <summary>右键菜单用：把当前表面的图元全选（笔迹层不算，笔迹只能单点选）。</summary>
+    public void SelectAll()
+    {
+        if (Document is null)
+        {
+            return;
+        }
+
+        _selected.Clear();
+        foreach (var item in Document.Objects)
+        {
+            if (string.Equals(CanvasSurfaces.Normalize(item.Surface), SurfaceId, StringComparison.OrdinalIgnoreCase))
+            {
+                _selected.Add(item.Id);
+            }
+        }
+
+        ApplySelectionVisuals();
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>本控件负责的表面 id（默认就是自由表面）。</summary>

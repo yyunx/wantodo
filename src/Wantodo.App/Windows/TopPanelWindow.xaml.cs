@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using Wantodo.App.Appearance;
 using Wantodo.App.Dialogs;
 using Wantodo.App.Interop;
 using Wantodo.App.Storage;
@@ -73,6 +74,10 @@ public partial class TopPanelWindow : Window
         ApplyPanelVisibility();
         ApplyMode();
         ApplySurface();
+        BuildPaletteDots();
+
+        // 面板也要材质：Prepare 装 WindowChrome 并把 Background 置空，SourceInitialized 里再调 DWM。
+        GlassSurface.Prepare(this);
 
         Top = WorkArea.Top;
         Height = CollapsedHeight;
@@ -174,7 +179,70 @@ public partial class TopPanelWindow : Window
     private void OnSurfaceAddClick(object sender, RoutedEventArgs e)
     {
         // Q2 的后半句（>4 表面才升 tab + 溢出）本期用不上：0.7.0 只有两个表面。
-        AppLog.Info("[画布] 点了 ＋：0.7.0 只有结构化与自由两个表面，未新增");
+        // 预留行（plan §5.4）：点开出现 3 项，标「未实现」，点击只提示、不崩。
+        var menu = new ContextMenu { PlacementTarget = SurfaceAddButton, Placement = PlacementMode.Bottom };
+        foreach (var name in new[] { "日历", "参考文件", "图片库" })
+        {
+            var item = new MenuItem { Header = $"{name}（未实现）" };
+            item.Click += (_, _) =>
+            {
+                AppLog.Info($"[画布] 预留行 {name} 未实现");
+                ToastWindow.Show("还没做", $"{name} 在 0.8 之后的计划里，本期点开只是占位。");
+            };
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    /// <summary>状态行右侧 7 个色点（Q7）：点一下换色板，选中项加描边。</summary>
+    private void BuildPaletteDots()
+    {
+        PaletteDots.Children.Clear();
+        var current = _viewModel.Model.PaletteId;
+        foreach (var id in PaletteIds.Selectable)
+        {
+            var colors = ThemePalette.For(
+                id,
+                _viewModel.Model.Tone,
+                SystemTheme.IsLightApplicationTheme(),
+                _viewModel.Model.CustomBackground,
+                _viewModel.Model.CustomAccent);
+            var dot = new Border
+            {
+                Width = 10,
+                Height = 10,
+                CornerRadius = new CornerRadius(5),
+                Margin = new Thickness(4, 0, 0, 0),
+                Background = new SolidColorBrush(Color.FromRgb(colors.Accent.R, colors.Accent.G, colors.Accent.B)),
+                Cursor = Cursors.Hand,
+                ToolTip = ThemePalette.DisplayName(id),
+                BorderThickness = new Thickness(1.5),
+                BorderBrush = string.Equals(id, current, StringComparison.OrdinalIgnoreCase)
+                    ? (Brush)FindResource("TextPrimary")
+                    : Brushes.Transparent,
+            };
+            var palette = id;
+            dot.MouseLeftButtonUp += (_, args) =>
+            {
+                args.Handled = true;
+                SetPalette(palette);
+            };
+            PaletteDots.Children.Add(dot);
+        }
+    }
+
+    private void SetPalette(string palette)
+    {
+        if (string.Equals(_viewModel.Model.PaletteId, palette, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _viewModel.SetTheme(palette);
+        BuildPaletteDots();
+        UpdateCanvasStatus();
+        AppLog.Info($"[主题] 状态行切换色板 → {palette}");
     }
 
     private void UpdateCanvasStatus()
@@ -289,7 +357,12 @@ public partial class TopPanelWindow : Window
         base.OnSourceInitialized(e);
 
         // 收起时是一条 760×12 的窄条，靠 DWM 把左右两端磨圆，避免像一根硬邦邦的横杠。
-        DesktopLayer.TryRoundCorners(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        DesktopLayer.TryRoundCorners(handle);
+
+        // P2.1（D16）：面板也接材质。GlassState 由启动时的 ThemeService.Apply 决定，
+        // 不可用时 TryApply 会把不透明底色写回 Background 并记 WARN（D18）。
+        GlassSurface.TryApply(this);
     }
 
     /// <summary>停留 120 ms 后出把手（只做透明度动画，不抢焦点）。</summary>
