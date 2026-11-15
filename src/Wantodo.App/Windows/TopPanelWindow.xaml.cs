@@ -25,6 +25,8 @@ public partial class TopPanelWindow : Window
     private bool _dragging;
     private double _dragStartHeight;
     private int _dragStartY;
+    private int _persistedDuringDrag;
+    private int _moveLogCount;
 
     private bool _resizing;
     private PanelEdge _resizeEdge;
@@ -293,7 +295,10 @@ public partial class TopPanelWindow : Window
         _dragging = true;
         _dragStartHeight = Height;
         _dragStartY = screenY;
+        _persistedDuringDrag = 0;
+        _moveLogCount = 0;
         BeginAnimation(HeightProperty, null);
+        LogHeight("begin");
     }
 
     public void DragTo(int screenY)
@@ -309,12 +314,21 @@ public partial class TopPanelWindow : Window
             scale = 1;
         }
 
-        double height = Math.Clamp(_dragStartHeight + (screenY - _dragStartY) / scale, CollapsedHeight, FullHeight);
+        // 高度直接等于「鼠标 Y 换算成 DIP 后减面板顶边」，不再用累计位移：
+        // 否则每次开始拖都会把上一次的偏差叠进去，越拖越偏。
+        double topPhysical = Top * scale;
+        double height = ClampCanvasHeight((screenY - topPhysical) / scale);
         Height = height;
 
         bool showBody = height > CollapsedHeight + 2;
         BodyBorder.Visibility = showBody ? Visibility.Visible : Visibility.Collapsed;
         HandlePill.Visibility = Visibility.Visible;
+
+        _moveLogCount++;
+        if (_moveLogCount == 1 || _moveLogCount % 10 == 0)
+        {
+            LogHeight($"move#{_moveLogCount}");
+        }
     }
 
     public void EndDrag()
@@ -325,14 +339,50 @@ public partial class TopPanelWindow : Window
         }
 
         _dragging = false;
-        if (Height >= FullHeight * 0.4)
+        double height = ClampCanvasHeight(Height);
+        Height = height;
+
+        if (height >= FullHeight * 0.4)
         {
+            // 把手拖动本身就是「重新定高度」：把松手高度记下来，否则下次展开还是旧比例，
+            // 表现出来就是「拖到一半后一直是半高，改不回来」。
+            PersistHeight(height);
             Expand();
         }
         else
         {
             Collapse();
         }
+
+        LogHeight("end");
+    }
+
+    private void PersistHeight(double height)
+    {
+        if (height <= CollapsedHeight + 2)
+        {
+            return;
+        }
+
+        double ratio = PanelGeometry.HeightRatio(WorkArea, height);
+        if (Math.Abs(ratio - _viewModel.Model.PanelHeightRatio) > 0.001)
+        {
+            _viewModel.SetPanelRatios(_viewModel.Model.PanelWidthRatio, ratio);
+        }
+
+        _persistedDuringDrag++;
+    }
+
+    /// <summary>所有写 <see cref="Window.Height"/> 的地方都从这里过，禁止裸赋值。</summary>
+    private double ClampCanvasHeight(double height) => PanelGeometry.ClampHeight(WorkArea, height);
+
+    private void LogHeight(string phase)
+    {
+        DpiScale dpi = VisualTreeHelper.GetDpi(this);
+        AppLog.Info(
+            $"[画板高度] {phase} Height={Height:F1} ActualHeight={ActualHeight:F1} " +
+            $"Min={MinHeight:F1} Max={MaxHeight:F1} dpi={dpi.DpiScaleY:F2} " +
+            $"persisted={_persistedDuringDrag} dragging={_dragging}");
     }
 
     public bool IsResizing => _resizing;
@@ -390,7 +440,7 @@ public partial class TopPanelWindow : Window
         Left = next.Left;
         Top = next.Top;
         Width = next.Width;
-        Height = next.Height;
+        Height = ClampCanvasHeight(next.Height);
 
         bool showBody = Height > CollapsedHeight + 2;
         BodyBorder.Visibility = showBody ? Visibility.Visible : Visibility.Collapsed;
@@ -434,7 +484,7 @@ public partial class TopPanelWindow : Window
 
         if (IsExpanded)
         {
-            Height = size.Height;
+            Height = ClampCanvasHeight(size.Height);
         }
     }
 
@@ -526,6 +576,7 @@ public partial class TopPanelWindow : Window
     private void AnimateHeight(double target, int milliseconds, IEasingFunction easing, Action? completed = null)
     {
         BeginAnimation(HeightProperty, null);
+        target = ClampCanvasHeight(target);
         var animation = new DoubleAnimation(Height, target, TimeSpan.FromMilliseconds(milliseconds))
         {
             EasingFunction = easing,

@@ -27,8 +27,8 @@ public sealed class PanelGeometryTests
     {
         Assert.Equal(0.75, PanelGeometry.ClampRatio(double.NaN), 3);
         Assert.Equal(0.75, PanelGeometry.ClampRatio(double.PositiveInfinity), 3);
-        Assert.Equal(1.0, PanelGeometry.ClampRatio(1.5), 3);
-        Assert.Equal(0.4, PanelGeometry.ClampRatio(0.1), 3);
+        Assert.Equal(0.9, PanelGeometry.ClampRatio(1.5), 3);
+        Assert.Equal(0.2, PanelGeometry.ClampRatio(0.1), 3);
         Assert.Equal(0.6, PanelGeometry.ClampRatio(0.6), 3);
     }
 
@@ -76,21 +76,63 @@ public sealed class PanelGeometryTests
     }
 
     [Fact]
-    public void Resize_BottomEdge_ClampsToRatioMinimumAndSavedRatioMatchesHeight()
+    public void Resize_BottomEdge_ClampsToMinHeightAndSavedRatioMatchesHeight()
     {
         var start = new PanelRect(100, 0, 800, 600);
 
         var resized = PanelGeometry.Resize(start, PanelEdge.Bottom, 0, -1000, Work1366);
 
-        // 728 × 0.4 = 291.2 > MinHeight 240：下限跟比例下限对齐，
-        // 这样松手时存回的 0.4 和窗口实际高度一致，下次展开不会跳。
-        Assert.Equal(Work1366.Height * PanelGeometry.MinRatio, resized.Height, 3);
+        // 240 DIP 下限优先于 0.2×728=145.6；存回的比例就是 240/728，下次展开不会跳。
+        Assert.Equal(PanelGeometry.MinHeight, resized.Height, 3);
         Assert.Equal(800, resized.Width, 3);
 
         var (_, heightRatio) = PanelGeometry.RatiosFromSize(
             Work1366,
             new PanelSize(resized.Width, resized.Height));
-        Assert.Equal(PanelGeometry.MinRatio, heightRatio, 3);
+        Assert.Equal(PanelGeometry.MinHeight / Work1366.Height, heightRatio, 3);
+    }
+
+    [Fact]
+    public void Resize_BottomEdge_SequenceIsReversible()
+    {
+        var work = new PanelRect(0, 0, 1366, 2000);
+        var start = new PanelRect(100, 0, 800, 1000);
+
+        var down = PanelGeometry.Resize(start, PanelEdge.Bottom, 0, -500, work);
+        Assert.Equal(500, down.Height, 3);
+
+        var back = PanelGeometry.Resize(down, PanelEdge.Bottom, 0, 500, work);
+        Assert.Equal(1000, back.Height, 3);
+    }
+
+    [Fact]
+    public void ClampHeight_BelowMinimum_UsesMinHeight()
+    {
+        Assert.Equal(PanelGeometry.MinHeight, PanelGeometry.ClampHeight(Work1366, 100), 3);
+        Assert.Equal(PanelGeometry.MinHeight, PanelGeometry.ClampHeight(Work1366, -50), 3);
+        Assert.Equal(PanelGeometry.MinHeight, PanelGeometry.ClampHeight(Work1366, 0), 3);
+    }
+
+    [Fact]
+    public void ClampHeight_TallerThanNinetyPercent_UsesWorkAreaCap()
+    {
+        double cap = Work1366.Height * PanelGeometry.MaxWorkAreaFraction;
+
+        Assert.Equal(cap, PanelGeometry.ClampHeight(Work1366, 5000), 3);
+        Assert.Equal(cap, PanelGeometry.ClampHeight(Work1366, double.PositiveInfinity), 3);
+    }
+
+    [Fact]
+    public void HeightRatio_RoundTripsThroughExpandedSize()
+    {
+        var work = new PanelRect(0, 0, 2560, 1560);
+
+        foreach (double height in new[] { 240, 500, 1000, 1400 })
+        {
+            double ratio = PanelGeometry.HeightRatio(work, height);
+            double restored = PanelGeometry.ExpandedSize(work, 0.75, ratio).Height;
+            Assert.InRange(restored, height - 0.5, height + 0.5);
+        }
     }
 
     [Fact]
@@ -104,7 +146,7 @@ public sealed class PanelGeometryTests
         Assert.Equal(0.75, heightRatio, 3);
 
         var oversized = PanelGeometry.RatiosFromSize(Work1366, new PanelSize(2000, 2000));
-        Assert.Equal(1.0, oversized.WidthRatio, 3);
-        Assert.Equal(1.0, oversized.HeightRatio, 3);
+        Assert.Equal(0.9, oversized.WidthRatio, 3);
+        Assert.Equal(0.9, oversized.HeightRatio, 3);
     }
 }

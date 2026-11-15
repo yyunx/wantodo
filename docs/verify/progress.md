@@ -1,5 +1,7 @@
 # 0.6.0 执行断点（Run A / Run B）
 
+> 2026-11-15 v6：本次做 **块 A → 块 B → 块 C → 块 D**（画板高度修复 → 卡片行为 → 主题体系 → 形式层）。
+
 新的会话先读本文件：从「下一个未 DONE 的阶段」继续。
 基线（2026-11-14，HEAD 2dc868e）：`build -warnaserror` 0 警告 0 错误（15.23s）；
 `test --no-build` 206 通过 / 0 失败 / 608 ms。
@@ -75,3 +77,13 @@ Run B 收口：21/22/23 完成（各有欠账），24 未开工（3–5 天，�
 - 2026-11-15 补丁（未单独 commit，并入 phase-24 文档）：标题可改、链接内嵌记事/待办、图片选择/拖入/粘贴、
   计时四玩法 + 右下角提醒一次 + 提示音；`TextLinks`/`CanvasClock` 纯逻辑 + 2 组测试；`build` 0 警告、`test` 261 通过
 - 下一条命令：等用户肉眼验收 `docs/verify/phase24.md` §11 五步；通过后再决定是否把删除进回收与 50 张性能补上
+
+## 块 A — 画板高度拖拽可逆（2026-11-15）
+
+- 状态：**DONE（PENDING-HUMAN 3 条）**
+- 验收：`build -warnaserror` 0 警告/0 错误（6.88s）；`test --no-build` **265 通过 / 0 失败 / 534 ms**
+- 改动：`PanelGeometry`（MinRatio 0.2、MaxRatio 0.9、ClampHeight、HeightRatio）、`TopPanelWindow`（绝对 Y 定高、EndDrag 持久化、唯一夹取入口、`[画板高度]` 日志）、`PanelGeometryTests` +4 / 改 2、`JsonBoardStoreTests` 夹取断言
+- 证据：`docs/verify/block-a.md`
+- 欠账：拖拽日志待用户实际拖一次补录（`persisted` 必须为 0）；多显示器未验证
+- 并行修复：`E:\Wantodo\board\data.json` 的 `panelHeightRatio` 0.4 → 0.75（备份 `data.json.bak-block-a`）
+- 下一步第一条命令：进入块 B（图片卡去框 → 待办选栏目 → 计时按钮消歧 → 番茄钟 plan）

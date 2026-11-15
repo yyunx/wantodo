@@ -152,8 +152,8 @@ public sealed class JsonBoardStoreTests : IDisposable
 
         var loaded = NewStore().Load();
 
-        Assert.Equal(1.0, loaded.Board.PanelWidthRatio, 3);
-        Assert.Equal(0.4, loaded.Board.PanelHeightRatio, 3);
+        Assert.Equal(0.9, loaded.Board.PanelWidthRatio, 3);
+        Assert.Equal(0.2, loaded.Board.PanelHeightRatio, 3);
     }
 
     [Fact]

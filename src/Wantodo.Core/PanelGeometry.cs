@@ -28,10 +28,11 @@ public readonly record struct PanelRect(double Left, double Top, double Width, d
 /// </summary>
 public static class PanelGeometry
 {
-    /// <summary>比例下限：再窄就放不下一栏 190 DIP 加内边距。</summary>
-    public const double MinRatio = 0.4;
+    /// <summary>比例下限：240 DIP 在 1366×728 的工作区上约 0.33，0.2 只兜底极小屏。</summary>
+    public const double MinRatio = 0.2;
 
-    public const double MaxRatio = 1.0;
+    /// <summary>比例上限与「最大 90% 工作区」保持一致，避免存进去的比例和能拖到的高度对不上。</summary>
+    public const double MaxRatio = 0.9;
 
     public const double DefaultRatio = 0.75;
 
@@ -58,6 +59,31 @@ public static class PanelGeometry
         return Math.Clamp(value, MinRatio, MaxRatio);
     }
 
+    /// <summary>高度的唯一夹取入口：240 DIP 到工作区 90%，负值/NaN 也在这里兜住。</summary>
+    public static double ClampHeight(PanelRect workArea, double height)
+    {
+        if (double.IsNaN(height) || double.IsInfinity(height))
+        {
+            return Math.Max(1, workArea.Height * MaxWorkAreaFraction);
+        }
+
+        double maxHeight = Math.Max(1, workArea.Height * MaxWorkAreaFraction);
+        double minHeight = Math.Min(MinHeight, maxHeight);
+        return Math.Clamp(height, minHeight, maxHeight);
+    }
+
+    /// <summary>把窗口高度换算成记忆比例；下限交给 <see cref="ClampHeight"/>，这里只挡负数与超大值。</summary>
+    public static double HeightRatio(PanelRect workArea, double height)
+    {
+        if (workArea.Height <= 0)
+        {
+            return DefaultRatio;
+        }
+
+        double ratio = ClampHeight(workArea, height) / workArea.Height;
+        return Math.Clamp(ratio, 0, MaxRatio);
+    }
+
     /// <summary>展开后的窗口尺寸：比例 × 工作区，夹到最小尺寸与 90% 工作区之间。</summary>
     public static PanelSize ExpandedSize(PanelRect workArea, double widthRatio, double heightRatio)
     {
@@ -65,7 +91,10 @@ public static class PanelGeometry
         double maxHeight = Math.Max(1, workArea.Height * MaxWorkAreaFraction);
 
         double width = Math.Clamp(workArea.Width * ClampRatio(widthRatio), Math.Min(MinWidth, maxWidth), maxWidth);
-        double height = Math.Clamp(workArea.Height * ClampRatio(heightRatio), Math.Min(MinHeight, maxHeight), maxHeight);
+        double heightRatioValue = double.IsNaN(heightRatio) || double.IsInfinity(heightRatio)
+            ? DefaultRatio
+            : Math.Clamp(heightRatio, 0, MaxRatio);
+        double height = ClampHeight(workArea, workArea.Height * heightRatioValue);
 
         return new PanelSize(width, height);
     }
@@ -80,12 +109,11 @@ public static class PanelGeometry
             size.Height);
     }
 
-    /// <summary>把实际窗口尺寸换算回记忆比例（夹到 0.4–1.0）。</summary>
+    /// <summary>把实际窗口尺寸换算回记忆比例（高度上下限与 <see cref="ClampHeight"/> 一致）。</summary>
     public static (double WidthRatio, double HeightRatio) RatiosFromSize(PanelRect workArea, PanelSize size)
     {
         double widthRatio = workArea.Width <= 0 ? DefaultRatio : size.Width / workArea.Width;
-        double heightRatio = workArea.Height <= 0 ? DefaultRatio : size.Height / workArea.Height;
-        return (ClampRatio(widthRatio), ClampRatio(heightRatio));
+        return (ClampRatio(widthRatio), HeightRatio(workArea, size.Height));
     }
 
     /// <summary>
@@ -129,10 +157,8 @@ public static class PanelGeometry
     {
         double maxWidth = Math.Max(1, workArea.Width * MaxWorkAreaFraction);
         double maxHeight = Math.Max(1, workArea.Height * MaxWorkAreaFraction);
-        // 尺寸下限与记忆比例下限保持一致：否则拖到 240 DIP 会存下 0.4，
-        // 下次展开按 0.4×工作区算，窗口比松手时大一圈，看起来像「自己变大了/变小了」。
+        // 宽度下限与比例下限保持一致；高度统一走 ClampHeight，避免「拖到最小」与「存回比例」各算一套。
         double minWidth = Math.Min(Math.Max(MinWidth, workArea.Width * MinRatio), maxWidth);
-        double minHeight = Math.Min(Math.Max(MinHeight, workArea.Height * MinRatio), maxHeight);
 
         double left = start.Left;
         double top = start.Top;
@@ -153,7 +179,7 @@ public static class PanelGeometry
 
         if (edge is PanelEdge.Bottom or PanelEdge.BottomLeft or PanelEdge.BottomRight)
         {
-            height = Math.Clamp(start.Height + dy, minHeight, maxHeight);
+            height = ClampHeight(workArea, start.Height + dy);
         }
 
         return new PanelRect(left, top, width, height);
