@@ -137,7 +137,21 @@ public sealed class BoardLayoutHost : Grid
             };
 
             _paneElements[node.PaneId ?? string.Empty] = element;
-            return element;
+
+            // 形式层的硬阴影：垫一块同形状的色块，向右下偏 4 DIP。flat 时这是透明刷，看不见。
+            var shadow = new Border
+            {
+                Margin = new Thickness(4),
+                IsHitTestVisible = false,
+                RenderTransform = new System.Windows.Media.TranslateTransform(4, 4),
+            };
+            shadow.SetResourceReference(Border.BackgroundProperty, "ThemeShadowBrush");
+            shadow.SetResourceReference(Border.CornerRadiusProperty, "ThemeCornerRadius");
+
+            var stack = new Grid();
+            stack.Children.Add(shadow);
+            stack.Children.Add(element);
+            return stack;
         }
 
         if (node.First is null || node.Second is null)

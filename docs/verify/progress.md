@@ -102,3 +102,11 @@ Run B 收口：21/22/23 完成（各有欠账），24 未开工（3–5 天，�
 - 证据：`docs/verify/block-c.md`
 - 欠账：形式层（块 D）未做；`ThemeColorPicker`/`ThemeStyles.xaml` 暂无入口；色调只对 dark/light 生效；浅色 `onAccent` 校正为近黑
 - 下一步第一条命令：进入块 D（形式层，先 `brutal`）
+## 块 D — 形式层（2026-11-15）
+- 状态：**DONE-WITH-DEBT**（brutal 完成，glass/neon/clay/neumorph 只到参数级）
+- 验收：`build -warnaserror` 0 警告/0 错误（2.49s）；`test --no-build` **317 通过 / 0 失败 / 517 ms**
+- 改动：`ThemePalette`（form id + 参数）、`Board.FormId`、`ThemeService`（卡片/阴影资源）、`BoardLayoutHost`（栏硬阴影）、`CanvasBoard`（卡片走资源）、设置页形式下拉、`ThemeFormTests`
+- 数字：flat 首帧 1098 ms / private 102.1 MB；brutal 1081 ms / 103.2 MB（+1.1 MB）
+- 证据：`docs/verify/block-d.md`
+- 欠账：glass 无 DWM 材质与 Win10 降级；neon 发光字未做；clay/neumorph 近似 flat；画布卡片无硬阴影
+- 下一步第一条命令：补 glass 的 DWM 分支（Win10 降级），再做 neon 双层文字

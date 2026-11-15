@@ -66,8 +66,22 @@
                              Checked="OnThemeChanged" />
             </WrapPanel>
 
+            <TextBlock Text="形式" Style="{StaticResource FieldLabel}" />
+            <ComboBox x:Name="FormBox" Margin="0,0,0,4" Width="240" HorizontalAlignment="Left"
+                      SelectionChanged="OnFormChanged">
+                <ComboBoxItem Content="扁平（默认）" Tag="flat" />
+                <ComboBoxItem Content="新粗野（2px 黑边 + 硬阴影）" Tag="brutal" />
+                <ComboBoxItem Content="液态玻璃（半透明面）" Tag="glass" />
+                <ComboBoxItem Content="霓虹（发光强调）" Tag="neon" />
+                <ComboBoxItem Content="黏土（试验）" Tag="clay" />
+                <ComboBoxItem Content="新拟态（试验）" Tag="neumorph" />
+            </ComboBox>
+            <TextBlock Text="色板 × 形式自由组合；玻璃/新拟态在浅色底上更明显。"
+                       Style="{StaticResource HintText}" Margin="0,0,0,8" />
+
             <CheckBox x:Name="ThemeEffectsCheck" Content="主题效果（描边、圆角、纹理）"
                       Margin="0,0,0,12"
+                      Visibility="Collapsed"
                       Foreground="{DynamicResource TextPrimary}"
                       Checked="OnThemeEffectsChanged" Unchecked="OnThemeEffectsChanged" />
 

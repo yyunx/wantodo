@@ -241,13 +241,13 @@ public sealed class CanvasBoard : Canvas
         {
             Width = item.W,
             Height = item.H,
-            CornerRadius = new CornerRadius(6),
-            BorderThickness = new Thickness(1),
-            BorderBrush = (Brush)FindResource("BorderSubtle"),
             Background = (Brush)FindResource("SurfaceCard"),
             Tag = item,
             SnapsToDevicePixels = true,
         };
+        card.SetResourceReference(Border.CornerRadiusProperty, "ThemeCardCornerRadius");
+        card.SetResourceReference(Border.BorderThicknessProperty, "ThemeCardBorderThickness");
+        card.SetResourceReference(Border.BorderBrushProperty, "ThemeCardBorderBrush");
 
         Canvas.SetLeft(card, item.X);
         Canvas.SetTop(card, item.Y);
@@ -1144,8 +1144,20 @@ public sealed class CanvasBoard : Canvas
         }
 
         bool frameless = _framelessCards.Contains(item.Id);
-        card.BorderBrush = (Brush)FindResource(selected ? "BorderActive" : "BorderSubtle");
-        card.BorderThickness = new Thickness(selected ? 2 : frameless ? 0 : 1);
+        if (selected)
+        {
+            card.BorderBrush = (Brush)FindResource("BorderActive");
+            card.BorderThickness = new Thickness(2);
+        }
+        else if (frameless)
+        {
+            card.BorderThickness = new Thickness(0);
+        }
+        else
+        {
+            card.SetResourceReference(Border.BorderBrushProperty, "ThemeCardBorderBrush");
+            card.SetResourceReference(Border.BorderThicknessProperty, "ThemeCardBorderThickness");
+        }
         if (selected)
         {
             _selected = item;

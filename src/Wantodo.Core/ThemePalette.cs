@@ -58,7 +58,9 @@ public readonly record struct ThemeEffects(
     double CornerRadius,
     double ShadowOpacity,
     string? StrokeHex,
-    string? TextureKey)
+    string? TextureKey,
+    double CardAlpha = 1,
+    double ShadowOffset = 0)
 {
     public static ThemeEffects Flat { get; } = new(ThemeForm.Flat, 0, 10, 0, null, null);
 }
@@ -193,7 +195,41 @@ public static class ThemePalette
 
     public static ThemeEffects EffectsFor(ThemeForm form) => form switch
     {
+        ThemeForm.Brutal => new ThemeEffects(ThemeForm.Brutal, 2, 0, 0.65, "#0F1014", null, 1, 4),
+        ThemeForm.Glass => new ThemeEffects(ThemeForm.Glass, 1, 12, 0.18, "#FFFFFFB3", null, 0.72, 2),
+        ThemeForm.Neon => new ThemeEffects(ThemeForm.Neon, 1, 4, 0.45, null, null, 1, 0),
+        ThemeForm.Clay => new ThemeEffects(ThemeForm.Clay, 0, 18, 0.12, null, null, 1, 0),
+        ThemeForm.Neumorph => new ThemeEffects(ThemeForm.Neumorph, 0, 14, 0.10, null, null, 1, 0),
         _ => ThemeEffects.Flat,
+    };
+
+    /// <summary>形式 id（写进 data.json 的 <c>formId</c>）。</summary>
+    public const string FormFlat = "flat";
+    public const string FormBrutal = "brutal";
+    public const string FormGlass = "glass";
+    public const string FormNeon = "neon";
+    public const string FormClay = "clay";
+    public const string FormNeumorph = "neumorph";
+
+    public static string FormId(ThemeForm form) => form switch
+    {
+        ThemeForm.Brutal => FormBrutal,
+        ThemeForm.Glass => FormGlass,
+        ThemeForm.Neon => FormNeon,
+        ThemeForm.Clay => FormClay,
+        ThemeForm.Neumorph => FormNeumorph,
+        _ => FormFlat,
+    };
+
+    /// <summary>未知形式回退 flat，旧 data.json（没有 formId）不会崩。</summary>
+    public static ThemeForm ParseForm(string? formId) => formId?.Trim().ToLowerInvariant() switch
+    {
+        FormBrutal => ThemeForm.Brutal,
+        FormGlass => ThemeForm.Glass,
+        FormNeon => ThemeForm.Neon,
+        FormClay => ThemeForm.Clay,
+        FormNeumorph => ThemeForm.Neumorph,
+        _ => ThemeForm.Flat,
     };
 
     /// <summary>按主题名取色；未知主题按映射表回退，旧文件不会白屏。</summary>

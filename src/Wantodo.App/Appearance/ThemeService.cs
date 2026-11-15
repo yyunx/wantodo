@@ -19,8 +19,9 @@ public static class ThemeService
             board.CustomBackground,
             board.CustomAccent);
 
-        var effects = board.ThemeEffects
-            ? ThemePalette.EffectsFor(colors.Form)
+        var form = ThemePalette.ParseForm(board.FormId);
+        var effects = board.ThemeEffects || form != ThemeForm.Flat
+            ? ThemePalette.EffectsFor(form)
             : ThemeEffects.Flat;
 
         Apply(colors, effects);
@@ -47,7 +48,7 @@ public static class ThemeService
         resources["Hover"] = Brush(colors.Hover);
         resources["Selected"] = Brush(colors.Selected);
 
-        resources["SurfaceCard"] = Brush(colors.SurfaceCard);
+        resources["SurfaceCard"] = Brush(colors.SurfaceCard, effects.CardAlpha);
         resources["OnSurfaceCard"] = Brush(colors.OnSurfaceCard);
         resources["BorderSubtle"] = Brush(colors.BorderSubtle);
         resources["BorderActive"] = Brush(colors.BorderActive);
@@ -66,11 +67,25 @@ public static class ThemeService
         resources["ThemeStrokeThickness"] = new System.Windows.Thickness(effects.StrokeWidth);
         resources["ThemeCornerRadius"] = new System.Windows.CornerRadius(effects.CornerRadius);
         resources["ThemeTextureBrush"] = TextureBrush(effects.TextureKey);
+        resources["ThemeCardBorderBrush"] = effects.StrokeHex is not null && ThemePalette.TryParseHex(effects.StrokeHex, out var cardStroke)
+            ? Brush(cardStroke)
+            : Brush(colors.BorderSubtle);
+        resources["ThemeCardBorderThickness"] = new System.Windows.Thickness(Math.Max(1, effects.StrokeWidth));
+        resources["ThemeCardCornerRadius"] = new System.Windows.CornerRadius(effects.CornerRadius == 0 ? 0 : Math.Min(effects.CornerRadius, 10));
+        resources["ThemeShadowBrush"] = effects.ShadowOpacity > 0
+            ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(
+                (byte)Math.Round(255 * effects.ShadowOpacity), 0, 0, 0))
+            : Brushes.Transparent;
+        resources["ThemeShadowOffset"] = effects.ShadowOffset;
+        resources["ThemeCardAlpha"] = effects.CardAlpha;
     }
 
-    public static SolidColorBrush Brush(Rgb color)
+    public static SolidColorBrush Brush(Rgb color) => Brush(color, 1);
+
+    public static SolidColorBrush Brush(Rgb color, double alpha)
     {
-        var brush = new SolidColorBrush(Color.FromRgb(color.R, color.G, color.B));
+        var a = (byte)Math.Clamp(Math.Round(255 * alpha), 0, 255);
+        var brush = new SolidColorBrush(Color.FromArgb(a, color.R, color.G, color.B));
         brush.Freeze();
         return brush;
     }

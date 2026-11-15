@@ -88,6 +88,7 @@ public sealed class JsonBoardStoreTests : IDisposable
         board.Surface = "Topmost";
         board.Theme = "Light";
         board.Tone = 0.4;
+        board.FormId = "brutal";
         board.Placement = new WindowPlacement { Left = 33.5, Top = 66.25, Width = 720, Height = 480 };
         board.Columns[1].Notes.Add(new Note { Text = "第三条", Completed = true });
         store.Save(board);
@@ -98,6 +99,7 @@ public sealed class JsonBoardStoreTests : IDisposable
         Assert.Equal("Topmost", loaded.Board.Surface);
         Assert.Equal("light", loaded.Board.Theme);
         Assert.Equal(0.4, loaded.Board.Tone, 3);
+        Assert.Equal("brutal", loaded.Board.FormId);
         Assert.True(loaded.Board.Placement.HasPosition);
         Assert.Equal(33.5, loaded.Board.Placement.Left!.Value, 3);
         Assert.Equal(720, loaded.Board.Placement.Width, 3);

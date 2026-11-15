@@ -143,6 +143,22 @@ public sealed class BoardViewModel : ObservableObject
         ApplyAppearance();
     }
 
+    /// <summary>形式层（块 D）：<c>flat|brutal|glass|neon|clay|neumorph</c>，未知回退 flat 并落盘。</summary>
+    public void SetForm(string formId)
+    {
+        var normalized = ThemePalette.FormId(ThemePalette.ParseForm(formId));
+        if (string.Equals(Model.FormId, normalized, StringComparison.Ordinal))
+        {
+            ApplyAppearance();
+            return;
+        }
+
+        Model.FormId = normalized;
+        Model.ThemeEffects = !string.Equals(normalized, ThemePalette.FormFlat, StringComparison.Ordinal);
+        ApplyAppearance();
+        RequestSave();
+    }
+
     /// <summary>
     /// 自定义主题：只存背景 + 强调两色，其余 8 个令牌由 <see cref="ThemeDerivation"/> 推导。
     /// 颜色非法时仍切到 <c>Custom</c>，空/坏值让 <see cref="ThemePalette.ForCustom"/> 回退深色，并记一条 WARN。

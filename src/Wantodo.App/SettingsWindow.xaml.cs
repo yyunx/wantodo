@@ -57,6 +57,9 @@ public partial class SettingsWindow : Window
             }
 
             ThemeEffectsCheck.IsChecked = _viewModel.Model.ThemeEffects;
+            SelectForm(_viewModel.Model.ThemeEffects
+                ? ThemePalette.ParseForm(_viewModel.Model.FormId)
+                : ThemeForm.Flat);
 
             ToneSlider.Value = Math.Clamp(_viewModel.Model.Tone, 0, 1);
             ToneSlider.IsEnabled = ThemePalette.SupportsTone(theme);
@@ -112,6 +115,32 @@ public partial class SettingsWindow : Window
 
         _viewModel.SetTheme(theme);
         ToneSlider.IsEnabled = ThemePalette.SupportsTone(theme);
+    }
+
+    private void SelectForm(ThemeForm form)
+    {
+        string id = ThemePalette.FormId(form);
+        foreach (var item in FormBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag as string, id, StringComparison.OrdinalIgnoreCase))
+            {
+                FormBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        FormBox.SelectedIndex = 0;
+    }
+
+    private void OnFormChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || FormBox.SelectedItem is not ComboBoxItem { Tag: string id })
+        {
+            return;
+        }
+
+        _viewModel.SetForm(id);
+        ThemeEffectsCheck.IsChecked = !string.Equals(id, ThemePalette.FormFlat, StringComparison.OrdinalIgnoreCase);
     }
 
     private void OnThemeEffectsChanged(object sender, RoutedEventArgs e)

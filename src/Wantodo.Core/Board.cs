@@ -14,6 +14,9 @@ public sealed class Board
     /// <summary>是否显示主题的形式感（描边/圆角/纹理，Phase 21）；默认开，关掉只换色。</summary>
     public bool ThemeEffects { get; set; } = true;
 
+    /// <summary>形式层 id（块 D）：<c>flat|brutal|glass|neon|clay|neumorph</c>，缺省或未知按 flat。</summary>
+    public string FormId { get; set; } = ThemePalette.FormFlat;
+
     /// <summary>自定义主题的背景色（<c>#RRGGBB</c>，仅 <c>Theme=Custom</c> 使用；缺失按深色回退）。</summary>
     public string? CustomBackground { get; set; }
 
@@ -116,6 +119,7 @@ public sealed class Board
         PanelWidthRatio = PanelGeometry.ClampRatio(PanelWidthRatio);
         PanelHeightRatio = PanelGeometry.ClampRatio(PanelHeightRatio);
         Theme = ThemePalette.MigrateThemeId(Theme);
+        FormId = ThemePalette.FormId(ThemePalette.ParseForm(FormId));
         if (!string.Equals(PanelMode, CanvasPanelMode, StringComparison.OrdinalIgnoreCase))
         {
             PanelMode = DockPanelMode;
