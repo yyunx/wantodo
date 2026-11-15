@@ -24,6 +24,14 @@ public static class CanvasSurfaces
 /// </summary>
 public sealed class CanvasObject
 {
+    public const string KindImage = "image";
+
+    public const string KindStroke = "stroke";
+
+    public const string KindShape = "shape";
+
+    public const string KindText = "text";
+
     public const double MinWidth = 4;
     public const double MaxWidth = 20000;
     public const double MinHeight = 4;
@@ -35,7 +43,7 @@ public sealed class CanvasObject
     public string Surface { get; set; } = CanvasSurfaces.Freeform;
 
     /// <summary>image / stroke / shape / text。</summary>
-    public string Kind { get; set; } = "image";
+    public string Kind { get; set; } = KindImage;
 
     public double X { get; set; }
 
@@ -55,7 +63,7 @@ public sealed class CanvasObject
     {
         Id = string.IsNullOrWhiteSpace(Id) ? "o" + Guid.NewGuid().ToString("n")[..8] : Id;
         Surface = CanvasSurfaces.Freeform;
-        Kind = string.IsNullOrWhiteSpace(Kind) ? "image" : Kind;
+        Kind = string.IsNullOrWhiteSpace(Kind) ? KindImage : Kind;
         W = double.IsNaN(W) || double.IsInfinity(W) ? 240 : Math.Clamp(W, MinWidth, MaxWidth);
         H = double.IsNaN(H) || double.IsInfinity(H) ? 160 : Math.Clamp(H, MinHeight, MaxHeight);
         X = double.IsNaN(X) || double.IsInfinity(X) ? 0 : X;

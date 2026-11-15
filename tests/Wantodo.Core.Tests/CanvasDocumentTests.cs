@@ -148,6 +148,23 @@ public sealed class CanvasDocumentTests : IDisposable
     }
 
     [Fact]
+    public void ActiveSurface_RoundTripsAndUnknownFallsBackToStructured()
+    {
+        var store = Store();
+        var board = Board.CreateDefault();
+        Assert.Equal(CanvasSurfaces.Structured, board.Canvas.ActiveSurfaceId);
+
+        board.Canvas.ActiveSurfaceId = CanvasSurfaces.Freeform;
+        store.Save(board);
+        Assert.Equal(CanvasSurfaces.Freeform, store.Load().Board.Canvas.ActiveSurfaceId);
+
+        // 手改坏的 id 不崩，回落到结构化表面（切换控件永远不会停在「没有一面亮着」的状态）
+        board.Canvas.ActiveSurfaceId = "skynet";
+        board.Canvas.Normalize();
+        Assert.Equal(CanvasSurfaces.Structured, board.Canvas.ActiveSurfaceId);
+    }
+
+    [Fact]
     public void PanelMode_DefaultsToCanvasAndUnknownFallsBackToDock()
     {
         var board = new Board();

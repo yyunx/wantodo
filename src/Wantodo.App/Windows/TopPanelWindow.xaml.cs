@@ -54,12 +54,13 @@ public partial class TopPanelWindow : Window
 
         // 0.7.0：画布住 data.json，写盘走 Board 的合并保存（600 ms 去抖），不再有 canvas.json。
         CanvasBoard.Attach(viewModel.Model.Canvas, PersistCanvas, DataRootService.Paths.CanvasImagesDir);
+        FreeformBoard.Attach(viewModel.Model.Canvas, () => PersistCanvas(viewModel.Model.Canvas), DataRootService.Paths.CanvasImagesDir);
         CanvasBoard.StatusChanged += (_, _) => UpdateCanvasStatus();
         CanvasBoard.ColumnsProvider = () => viewModel.Model.Columns;
         CanvasBoard.ColumnCreator = CreateCanvasColumn;
         ApplyPanelVisibility();
         ApplyMode();
-        UpdateCanvasStatus();
+        ApplySurface();
 
         Top = WorkArea.Top;
         Height = CollapsedHeight;
@@ -93,7 +94,75 @@ public partial class TopPanelWindow : Window
         CanvasBody.Visibility = canvas ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void UpdateCanvasStatus() => CanvasStatus.Text = $"{CanvasBoard.Document.Items.Count} 张 · Ctrl+Z 撤销";
+    /// <summary>
+    /// 表面切换只改 <c>Visibility</c>：两个宿主都常驻、都指向同一份 <see cref="CanvasDocument"/>，
+    /// 所以切 20 次也不会丢内容，窗口句柄与主题一个都不变。
+    /// </summary>
+    private void ApplySurface()
+    {
+        var surface = CanvasSurfaces.Normalize(_viewModel.Model.Canvas?.ActiveSurfaceId);
+        var freeform = string.Equals(surface, CanvasSurfaces.Freeform, StringComparison.OrdinalIgnoreCase);
+
+        CanvasScroller.Visibility = freeform ? Visibility.Collapsed : Visibility.Visible;
+        FreeformScroller.Visibility = freeform ? Visibility.Collapsed : Visibility.Visible;
+        StructuredTools.Visibility = freeform ? Visibility.Collapsed : Visibility.Visible;
+        SurfaceStructuredButton.IsChecked = !freeform;
+        SurfaceFreeformButton.IsChecked = freeform;
+
+        UpdateCanvasStatus();
+    }
+
+    private void SetSurface(string surface)
+    {
+        var document = _viewModel.Model.Canvas;
+        if (document is null)
+        {
+            return;
+        }
+
+        surface = CanvasSurfaces.Normalize(surface);
+        if (string.Equals(CanvasSurfaces.Normalize(document.ActiveSurfaceId), surface, StringComparison.OrdinalIgnoreCase))
+        {
+            ApplySurface();
+            return;
+        }
+
+        document.ActiveSurfaceId = surface;
+        _viewModel.RequestSave();
+
+        // 回来时重画一次：另一面可能刚被 undo/导入改过文档。
+        if (surface == CanvasSurfaces.Freeform)
+        {
+            FreeformBoard.Rebuild();
+        }
+        else
+        {
+            CanvasBoard.Rebuild();
+        }
+
+        AppLog.Info($"[画布] 切到表面 {surface} 卡片={document.Cards.Count} 图元={document.Objects.Count}");
+        ApplySurface();
+    }
+
+    private void OnSurfaceButtonClick(object sender, RoutedEventArgs e)
+    {
+        SetSurface(ReferenceEquals(sender, SurfaceFreeformButton) ? CanvasSurfaces.Freeform : CanvasSurfaces.Structured);
+    }
+
+    private void OnSurfaceAddClick(object sender, RoutedEventArgs e)
+    {
+        // Q2 的后半句（>4 表面才升 tab + 溢出）本期用不上：0.7.0 只有两个表面。
+        AppLog.Info("[画布] 点了 ＋：0.7.0 只有结构化与自由两个表面，未新增");
+    }
+
+    private void UpdateCanvasStatus()
+    {
+        var document = _viewModel.Model.Canvas;
+        var freeform = string.Equals(CanvasSurfaces.Normalize(document?.ActiveSurfaceId), CanvasSurfaces.Freeform, StringComparison.OrdinalIgnoreCase);
+        CanvasStatus.Text = freeform
+            ? $"{document?.Objects.Count ?? 0} 个图元 · 缩放 {document?.ViewportOf(CanvasSurfaces.Freeform).Zoom:0.##}×"
+            : $"{document?.Cards.Count ?? 0} 张卡 · Ctrl+Z 撤销";
+    }
 
     /// <summary>主屏工作区（DIP，已扣任务栏）。</summary>
     public static PanelRect WorkArea

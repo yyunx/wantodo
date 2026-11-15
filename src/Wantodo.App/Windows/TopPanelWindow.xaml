@@ -126,19 +126,43 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                            <Button Content="记事" Click="OnCanvasAddNote" Padding="8,3" Margin="0,0,4,0" />
-                            <Button Content="待办" Click="OnCanvasAddTodo" Padding="8,3" Margin="0,0,4,0" />
-                            <Button Content="计时" Click="OnCanvasAddTimer" Padding="8,3" Margin="0,0,4,0" />
-                            <Button Content="图片" Click="OnCanvasAddImage" Padding="8,3" Margin="0,0,4,0" />
-                            <TextBlock x:Name="CanvasStatus" VerticalAlignment="Center" Margin="8,0,0,0"
+                        <!-- 固定的三段顶栏：左=表面分段控件，中=该表面的工具组（P1.1 起填充），右=状态 -->
+                        <DockPanel Margin="0,0,0,6">
+                            <Border DockPanel.Dock="Left" Padding="2" CornerRadius="8"
+                                    Background="{DynamicResource BorderSubtle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton x:Name="SurfaceStructuredButton" Content="结构化"
+                                                  Style="{StaticResource SurfaceSegment}"
+                                                  Click="OnSurfaceButtonClick" />
+                                    <ToggleButton x:Name="SurfaceFreeformButton" Content="自由"
+                                                  Style="{StaticResource SurfaceSegment}"
+                                                  Click="OnSurfaceButtonClick" />
+                                </StackPanel>
+                            </Border>
+                            <Button x:Name="SurfaceAddButton" DockPanel.Dock="Left" Content="＋"
+                                    Margin="6,0,0,0" Padding="7,2" MinWidth="26"
+                                    ToolTip="0.7.0 只有两个表面" Click="OnSurfaceAddClick" />
+                            <TextBlock x:Name="CanvasStatus" VerticalAlignment="Center" Margin="10,0,0,0"
                                        FontSize="11" Foreground="{DynamicResource TextMuted}" />
-                        </StackPanel>
-                        <ScrollViewer Grid.Row="1" x:Name="CanvasScroller"
-                                      HorizontalScrollBarVisibility="Auto"
-                                      VerticalScrollBarVisibility="Auto">
-                            <controls:CanvasBoard x:Name="CanvasBoard" Width="1600" Height="1000" />
-                        </ScrollViewer>
+                            <StackPanel x:Name="StructuredTools" DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="记事" Click="OnCanvasAddNote" Padding="8,3" Margin="0,0,4,0" />
+                                <Button Content="待办" Click="OnCanvasAddTodo" Padding="8,3" Margin="0,0,4,0" />
+                                <Button Content="计时" Click="OnCanvasAddTimer" Padding="8,3" Margin="0,0,4,0" />
+                                <Button Content="图片" Click="OnCanvasAddImage" Padding="8,3" />
+                            </StackPanel>
+                        </DockPanel>
+                        <Grid Grid.Row="1">
+                            <ScrollViewer x:Name="CanvasScroller"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Auto">
+                                <controls:CanvasBoard x:Name="CanvasBoard" Width="1600" Height="1000" />
+                            </ScrollViewer>
+                            <ScrollViewer x:Name="FreeformScroller" Visibility="Collapsed"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Auto">
+                                <controls:FreeformBoard x:Name="FreeformBoard" Width="1600" Height="1000" />
+                            </ScrollViewer>
+                        </Grid>
                     </Grid>
                 </Grid>
 
