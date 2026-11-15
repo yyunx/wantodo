@@ -14,14 +14,26 @@ public sealed class Board
     /// <summary>窗口层级：Desktop（默认，贴桌面图标层）/ Normal / Topmost。</summary>
     public string Surface { get; set; } = "Desktop";
 
-    /// <summary>外观：Dark / Light / Sakura / Dracula / Nord / Catppuccin / System / Custom。</summary>
-    public string Theme { get; set; } = "Dark";
+    /// <summary>色板 id（0.7.0）：<c>light|dark|latte|frappe|macchiato|mocha|neon|custom</c>，只决定颜色。</summary>
+    public string PaletteId { get; set; } = PaletteIds.Dark;
 
-    /// <summary>是否显示主题的形式感（描边/圆角/纹理，Phase 21）；默认开，关掉只换色。</summary>
-    public bool ThemeEffects { get; set; } = true;
+    /// <summary>材质主题 id（0.7.0）：当前只有 <c>liquidGlass</c>，决定圆角/描边/透明/阴影。</summary>
+    public string ThemeId { get; set; } = ThemeIds.LiquidGlass;
 
-    /// <summary>形式层 id（块 D）：<c>flat|brutal|glass|neon|clay|neumorph</c>，缺省或未知按 flat。</summary>
-    public string FormId { get; set; } = ThemePalette.FormFlat;
+    /// <summary>关掉效果后只保留纯色（设置页「主题效果」开关的取反）。</summary>
+    public bool ReducedEffects { get; set; }
+
+    /// <summary>0.6.0 及更早的主题名；迁移后清空，不再写回（P0.2）。</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Theme { get; set; }
+
+    /// <summary>0.6.0 的形式 id；迁移后清空，不再写回（P0.2）。</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? FormId { get; set; }
+
+    /// <summary>0.6.0 的效果开关；迁移时换算成 <see cref="ReducedEffects"/> 后清空（P0.2）。</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? ThemeEffects { get; set; }
 
     /// <summary>自定义主题的背景色（<c>#RRGGBB</c>，仅 <c>Theme=Custom</c> 使用；缺失按深色回退）。</summary>
     public string? CustomBackground { get; set; }
@@ -124,8 +136,8 @@ public sealed class Board
 
         PanelWidthRatio = PanelGeometry.ClampRatio(PanelWidthRatio);
         PanelHeightRatio = PanelGeometry.ClampRatio(PanelHeightRatio);
-        Theme = ThemePalette.MigrateThemeId(Theme);
-        FormId = ThemePalette.FormId(ThemePalette.ParseForm(FormId));
+        PaletteId = PaletteIds.Parse(PaletteId);
+        ThemeId = ThemeIds.Parse(ThemeId);
         if (!string.Equals(PanelMode, CanvasPanelMode, StringComparison.OrdinalIgnoreCase))
         {
             PanelMode = DockPanelMode;

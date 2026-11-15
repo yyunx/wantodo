@@ -166,6 +166,46 @@ public sealed class BoardMigrationTests : IDisposable
     }
 
     [Fact]
+    public void Upgrade_LegacyThemeAndForm_MapsToPaletteAndDropsLegacyFields()
+    {
+        WriteOldBoard("""
+        { "version": 2, "theme": "dracula", "formId": "brutal", "themeEffects": false, "columns": [] }
+        """);
+
+        var store = Store();
+        var result = store.Load();
+
+        Assert.Equal(PaletteIds.Mocha, result.Board.PaletteId);
+        Assert.Equal(ThemeIds.LiquidGlass, result.Board.ThemeId);
+        Assert.True(result.Board.ReducedEffects); // themeEffects=false → 关效果
+        Assert.Null(result.Board.Theme);
+        Assert.Null(result.Board.FormId);
+        Assert.Null(result.Board.ThemeEffects);
+        Assert.Contains(store.Diagnostics, d => d.Contains("paletteId=mocha"));
+        Assert.Contains(store.Diagnostics, d => d.Contains("formId 字段已弃用"));
+
+        // 旧字段不再写回磁盘（Q10/§4.4：新文件只有 paletteId/themeId/reducedEffects）
+        var text = File.ReadAllText(DataPath);
+        Assert.DoesNotContain("\"theme\"", text);
+        Assert.DoesNotContain("\"formId\"", text);
+        Assert.DoesNotContain("\"themeEffects\"", text);
+        Assert.Contains("\"paletteId\"", text);
+        Assert.Contains("\"themeId\"", text);
+    }
+
+    [Fact]
+    public void Upgrade_UnknownTheme_WarnsAndFallsBackToDark()
+    {
+        WriteOldBoard("""{ "version": 2, "theme": "SkyNet", "columns": [] }""");
+
+        var store = Store();
+        var result = store.Load();
+
+        Assert.Equal(PaletteIds.Dark, result.Board.PaletteId);
+        Assert.Contains(store.Diagnostics, d => d.Contains("SkyNet"));
+    }
+
+    [Fact]
     public void CanvasDocument_Normalize_FillsViewportsAndDedupes()
     {
         var document = new CanvasDocument

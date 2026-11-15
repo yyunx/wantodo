@@ -60,27 +60,32 @@ public sealed class ThemeFormTests
     }
 
     [Fact]
-    public void Board_FormIdDefaultsToFlatAndNormalizesUnknown()
+    public void Board_ThemeIdDefaultsToLiquidGlassAndNormalizesUnknown()
     {
         var board = Board.CreateDefault();
-        Assert.Equal("flat", board.FormId);
+        Assert.Equal(ThemeIds.LiquidGlass, board.ThemeId);
+        Assert.Equal(PaletteIds.Dark, board.PaletteId);
 
-        board.FormId = "Brutal";
+        board.ThemeId = "LiquidGlass";
         board.NormalizePanel();
-        Assert.Equal("brutal", board.FormId);
+        Assert.Equal(ThemeIds.LiquidGlass, board.ThemeId);
 
-        board.FormId = "wat";
+        board.ThemeId = "solid";
         board.NormalizePanel();
-        Assert.Equal("flat", board.FormId);
+        Assert.Equal(ThemeIds.Solid, board.ThemeId);
+
+        board.ThemeId = "wat";
+        board.NormalizePanel();
+        Assert.Equal(ThemeIds.LiquidGlass, board.ThemeId);
     }
 
     [Fact]
-    public void Board_OldFileWithoutFormId_LoadsAsFlat()
+    public void Board_OldFileWithoutThemeId_LoadsAsLiquidGlass()
     {
         var board = Board.CreateDefault();
-        board.FormId = null!;
+        board.ThemeId = null!;
         board.NormalizePanel();
 
-        Assert.Equal("flat", board.FormId);
+        Assert.Equal(ThemeIds.LiquidGlass, board.ThemeId);
     }
 }

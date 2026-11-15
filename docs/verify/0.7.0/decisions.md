@@ -10,3 +10,6 @@
 | D4 | 两边都有画布内容时 | 以 `data.json` 为准，旧文件改名保留，记 WARN | Q1 已裁决「以 data.json 为准」（迁移表第 9 行） | 低 |
 | D5 | 升级前备份名 | `data.json.pre-070.bak`（只生成一次，存在跳过） | 计划书 V-02 明文要求该文件名 | 低 |
 | D6 | `Items` 兼容别名 | 保留 `[JsonIgnore] Items => Cards`，P0.3 删 | 让 `CanvasBoard` 在 P0.1 不必同步大改，减少夹带 | 低：P0.3 一并清理 |
+| D7 | App 层剩余裸 hex 的处理 | 允许三类例外并登记：`App.xaml` 的默认回退刷子、`ThemeColorPicker` 的 HSV 渐变、`ThemeStyles.xaml` 的装饰纹理 | 前两类是「主题应用前」的兜底与选择器自身的画布，第三类是几何纹理不是主题色；P2.1 若有余力再把纹理改成令牌 | 低：换成令牌需要新增 3 个资源键 |
+| D8 | 迁移后是否立即落盘 | 是：`Load()` 里 `upgraded` 为真就 `Save` | V-02 要求「打开一次后 `data.json` 里有 paletteId」；不落盘则每次启动都重新迁移、诊断反复 | 低 |
+| D9 | 旧 `formId` 的落点 | 全部折成 `liquidGlass`，`solid` 只保留常量不启用 | 计划书 §1.4 迁移表：formId 丢弃 + WARN；本期只交付一种材质 | 中：启用 solid 要补设置项与色板取值 |

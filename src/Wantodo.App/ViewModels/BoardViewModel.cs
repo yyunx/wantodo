@@ -124,9 +124,10 @@ public sealed class BoardViewModel : ObservableObject
         RequestSave();
     }
 
+    /// <summary>选色板（id 见 <see cref="PaletteIds"/>）；旧 id 会在这里归一。</summary>
     public void SetTheme(string theme)
     {
-        Model.Theme = theme;
+        Model.PaletteId = PaletteIds.Parse(theme);
         ApplyAppearance();
     }
 
@@ -139,22 +140,21 @@ public sealed class BoardViewModel : ObservableObject
     /// <summary>主题效果开关：关掉只剩 10 个令牌，观感回到纯色主题。</summary>
     public void SetThemeEffects(bool enabled)
     {
-        Model.ThemeEffects = enabled;
+        Model.ReducedEffects = !enabled;
         ApplyAppearance();
     }
 
-    /// <summary>形式层（块 D）：<c>flat|brutal|glass|neon|clay|neumorph</c>，未知回退 flat 并落盘。</summary>
-    public void SetForm(string formId)
+    /// <summary>材质主题（0.7.0）：当前只有 <c>liquidGlass</c>，未知归一后落盘。</summary>
+    public void SetThemeId(string themeId)
     {
-        var normalized = ThemePalette.FormId(ThemePalette.ParseForm(formId));
-        if (string.Equals(Model.FormId, normalized, StringComparison.Ordinal))
+        var normalized = ThemeIds.Parse(themeId);
+        if (string.Equals(Model.ThemeId, normalized, StringComparison.Ordinal))
         {
             ApplyAppearance();
             return;
         }
 
-        Model.FormId = normalized;
-        Model.ThemeEffects = !string.Equals(normalized, ThemePalette.FormFlat, StringComparison.Ordinal);
+        Model.ThemeId = normalized;
         ApplyAppearance();
         RequestSave();
     }
@@ -175,7 +175,7 @@ public sealed class BoardViewModel : ObservableObject
                 "缺失或无法解析的一项会被忽略，主题退回深色底");
         }
 
-        Model.Theme = ThemePalette.CustomTheme;
+        Model.PaletteId = PaletteIds.Custom;
         Model.CustomBackground = normalizedBackground;
         Model.CustomAccent = normalizedAccent;
         ApplyAppearance();

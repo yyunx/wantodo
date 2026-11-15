@@ -88,13 +88,19 @@ public sealed class JsonBoardStore
             return new BoardLoadResult(first, BoardLoadStatus.FirstRun);
         }
 
-        if (TryRead(DataPath, out var board, out var primaryError))
+        if (TryRead(DataPath, out var board, out var primaryError, out var upgraded))
         {
             MergeLegacyCanvas(board!);
+            if (upgraded)
+            {
+                // schema 升版后立刻落盘：V-02 要求打开一次后 data.json 里就有 paletteId/themeId
+                Save(board!);
+            }
+
             return new BoardLoadResult(board!, BoardLoadStatus.Loaded);
         }
 
-        if (TryRead(BackupPath, out var backup, out _))
+        if (TryRead(BackupPath, out var backup, out _, out _))
         {
             var quarantined = Quarantine(DataPath);
             Diagnostics.Add(
@@ -168,10 +174,11 @@ public sealed class JsonBoardStore
         stream.Flush(flushToDisk: true);
     }
 
-    private bool TryRead(string path, out Board? board, out string? error)
+    private bool TryRead(string path, out Board? board, out string? error, out bool upgraded)
     {
         board = null;
         error = null;
+        upgraded = false;
 
         if (!File.Exists(path))
         {
@@ -195,8 +202,9 @@ public sealed class JsonBoardStore
                 return false;
             }
 
+            upgraded = BoardMigration.NeedsUpgrade(parsed);
             EnsurePreUpgradeBackup(path, parsed);
-            Normalize(parsed);
+            Normalize(parsed, Diagnostics);
             board = parsed;
             return true;
         }

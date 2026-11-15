@@ -86,9 +86,9 @@ public sealed class JsonBoardStoreTests : IDisposable
         var store = NewStore();
         var board = Board.CreateDefault();
         board.Surface = "Topmost";
-        board.Theme = "Light";
+        board.PaletteId = "Light";
         board.Tone = 0.4;
-        board.FormId = "brutal";
+        board.ThemeId = "LiquidGlass";
         board.Placement = new WindowPlacement { Left = 33.5, Top = 66.25, Width = 720, Height = 480 };
         board.Columns[1].Notes.Add(new Note { Text = "第三条", Completed = true });
         store.Save(board);
@@ -97,9 +97,9 @@ public sealed class JsonBoardStoreTests : IDisposable
 
         Assert.Equal(BoardLoadStatus.Loaded, loaded.Status);
         Assert.Equal("Topmost", loaded.Board.Surface);
-        Assert.Equal("light", loaded.Board.Theme);
+        Assert.Equal("light", loaded.Board.PaletteId);
         Assert.Equal(0.4, loaded.Board.Tone, 3);
-        Assert.Equal("brutal", loaded.Board.FormId);
+        Assert.Equal(ThemeIds.LiquidGlass, loaded.Board.ThemeId);
         Assert.True(loaded.Board.Placement.HasPosition);
         Assert.Equal(33.5, loaded.Board.Placement.Left!.Value, 3);
         Assert.Equal(720, loaded.Board.Placement.Width, 3);
@@ -247,7 +247,7 @@ public sealed class JsonBoardStoreTests : IDisposable
     {
         var store = NewStore();
         var board = Board.CreateDefault();
-        board.Theme = "Custom";
+        board.PaletteId = "Custom";
         board.CustomBackground = "#1B2735";
         board.CustomAccent = "#E05A7A";
         store.Save(board);
@@ -255,7 +255,7 @@ public sealed class JsonBoardStoreTests : IDisposable
         var loaded = NewStore().Load();
 
         Assert.Equal(BoardLoadStatus.Loaded, loaded.Status);
-        Assert.Equal("dark", loaded.Board.Theme); // v6：旧 Custom 映射到深色，两色仍保留
+        Assert.Equal(PaletteIds.Custom, loaded.Board.PaletteId); // 自定义两色仍在时保留 custom 伪色板
         Assert.Equal("#1B2735", loaded.Board.CustomBackground);
         Assert.Equal("#E05A7A", loaded.Board.CustomAccent);
 
@@ -379,14 +379,14 @@ public sealed class JsonBoardStoreTests : IDisposable
     }
 
     [Fact]
-    public void ThemeEffects_DefaultTrueAndRoundTrips()
+    public void ReducedEffects_DefaultFalseAndRoundTrips()
     {
         var store = NewStore();
         var board = Board.CreateDefault();
-        Assert.True(board.ThemeEffects);
+        Assert.False(board.ReducedEffects);
 
-        board.ThemeEffects = false;
+        board.ReducedEffects = true;
         store.Save(board);
 
-        Assert.False(store.Load().Board.ThemeEffects);
+        Assert.True(store.Load().Board.ReducedEffects);
     }}

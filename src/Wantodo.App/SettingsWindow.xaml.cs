@@ -44,7 +44,7 @@ public partial class SettingsWindow : Window
                 DesktopRadio.IsChecked = true;
             }
 
-            var theme = ThemePalette.MigrateThemeId(_viewModel.Model.Theme);
+            var theme = _viewModel.Model.PaletteId;
             var radios = new[] { LightRadio, DarkRadio, LatteRadio, FrappeRadio, MacchiatoRadio, MochaRadio, NeonRadio };
             foreach (var radio in radios)
             {
@@ -56,10 +56,8 @@ public partial class SettingsWindow : Window
                 DarkRadio.IsChecked = true;
             }
 
-            ThemeEffectsCheck.IsChecked = _viewModel.Model.ThemeEffects;
-            SelectForm(_viewModel.Model.ThemeEffects
-                ? ThemePalette.ParseForm(_viewModel.Model.FormId)
-                : ThemeForm.Flat);
+            ThemeEffectsCheck.IsChecked = !_viewModel.Model.ReducedEffects;
+            SelectTheme(_viewModel.Model.ThemeId);
 
             ToneSlider.Value = Math.Clamp(_viewModel.Model.Tone, 0, 1);
             ToneSlider.IsEnabled = ThemePalette.SupportsTone(theme);
@@ -117,9 +115,9 @@ public partial class SettingsWindow : Window
         ToneSlider.IsEnabled = ThemePalette.SupportsTone(theme);
     }
 
-    private void SelectForm(ThemeForm form)
+    private void SelectTheme(string themeId)
     {
-        string id = ThemePalette.FormId(form);
+        string id = ThemeIds.Parse(themeId);
         foreach (var item in FormBox.Items.OfType<ComboBoxItem>())
         {
             if (string.Equals(item.Tag as string, id, StringComparison.OrdinalIgnoreCase))
@@ -139,8 +137,8 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        _viewModel.SetForm(id);
-        ThemeEffectsCheck.IsChecked = !string.Equals(id, ThemePalette.FormFlat, StringComparison.OrdinalIgnoreCase);
+        _viewModel.SetThemeId(id);
+        ThemeEffectsCheck.IsChecked = !_viewModel.Model.ReducedEffects;
     }
 
     private void OnThemeEffectsChanged(object sender, RoutedEventArgs e)

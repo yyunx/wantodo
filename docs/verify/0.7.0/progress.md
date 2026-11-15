@@ -5,7 +5,7 @@
 | 步 | 内容 | 状态 | 文档 |
 |---|---|---|---|
 | P0.1 | 数据模型 v3 + 迁移 + 旧 canvas 导入 | DONE | [p0.1.md](p0.1.md) |
-| P0.2 | Theme/Palette 拆分 + ThemeResourceKeys 闭环 | TODO | — |
+| P0.2 | Theme/Palette 拆分 + ThemeResourceKeys 闭环 | DONE | [p0.2.md](p0.2.md) |
 | P0.3 | 单文件画布（CanvasStore 走 BoardDir） | TODO | — |
 | P0.4 | 双表面宿主 + 分段控件 | TODO | — |
 | P0.5 | 液态玻璃探针 + 材质 + Win10 降级 | TODO | — |

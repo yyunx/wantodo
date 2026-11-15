@@ -27,10 +27,9 @@ public static class BoardMigration
         board.Canvas ??= new CanvasDocument();
         board.Canvas.Normalize();
 
-        // 旧 formId / ThemeEffects 只是历史别名，P0.2 起不再参与渲染；这里保留原值以便回滚。
-        if (from < CurrentVersion && !string.IsNullOrWhiteSpace(board.FormId))
+        if (from < CurrentVersion)
         {
-            diagnostics?.Add($"[迁移] 旧形式 {board.FormId} → liquidGlass（字段保留只读）");
+            UpgradeTheme(board, diagnostics);
         }
 
         board.Version = CurrentVersion;
@@ -38,6 +37,46 @@ public static class BoardMigration
         {
             diagnostics?.Add($"[迁移] 数据版本 {from} → {CurrentVersion}");
         }
+    }
+
+    /// <summary>
+    /// 0.6.0 的 theme/formId/themeEffects → 0.7.0 的 paletteId/themeId/reducedEffects。
+    /// 映射规则见 plan-0.7.0 §1.4；旧字段迁移后清空，不再写回（除非用户手动加回来）。
+    /// </summary>
+    private static void UpgradeTheme(Board board, List<string>? diagnostics)
+    {
+        if (!string.IsNullOrWhiteSpace(board.Theme))
+        {
+            var palette = PaletteIds.Parse(board.Theme);
+            board.PaletteId = palette;
+            var known = ThemePalette.MigrateThemeId(board.Theme);
+            if (!string.Equals(known, board.Theme.Trim(), StringComparison.OrdinalIgnoreCase)
+                || !PaletteIds.IsKnown(known))
+            {
+                diagnostics?.Add($"[迁移] 旧主题 {board.Theme} → paletteId={palette}");
+            }
+        }
+        else if (PaletteIds.IsKnown(board.PaletteId))
+        {
+            board.PaletteId = board.PaletteId.Trim().ToLowerInvariant();
+        }
+
+        board.Theme = null;
+
+        if (!string.IsNullOrWhiteSpace(board.FormId))
+        {
+            diagnostics?.Add($"[迁移] 旧形式 {board.FormId} → themeId={ThemeIds.LiquidGlass}（formId 字段已弃用）");
+        }
+
+        board.FormId = null;
+
+        if (board.ThemeEffects is false)
+        {
+            board.ReducedEffects = true;
+        }
+
+        board.ThemeEffects = null;
+        board.ThemeId = ThemeIds.Parse(board.ThemeId);
     }
 }
 

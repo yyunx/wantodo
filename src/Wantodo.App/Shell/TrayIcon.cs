@@ -126,9 +126,9 @@ public sealed class TrayIcon : IDisposable
         _desktopItem.Checked = string.Equals(_viewModel.Model.Surface, DesktopLayer.SurfaceDesktop, StringComparison.OrdinalIgnoreCase);
         _normalItem.Checked = string.Equals(_viewModel.Model.Surface, DesktopLayer.SurfaceNormal, StringComparison.OrdinalIgnoreCase);
         _topmostItem.Checked = string.Equals(_viewModel.Model.Surface, DesktopLayer.SurfaceTopmost, StringComparison.OrdinalIgnoreCase);
-        var currentTheme = string.IsNullOrWhiteSpace(_viewModel.Model.Theme)
-            ? ThemePalette.DarkTheme
-            : _viewModel.Model.Theme;
+        var currentTheme = string.IsNullOrWhiteSpace(_viewModel.Model.PaletteId)
+            ? PaletteIds.Dark
+            : _viewModel.Model.PaletteId;
         foreach (var (item, theme) in _themeItems)
         {
             item.Checked = string.Equals(theme, currentTheme, StringComparison.OrdinalIgnoreCase);
