@@ -143,18 +143,18 @@ public sealed class CanvasStoreTests : IDisposable
         Assert.True(File.Exists(boardStore.DataPath));
         Assert.True(File.Exists(canvasStore.FilePath));
         Assert.Single(canvasStore.Load().Items);
-        Assert.Equal(Board.DockPanelMode, boardStore.Load().Board.PanelMode);
+        Assert.Equal(Board.CanvasPanelMode, boardStore.Load().Board.PanelMode);
     }
 
     [Fact]
-    public void PanelMode_DefaultsToDockAndUnknownFallsBack()
+    public void PanelMode_DefaultsToCanvasAndUnknownFallsBackToDock()
     {
         var board = new Board();
-        Assert.Equal(Board.DockPanelMode, board.PanelMode);
-
-        board.PanelMode = "Canvas";
-        board.NormalizePanel();
         Assert.Equal(Board.CanvasPanelMode, board.PanelMode);
+
+        board.PanelMode = "Dock";
+        board.NormalizePanel();
+        Assert.Equal(Board.DockPanelMode, board.PanelMode);
 
         board.PanelMode = "something-else";
         board.NormalizePanel();

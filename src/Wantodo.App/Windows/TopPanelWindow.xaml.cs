@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Wantodo.App.Interop;
+using Wantodo.App.Storage;
 using Wantodo.App.ViewModels;
 using Wantodo.Core;
 
@@ -47,6 +48,12 @@ public partial class TopPanelWindow : Window
         viewModel.Columns.CollectionChanged += OnColumnsChanged;
         ColumnsScroller.SizeChanged += OnSizeChangedFit;
 
+        var canvasStore = new CanvasStore(DataRootService.Paths.CanvasFile);
+        CanvasBoard.Attach(canvasStore.Load(), canvasStore);
+        CanvasBoard.StatusChanged += (_, _) => UpdateCanvasStatus();
+        ApplyMode();
+        UpdateCanvasStatus();
+
         Top = WorkArea.Top;
         Height = CollapsedHeight;
         Opacity = 0;
@@ -57,6 +64,19 @@ public partial class TopPanelWindow : Window
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
         Closed += OnClosed;
     }
+
+    private bool IsCanvasMode => string.Equals(_viewModel.Model.PanelMode, Board.CanvasPanelMode, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>形态 A / B 只换同一块面板里的内容，不换窗口。</summary>
+    private void ApplyMode()
+    {
+        var canvas = IsCanvasMode;
+        ColumnsScroller.Visibility = canvas ? Visibility.Collapsed : Visibility.Visible;
+        DockFooter.Visibility = canvas ? Visibility.Collapsed : Visibility.Visible;
+        CanvasBody.Visibility = canvas ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateCanvasStatus() => CanvasStatus.Text = $"{CanvasBoard.Document.Items.Count} 张 · Ctrl+Z 撤销";
 
     /// <summary>主屏工作区（DIP，已扣任务栏）。</summary>
     public static PanelRect WorkArea
@@ -86,6 +106,24 @@ public partial class TopPanelWindow : Window
     }
 
     /// <summary>停留 120 ms 后出把手（只做透明度动画，不抢焦点）。</summary>
+    private void OnCanvasAddNote(object sender, RoutedEventArgs e) => AddCanvasCard("note");
+
+    private void OnCanvasAddTodo(object sender, RoutedEventArgs e) => AddCanvasCard("todo");
+
+    private void OnCanvasAddTimer(object sender, RoutedEventArgs e) => AddCanvasCard("timer");
+
+    private void OnCanvasAddLink(object sender, RoutedEventArgs e) => AddCanvasCard("link");
+
+    private void OnCanvasAddImage(object sender, RoutedEventArgs e) => AddCanvasCard("image");
+
+    private void AddCanvasCard(string kind)
+    {
+        var centerX = CanvasScroller.HorizontalOffset + Math.Max(0, CanvasScroller.ViewportWidth / 2);
+        var centerY = CanvasScroller.VerticalOffset + Math.Max(0, CanvasScroller.ViewportHeight / 2);
+        CanvasBoard.Add(kind, centerX, centerY);
+        UpdateCanvasStatus();
+    }
+
     public void ShowHandle()
     {
         if (!IsVisible)
@@ -126,9 +164,17 @@ public partial class TopPanelWindow : Window
 
     public void Expand()
     {
+        ApplyMode();
         BodyBorder.Visibility = Visibility.Visible;
         HandlePill.Visibility = Visibility.Collapsed;
         AnimateHeight(FullHeight, 160, new CubicEase { EasingMode = EasingMode.EaseOut });
+
+        // 画布要拖卡片，鼠标捕获在未激活窗口上不可靠，所以画布模式下主动激活面板。
+        if (IsCanvasMode)
+        {
+            Activate();
+            CanvasBoard.Focus();
+        }
     }
 
     public void Collapse()
@@ -372,6 +418,30 @@ public partial class TopPanelWindow : Window
         if (e.Key == Key.Escape)
         {
             Collapse();
+            e.Handled = true;
+            return;
+        }
+
+        if (IsCanvasMode && e.Key == Key.Z && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            CanvasBoard.Undo();
+            UpdateCanvasStatus();
+            e.Handled = true;
+            return;
+        }
+
+        if (IsCanvasMode && e.Key == Key.Y && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            CanvasBoard.Redo();
+            UpdateCanvasStatus();
+            e.Handled = true;
+            return;
+        }
+
+        if (IsCanvasMode && e.Key == Key.Delete)
+        {
+            CanvasBoard.DeleteSelected();
+            UpdateCanvasStatus();
             e.Handled = true;
             return;
         }

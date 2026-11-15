@@ -61,3 +61,12 @@ $ dotnet test --no-build
 - 记事/待办卡片与真实笔记、栏目的绑定未做（当前只是占位摘要）。
 - 50 张卡片性能采样未做。
 - 画布缩放（zoom）、多显示器未做（设计文档已列入未排期）。
+
+## 7. 同日调整（用户反馈）：默认画板、画板并入顶边下拉面板
+
+- `Board.PanelMode` 默认改为 `Canvas`；旧文件里已存 `Dock` 的仍按 Dock 打开，设置页可切换。
+- 删掉独立的 `CanvasPanelWindow`（画布不再是浮窗）；画布内容搬进 `TopPanelWindow` 的 `CanvasBody`，
+  与形态 A 共用 12 DIP 把手、拖下展开 160 ms、`PanelHeightRatio` 默认 **0.75**（约 3/4 屏高）。
+- 画布展开时面板主动 `Activate()`（未激活窗口上 WPF 捕获不可靠）；`Ctrl+Z/Y`、`Delete` 在画布模式下生效。
+- 证据：`build -warnaserror` 0 警告 0 错误；`test --no-build` 239 通过。
+- 待肉眼：撞顶下拉应出现画布而不是栏位布局；拖动卡片、点工具插卡、重启后位置保留。

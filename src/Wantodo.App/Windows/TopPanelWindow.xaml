@@ -97,13 +97,36 @@
                                HorizontalAlignment="Right" VerticalAlignment="Center" />
                 </DockPanel>
 
-                <ScrollViewer x:Name="ColumnsScroller" Grid.Row="1"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Auto">
-                    <controls:BoardLayoutHost x:Name="LayoutHost" />
-                </ScrollViewer>
+                <Grid Grid.Row="1">
+                    <ScrollViewer x:Name="ColumnsScroller"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Auto">
+                        <controls:BoardLayoutHost x:Name="LayoutHost" />
+                    </ScrollViewer>
 
-                <DockPanel Grid.Row="2" Margin="0,8,0,0">
+                    <Grid x:Name="CanvasBody" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <Button Content="记事" Click="OnCanvasAddNote" Padding="8,3" Margin="0,0,4,0" />
+                            <Button Content="待办" Click="OnCanvasAddTodo" Padding="8,3" Margin="0,0,4,0" />
+                            <Button Content="计时" Click="OnCanvasAddTimer" Padding="8,3" Margin="0,0,4,0" />
+                            <Button Content="链接" Click="OnCanvasAddLink" Padding="8,3" Margin="0,0,4,0" />
+                            <Button Content="图片" Click="OnCanvasAddImage" Padding="8,3" Margin="0,0,4,0" />
+                            <TextBlock x:Name="CanvasStatus" VerticalAlignment="Center" Margin="8,0,0,0"
+                                       FontSize="11" Foreground="{DynamicResource TextMuted}" />
+                        </StackPanel>
+                        <ScrollViewer Grid.Row="1" x:Name="CanvasScroller"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Auto">
+                            <controls:CanvasBoard x:Name="CanvasBoard" Width="1600" Height="1000" />
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
+
+                <DockPanel x:Name="DockFooter" Grid.Row="2" Margin="0,8,0,0">
                     <ComboBox x:Name="ColumnPicker" DockPanel.Dock="Left" Width="150" Margin="0,0,8,0"
                               ItemsSource="{Binding Columns}" DisplayMemberPath="Title"
                               SelectedIndex="0" />
