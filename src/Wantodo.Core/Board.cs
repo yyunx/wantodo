@@ -56,6 +56,25 @@ public sealed class Board
 
     public List<NoteColumn> Columns { get; set; } = new();
 
+    /// <summary>桌面主窗口显示哪些栏；空 = 全部（Phase 24 B2 的 per-surface visibility）。</summary>
+    public List<string> DesktopVisibleColumnIds { get; set; } = new();
+
+    /// <summary>顶边下拉面板显示哪些栏；空 = 全部。栏目本身仍是全局唯一集合。</summary>
+    public List<string> PanelVisibleColumnIds { get; set; } = new();
+
+    /// <summary>某个界面实际显示的栏 id（空列表表示全显示；未知 id 忽略）。</summary>
+    public HashSet<string> VisibleColumnIds(bool panel)
+    {
+        var configured = panel ? PanelVisibleColumnIds : DesktopVisibleColumnIds;
+        if (configured is null || configured.Count == 0)
+        {
+            return Columns.Select(c => c.Id).Where(id => !string.IsNullOrEmpty(id)).ToHashSet(StringComparer.Ordinal);
+        }
+
+        var existing = Columns.Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
+        return configured.Where(existing.Contains).ToHashSet(StringComparer.Ordinal);
+    }
+
     /// <summary>
     /// 停靠布局（Phase 9）。为 <c>null</c> 时按 <see cref="Columns"/> 的顺序生成均衡横向树，
     /// 旧数据（只有 columns[]）因此无需立刻改写就能打开。

@@ -274,7 +274,12 @@ public sealed class BoardViewModel : ObservableObject
     }
 
     /// <summary>按指定名字加一栏；空白名字回落到默认名（对话框里直接回车就是这条路）。</summary>
-    public void AddColumn(string? title)
+    public void AddColumn(string? title) => AddColumnCore(title);
+
+    /// <summary>给画布待办卡用：加一栏并返回新栏 id；失败返回 null。</summary>
+    public string? AddColumnAndGetId(string? title) => AddColumnCore(title);
+
+    private string? AddColumnCore(string? title)
     {
         int index = ActiveColumn is null ? Columns.Count : Columns.IndexOf(ActiveColumn) + 1;
         string name = string.IsNullOrWhiteSpace(title) ? BoardEditor.DefaultColumnTitle : title.Trim();
@@ -282,7 +287,7 @@ public sealed class BoardViewModel : ObservableObject
         if (!BoardEditor.TryAddColumn(Model, name, index, out var column) || column is null)
         {
             AppLog.Warn($"加栏被拒绝：已经有 {Columns.Count} 栏（上限 {BoardEditor.MaxColumns}）");
-            return;
+            return null;
         }
 
         var viewModel = new ColumnViewModel(this, column);
@@ -292,6 +297,7 @@ public sealed class BoardViewModel : ObservableObject
             OnPropertyChanged(nameof(CanAddColumn));
         RequestSave();
         AppLog.Info($"加了第 {Columns.Count} 栏 id={column.Id}（插在下标 {index}）");
+        return column.Id;
     }
 
     public bool RemoveColumn(ColumnViewModel column)

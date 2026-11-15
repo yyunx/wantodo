@@ -74,8 +74,13 @@ public static class CanvasClock
 
     /// <summary>卡片上要显示的数字：正计时往上走，其余往下走且不小于 0。</summary>
     public static int DisplaySeconds(TimerMode mode, int durationSeconds, string? startedAtIso, DateTimeOffset now)
+        => DisplaySeconds(mode, durationSeconds, startedAtIso, 0, now);
+
+    /// <summary>同上，但带上暂停前已经攒下的秒数（<paramref name="baseElapsedSeconds"/>）。</summary>
+    public static int DisplaySeconds(
+        TimerMode mode, int durationSeconds, string? startedAtIso, int baseElapsedSeconds, DateTimeOffset now)
     {
-        int elapsed = ElapsedSeconds(startedAtIso, now);
+        int elapsed = Math.Max(0, baseElapsedSeconds) + ElapsedSeconds(startedAtIso, now);
         if (mode == TimerMode.Stopwatch)
         {
             return elapsed;
@@ -85,13 +90,25 @@ public static class CanvasClock
     }
 
     public static bool IsFinished(TimerMode mode, int durationSeconds, string? startedAtIso, DateTimeOffset now)
+        => IsFinished(mode, durationSeconds, startedAtIso, 0, now);
+
+    /// <summary>同上，算上暂停前攒下的秒数。</summary>
+    public static bool IsFinished(
+        TimerMode mode, int durationSeconds, string? startedAtIso, int baseElapsedSeconds, DateTimeOffset now)
     {
         if (mode == TimerMode.Stopwatch || string.IsNullOrWhiteSpace(startedAtIso))
         {
             return false;
         }
 
-        return ElapsedSeconds(startedAtIso, now) >= durationSeconds;
+        return Math.Max(0, baseElapsedSeconds) + ElapsedSeconds(startedAtIso, now) >= durationSeconds;
+    }
+
+    /// <summary>把「开始了多久」按玩法换算成累计秒：正计时数已走，其余数已走。</summary>
+    public static int AccumulatedSeconds(TimerMode mode, int durationSeconds, int baseElapsedSeconds, DateTimeOffset startedAt, DateTimeOffset now)
+    {
+        int elapsed = Math.Max(0, baseElapsedSeconds) + Math.Max(0, (int)(now - startedAt).TotalSeconds);
+        return mode == TimerMode.Stopwatch ? elapsed : Math.Min(durationSeconds, elapsed);
     }
 
     /// <summary>25:00 / 1:05:09 这种。超过一小时才显示小时位。</summary>

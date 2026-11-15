@@ -39,6 +39,15 @@ public sealed class CanvasBoard : Canvas
     private readonly Dictionary<string, Border> _cards = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBlock> _timerTexts = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>图片卡没有常驻边框：未选中时 BorderThickness 必须回到 0。</summary>
+    private readonly HashSet<string> _framelessCards = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>待办卡选栏目用；由宿主（面板/桌面）提供全局栏目。</summary>
+    public Func<IReadOnlyList<NoteColumn>>? ColumnsProvider { get; set; }
+
+    /// <summary>待办卡「＋ 新建栏目」用；返回新栏 id，取消返回 null。</summary>
+    public Func<string?, string?>? ColumnCreator { get; set; }
+
     private CanvasDocument _document = new();
     private CanvasStore? _store;
     private string? _imagesDir;
@@ -90,6 +99,7 @@ public sealed class CanvasBoard : Canvas
         Children.Clear();
         _cards.Clear();
         _timerTexts.Clear();
+        _framelessCards.Clear();
         foreach (var item in _document.Items.OrderBy(i => i.ZIndex))
         {
             var card = BuildCard(item);
@@ -222,6 +232,11 @@ public sealed class CanvasBoard : Canvas
 
     private Border BuildCard(CanvasItem item)
     {
+        if (string.Equals(item.Kind, "image", StringComparison.OrdinalIgnoreCase))
+        {
+            return BuildImageCard(item);
+        }
+
         var card = new Border
         {
             Width = item.W,
@@ -365,6 +380,163 @@ public sealed class CanvasBoard : Canvas
         return card;
     }
 
+    /// <summary>
+    /// 图片卡：不画边框和标题栏，图片铺满圆角区域，像直接贴在画布上；
+    /// 只有悬停/选中时才有浮层标题、删除与 2 px 高光。
+    /// </summary>
+    private Border BuildImageCard(CanvasItem item)
+    {
+        _framelessCards.Add(item.Id);
+
+        var image = new Image { Stretch = Stretch.UniformToFill, IsHitTestVisible = false };
+        string? path = ResolveImage(item);
+        if (path is not null && File.Exists(path))
+        {
+            image.Source = LoadBitmap(path);
+        }
+
+        var clipHost = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Background = Brushes.Transparent,
+            ClipToBounds = true,
+        };
+        clipHost.Child = image;
+        clipHost.SizeChanged += (_, e) =>
+        {
+            clipHost.Clip = new RectangleGeometry(new Rect(0, 0, e.NewSize.Width, e.NewSize.Height), 8, 8);
+        };
+
+        var fallback = new TextBlock
+        {
+            Text = "（未选择图片）\n拖入图片，或按 Ctrl+V 粘贴",
+            TextAlignment = TextAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            FontSize = 12,
+            Foreground = (Brush)FindResource("TextMuted"),
+            IsHitTestVisible = false,
+        };
+
+        var overlay = new Grid
+        {
+            Opacity = 0,
+            Background = new SolidColorBrush(Color.FromArgb(0x80, 0, 0, 0)),
+            VerticalAlignment = VerticalAlignment.Top,
+            Height = 26,
+        };
+        overlay.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        overlay.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var title = new TextBox
+        {
+            Text = item.Get("title") ?? "图片",
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Foreground = Brushes.White,
+            CaretBrush = Brushes.White,
+            FontSize = 12,
+            Margin = new Thickness(6, 0, 0, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            ToolTip = "点一下可以改标题",
+        };
+        title.TextChanged += (s, _) => item.Payload["title"] = ((TextBox)s!).Text;
+        title.GotKeyboardFocus += (_, _) => PushUndo();
+        title.LostKeyboardFocus += (_, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(item.Get("title")))
+            {
+                item.Payload.Remove("title");
+            }
+
+            Save();
+        };
+
+        var close = new Button
+        {
+            Content = "×",
+            Width = 24,
+            Height = 24,
+            Padding = new Thickness(0),
+            Margin = new Thickness(0, 0, 4, 0),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Foreground = Brushes.White,
+            Cursor = Cursors.Hand,
+            ToolTip = "删除这张卡片",
+        };
+        close.Click += (_, _) =>
+        {
+            _selected = item;
+            DeleteSelected();
+        };
+
+        overlay.Children.Add(title);
+        Grid.SetColumn(close, 1);
+        overlay.Children.Add(close);
+
+        var grid = new Grid();
+        grid.Children.Add(clipHost);
+        grid.Children.Add(fallback);
+        grid.Children.Add(overlay);
+
+        var card = new Border
+        {
+            Width = item.W,
+            Height = item.H,
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(0),
+            BorderBrush = Brushes.Transparent,
+            Background = Brushes.Transparent,
+            Tag = item,
+            Child = grid,
+            SnapsToDevicePixels = true,
+            ToolTip = path is null ? null : "双击或右键打开原图",
+        };
+
+        Canvas.SetLeft(card, item.X);
+        Canvas.SetTop(card, item.Y);
+        Panel.SetZIndex(card, item.ZIndex);
+
+        card.MouseEnter += (_, _) => overlay.Opacity = 1;
+        card.MouseLeave += (_, _) => overlay.Opacity = 0;
+        card.MouseLeftButtonDown += OnCardMouseDown;
+        card.MouseMove += OnCardMouseMove;
+        card.MouseLeftButtonUp += OnCardMouseUp;
+        card.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.ClickCount == 2)
+            {
+                OpenImage(path);
+                e.Handled = true;
+            }
+        };
+        card.MouseRightButtonUp += (_, e) =>
+        {
+            OpenImage(path);
+            e.Handled = true;
+        };
+
+        return card;
+    }
+
+    private static void OpenImage(string? path)
+    {
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or FileNotFoundException)
+        {
+            AppLog.Warn($"打开图片失败：{path}；{ex.Message}");
+        }
+    }
+
     private void BuildNoteBody(CanvasItem item, Grid host)
     {
         host.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -420,28 +592,85 @@ public sealed class CanvasBoard : Canvas
 
     private void BuildTodoBody(CanvasItem item, Grid host)
     {
+        host.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         host.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         host.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        var column = item.Get("columnId");
-        var text = item.Get("text");
+        IReadOnlyList<NoteColumn> columns = ColumnsProvider?.Invoke() ?? Array.Empty<NoteColumn>();
+        string? columnId = item.Get("columnId");
+
+        var combo = new ComboBox
+        {
+            FontSize = 12,
+            MinWidth = 120,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Tag = item,
+            ToolTip = "选择这一条要放进哪一栏",
+        };
+
+        foreach (var column in columns)
+        {
+            combo.Items.Add(new ColumnChoice(column.Id, column.Title));
+        }
+
+        combo.Items.Add(ColumnChoice.CreateNew);
+        combo.SelectedItem = combo.Items.OfType<ColumnChoice>()
+            .FirstOrDefault(c => string.Equals(c.Id, columnId, StringComparison.Ordinal));
+
         var preview = new TextBlock
         {
-            Text = string.IsNullOrWhiteSpace(text)
-                ? string.IsNullOrWhiteSpace(column) ? "（未选择栏）" : $"栏：{column}"
-                : text,
+            Text = string.IsNullOrWhiteSpace(item.Get("text")) ? "（这条待办没有正文）" : item.Get("text")!,
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12,
+            Margin = new Thickness(0, 4, 0, 0),
             Foreground = (Brush)FindResource("TextPrimary"),
         };
 
-        var links = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
-        FillLinks(links, text);
+        combo.SelectionChanged += (_, _) =>
+        {
+            if (combo.SelectedItem is not ColumnChoice choice)
+            {
+                return;
+            }
 
-        Grid.SetRow(preview, 0);
-        Grid.SetRow(links, 1);
+            string? targetId = choice.Id;
+            if (choice.IsCreateNew)
+            {
+                targetId = ColumnCreator?.Invoke(null);
+                if (string.IsNullOrWhiteSpace(targetId))
+                {
+                    combo.SelectedItem = combo.Items.OfType<ColumnChoice>()
+                        .FirstOrDefault(c => string.Equals(c.Id, item.Get("columnId"), StringComparison.Ordinal));
+                    return;
+                }
+
+                // 新建的栏马上出现在候选列表里，不需要重建整张卡。
+                combo.Items.Insert(combo.Items.Count - 1, new ColumnChoice(targetId, ColumnCreatorTitle ?? "新栏目"));
+            }
+
+            item.Payload["columnId"] = targetId;
+            Save();
+        };
+
+        var links = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+        FillLinks(links, item.Get("text"));
+
+        Grid.SetRow(combo, 0);
+        Grid.SetRow(preview, 1);
+        Grid.SetRow(links, 2);
+        host.Children.Add(combo);
         host.Children.Add(preview);
         host.Children.Add(links);
+    }
+
+    /// <summary>新建栏目后显示的名字（由面板在创建后写入，仅用于候选列表刷新）。</summary>
+    public string? ColumnCreatorTitle { get; set; }
+
+    private sealed record ColumnChoice(string Id, string Title, bool IsCreateNew = false)
+    {
+        public static ColumnChoice CreateNew { get; } = new("__new__", "＋ 新建栏目", true);
+
+        public override string ToString() => Title;
     }
 
     private void BuildImageBody(CanvasItem item, Grid host)
@@ -488,7 +717,8 @@ public sealed class CanvasBoard : Canvas
 
         var display = new TextBlock
         {
-            Text = CanvasClock.Format(CanvasClock.DisplaySeconds(mode, duration, item.Get("startedAt"), DateTimeOffset.Now)),
+            Text = CanvasClock.Format(CanvasClock.DisplaySeconds(
+                mode, duration, item.Get("startedAt"), BaseElapsed(item), DateTimeOffset.Now)),
             FontSize = 22,
             FontWeight = FontWeights.SemiBold,
             Foreground = (Brush)FindResource("TextPrimary"),
@@ -499,23 +729,23 @@ public sealed class CanvasBoard : Canvas
         Grid.SetRow(display, 1);
         host.Children.Add(display);
 
-        var running = !string.IsNullOrWhiteSpace(item.Get("startedAt"));
+        bool running = IsRunning(item);
+        bool paused = string.Equals(item.Get("state"), "paused", StringComparison.OrdinalIgnoreCase);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
 
         var start = new Button
         {
-            Content = running ? "■" : "▶",
-            Width = 26,
+            Content = running ? "暂停" : paused ? "继续" : "开始",
             Height = 22,
-            Padding = new Thickness(0),
+            Padding = new Thickness(8, 0, 8, 0),
             FontSize = 11,
-            ToolTip = running ? "停" : "开始",
+            ToolTip = running ? "暂停" : "开始计时",
         };
         start.Click += (_, _) =>
         {
             if (running)
             {
-                StopTimer(item);
+                PauseTimer(item);
             }
             else
             {
@@ -619,22 +849,41 @@ public sealed class CanvasBoard : Canvas
     {
         item.Payload["startedAt"] = DateTimeOffset.Now.ToString("O", CultureInfo.InvariantCulture);
         item.Payload["fired"] = string.Empty;
+        item.Payload["state"] = "running";
         item.Payload["mode"] = CanvasClock.ModeKey(CanvasClock.ParseMode(item.Get("mode")));
         Save();
         Rebuild();
     }
 
-    private void StopTimer(CanvasItem item)
+    private void PauseTimer(CanvasItem item)
     {
+        var mode = CanvasClock.ParseMode(item.Get("mode"));
+        int duration = int.TryParse(item.Get("seconds"), out int seconds) ? seconds : CanvasClock.DefaultSeconds(mode);
+        int baseElapsed = int.TryParse(item.Get("elapsed"), out int elapsed) ? elapsed : 0;
+        DateTimeOffset started = DateTimeOffset.TryParse(
+            item.Get("startedAt"), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed)
+            ? parsed
+            : DateTimeOffset.Now;
+
+        item.Payload["elapsed"] = CanvasClock
+            .AccumulatedSeconds(mode, duration, baseElapsed, started, DateTimeOffset.Now)
+            .ToString(CultureInfo.InvariantCulture);
         item.Payload["startedAt"] = string.Empty;
+        item.Payload["state"] = "paused";
         Save();
         Rebuild();
     }
+
+    private static bool IsRunning(CanvasItem item) => !string.IsNullOrWhiteSpace(item.Get("startedAt"));
+
+    private static int BaseElapsed(CanvasItem item) => int.TryParse(item.Get("elapsed"), out int elapsed) ? Math.Max(0, elapsed) : 0;
 
     private void ResetTimer(CanvasItem item)
     {
         item.Payload["startedAt"] = string.Empty;
         item.Payload["fired"] = string.Empty;
+        item.Payload["elapsed"] = "0";
+        item.Payload["state"] = "idle";
         Save();
         Rebuild();
     }
@@ -653,6 +902,8 @@ public sealed class CanvasBoard : Canvas
         item.Payload["seconds"] = dialog.Seconds.ToString(CultureInfo.InvariantCulture);
         item.Payload["startedAt"] = string.Empty;
         item.Payload["fired"] = string.Empty;
+        item.Payload["elapsed"] = "0";
+        item.Payload["state"] = "configured";
         Save();
         Rebuild();
     }
@@ -686,18 +937,20 @@ public sealed class CanvasBoard : Canvas
             int duration = int.TryParse(item.Get("seconds"), out int seconds) ? seconds : CanvasClock.DefaultSeconds(mode);
             if (_timerTexts.TryGetValue(item.Id, out var display))
             {
-                display.Text = CanvasClock.Format(CanvasClock.DisplaySeconds(mode, duration, item.Get("startedAt"), now));
+                display.Text = CanvasClock.Format(
+                    CanvasClock.DisplaySeconds(mode, duration, item.Get("startedAt"), BaseElapsed(item), now));
             }
 
             if (string.IsNullOrWhiteSpace(item.Get("startedAt"))
                 || string.Equals(item.Get("fired"), "1", StringComparison.Ordinal)
-                || !CanvasClock.IsFinished(mode, duration, item.Get("startedAt"), now))
+                || !CanvasClock.IsFinished(mode, duration, item.Get("startedAt"), BaseElapsed(item), now))
             {
                 continue;
             }
 
             item.Payload["fired"] = "1";
             item.Payload["startedAt"] = string.Empty;
+            item.Payload["state"] = "done";
             changed = true;
             var title = string.IsNullOrWhiteSpace(item.Get("title")) ? KindLabel(item.Kind) : item.Get("title")!;
             ToastWindow.Show(title, CanvasClock.ModeLabel(mode) + "到点了");
@@ -890,8 +1143,9 @@ public sealed class CanvasBoard : Canvas
             return;
         }
 
+        bool frameless = _framelessCards.Contains(item.Id);
         card.BorderBrush = (Brush)FindResource(selected ? "Accent" : "Divider");
-        card.BorderThickness = new Thickness(selected ? 2 : 1);
+        card.BorderThickness = new Thickness(selected ? 2 : frameless ? 0 : 1);
         if (selected)
         {
             _selected = item;

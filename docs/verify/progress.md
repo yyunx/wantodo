@@ -87,3 +87,11 @@ Run B 收口：21/22/23 完成（各有欠账），24 未开工（3–5 天，�
 - 欠账：拖拽日志待用户实际拖一次补录（`persisted` 必须为 0）；多显示器未验证
 - 并行修复：`E:\Wantodo\board\data.json` 的 `panelHeightRatio` 0.4 → 0.75（备份 `data.json.bak-block-a`）
 - 下一步第一条命令：进入块 B（图片卡去框 → 待办选栏目 → 计时按钮消歧 → 番茄钟 plan）
+
+## 块 B — 画板卡片行为（2026-11-15）
+- 状态：**DONE（PENDING-HUMAN 4 条）**
+- 验收：`build -warnaserror` 0 警告/0 错误；`test --no-build` **274 通过 / 0 失败 / 486 ms**
+- 改动：`CanvasBoard`（图片卡去框 + 悬停浮层 + 双击打开；待办栏目下拉 + 「＋ 新建栏目」；计时 开始/暂停/继续 状态机）、`Board` 每面可见性字段、`BoardLayoutHost` 面板过滤、`PomodoroPlan`、`CanvasClock` 暂停基数重载
+- 证据：`docs/verify/block-b.md`
+- 欠账：可见性设置 UI 未做；面板过滤视图不持久化调宽/换位；图片卡旧 `BuildImageBody` 未删；删除未进回收；番茄自定义分段 UI 未接
+- 下一步第一条命令：进入块 C（7 套色板 + 旧 id 迁移 + 语义令牌 + 形式层 flat）

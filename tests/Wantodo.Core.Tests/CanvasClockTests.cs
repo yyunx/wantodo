@@ -71,4 +71,29 @@ public sealed class CanvasClockTests
 
         Assert.Equal(0, CanvasClock.ElapsedSeconds(future, Now));
     }
+
+    [Fact]
+    public void DisplaySeconds_UsesPausedBase()
+    {
+        Assert.Equal(75, CanvasClock.DisplaySeconds(TimerMode.Stopwatch, 0, null, 75, Now));
+        Assert.Equal(1425, CanvasClock.DisplaySeconds(TimerMode.Countdown, 1500, null, 75, Now));
+    }
+
+    [Fact]
+    public void AccumulatedSeconds_AddsBaseAndClampsToDuration()
+    {
+        var started = Now;
+
+        Assert.Equal(90, CanvasClock.AccumulatedSeconds(TimerMode.Stopwatch, 0, 30, started, Now.AddMinutes(1)));
+        Assert.Equal(1500, CanvasClock.AccumulatedSeconds(TimerMode.Countdown, 1500, 1400, started, Now.AddMinutes(5)));
+    }
+
+    [Fact]
+    public void IsFinished_RespectsPausedBase()
+    {
+        var started = Now;
+
+        Assert.False(CanvasClock.IsFinished(TimerMode.Countdown, 1500, started.ToString("O"), 0, Now.AddSeconds(10)));
+        Assert.True(CanvasClock.IsFinished(TimerMode.Countdown, 1500, started.ToString("O"), 1495, Now.AddSeconds(10)));
+    }
 }

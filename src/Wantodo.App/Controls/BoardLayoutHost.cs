@@ -22,6 +22,7 @@ public sealed class BoardLayoutHost : Grid
     private readonly Dictionary<string, FrameworkElement> _paneElements = new(StringComparer.Ordinal);
     private Board? _board;
     private IReadOnlyList<ColumnViewModel>? _columns;
+    private HashSet<string>? _visibleIds;
     private SplitView? _activeSplit;
     private Point _activeSplitStart;
     private double _activeSplitFirst;
@@ -42,17 +43,30 @@ public sealed class BoardLayoutHost : Grid
         _columns = columns;
     }
 
+    /// <summary>
+    /// 某个界面只看一部分栏（Phase 24 B2 的 per-surface visibility）。
+    /// 传 null 表示跟随整块板的布局；传集合时按该顺序临时排成均衡布局，不动 data.json 里的树。
+    /// </summary>
+    public void SetVisibleColumns(HashSet<string>? ids)
+    {
+        _visibleIds = ids;
+    }
+
+    private LayoutNode? ActiveLayout =>
+        _board is null ? null : _visibleIds is null ? _board.Layout : LayoutTree.Balanced(_visibleIds.ToList());
+
     /// <summary>布局树要求的最小尺寸（栏数多、窗口窄时用它撑出滚动条）。</summary>
     public Size MinSize
     {
         get
         {
-            if (_board?.Layout is null)
+            LayoutNode? layout = ActiveLayout;
+            if (layout is null)
             {
                 return Size.Empty;
             }
 
-            (double width, double height) = LayoutTree.ComputeMinSize(_board.Layout);
+            (double width, double height) = LayoutTree.ComputeMinSize(layout);
             return new Size(width, height);
         }
     }
@@ -69,15 +83,16 @@ public sealed class BoardLayoutHost : Grid
         ColumnDefinitions.Clear();
         RowDefinitions.Clear();
 
-        if (_board?.Layout is null || _columns is null)
+        LayoutNode? layout = ActiveLayout;
+        if (layout is null || _columns is null)
         {
             AppLog.Warn("布局为空，界面不渲染任何栏");
             return;
         }
 
-        AppLog.Info($"绘制布局：根={_board.Layout.Type}/{_board.Layout.Orientation} 叶={LayoutTree.LeafIds(_board.Layout).Count}");
+        AppLog.Info($"绘制布局：根={layout.Type}/{layout.Orientation} 叶={LayoutTree.LeafIds(layout).Count}");
 
-        if (BuildLayoutElement(_board.Layout, string.Empty) is { } element)
+        if (BuildLayoutElement(layout, string.Empty) is { } element)
         {
             Children.Add(element);
         }
@@ -89,12 +104,13 @@ public sealed class BoardLayoutHost : Grid
     /// </summary>
     public void FitToViewport(double viewportWidth, double viewportHeight)
     {
-        if (_board?.Layout is null)
+        LayoutNode? layout = ActiveLayout;
+        if (layout is null)
         {
             return;
         }
 
-        (double minWidth, double minHeight) = LayoutTree.ComputeMinSize(_board.Layout);
+        (double minWidth, double minHeight) = LayoutTree.ComputeMinSize(layout);
         Width = Math.Max(viewportWidth, minWidth);
         Height = Math.Max(viewportHeight, minHeight);
     }
@@ -237,7 +253,7 @@ public sealed class BoardLayoutHost : Grid
         }
 
         double total = first + second;
-        if (total <= 0 || _board?.Layout is null)
+        if (total <= 0 || _board?.Layout is null || _visibleIds is not null)
         {
             return;
         }
@@ -430,7 +446,7 @@ public sealed class BoardLayoutHost : Grid
             element.Opacity = 1;
         }
 
-        if (source is null || target is null || _board?.Layout is null)
+        if (source is null || target is null || _board?.Layout is null || _visibleIds is not null)
         {
             return;
         }

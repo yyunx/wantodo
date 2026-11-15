@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using Wantodo.App.Dialogs;
 using Wantodo.App.Interop;
 using Wantodo.App.Storage;
 using Wantodo.App.ViewModels;
@@ -53,6 +54,9 @@ public partial class TopPanelWindow : Window
         var canvasStore = new CanvasStore(DataRootService.Paths.CanvasFile);
         CanvasBoard.Attach(canvasStore.Load(), canvasStore, DataRootService.Paths.CanvasImagesDir);
         CanvasBoard.StatusChanged += (_, _) => UpdateCanvasStatus();
+        CanvasBoard.ColumnsProvider = () => viewModel.Model.Columns;
+        CanvasBoard.ColumnCreator = CreateCanvasColumn;
+        ApplyPanelVisibility();
         ApplyMode();
         UpdateCanvasStatus();
 
@@ -486,6 +490,33 @@ public partial class TopPanelWindow : Window
         {
             Height = ClampCanvasHeight(size.Height);
         }
+    }
+
+    /// <summary>面板只看 PanelVisibleColumnIds 里的栏；空列表 = 跟桌面一样全显示。</summary>
+    private void ApplyPanelVisibility()
+    {
+        var configured = _viewModel.Model.PanelVisibleColumnIds;
+        LayoutHost.SetVisibleColumns(configured.Count == 0 ? null : _viewModel.Model.VisibleColumnIds(panel: true));
+        LayoutHost.Rebuild();
+        FitHost();
+    }
+
+    private string? CreateCanvasColumn(string? suggested)
+    {
+        var dialog = new ColumnNameDialog(string.IsNullOrWhiteSpace(suggested) ? ColumnNameDialog.DefaultName : suggested)
+        {
+            Owner = this,
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return null;
+        }
+
+        string? id = _viewModel.AddColumnAndGetId(dialog.ColumnTitle);
+        CanvasBoard.ColumnCreatorTitle = string.IsNullOrWhiteSpace(dialog.ColumnTitle)
+            ? ColumnNameDialog.DefaultName
+            : dialog.ColumnTitle;
+        return id;
     }
 
     private void OnSystemParametersChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
