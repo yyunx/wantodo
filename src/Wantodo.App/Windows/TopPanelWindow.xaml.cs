@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -29,6 +30,7 @@ public partial class TopPanelWindow : Window
     private int _persistedDuringDrag;
     private int _moveLogCount;
     private int _lastScreenY;
+    private FreeformTool _tool = FreeformTool.Select;
 
     private bool _resizing;
     private PanelEdge _resizeEdge;
@@ -56,6 +58,8 @@ public partial class TopPanelWindow : Window
         CanvasBoard.Attach(viewModel.Model.Canvas, PersistCanvas, DataRootService.Paths.CanvasImagesDir);
         FreeformBoard.Attach(viewModel.Model.Canvas, () => PersistCanvas(viewModel.Model.Canvas), DataRootService.Paths.CanvasImagesDir);
         CanvasBoard.StatusChanged += (_, _) => UpdateCanvasStatus();
+        FreeformBoard.ViewportChanged += (_, _) => UpdateFreeformStatus();
+        FreeformBoard.SelectionChanged += (_, _) => UpdateFreeformStatus();
         CanvasBoard.ColumnsProvider = () => viewModel.Model.Columns;
         CanvasBoard.ColumnCreator = CreateCanvasColumn;
         ApplyPanelVisibility();
@@ -68,6 +72,7 @@ public partial class TopPanelWindow : Window
         ApplyWorkArea();
 
         PreviewKeyDown += OnPreviewKeyDown;
+        PreviewKeyUp += OnPreviewKeyUp;
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
         Closed += OnClosed;
@@ -106,9 +111,18 @@ public partial class TopPanelWindow : Window
         CanvasScroller.Visibility = freeform ? Visibility.Collapsed : Visibility.Visible;
         FreeformScroller.Visibility = freeform ? Visibility.Collapsed : Visibility.Visible;
         StructuredTools.Visibility = freeform ? Visibility.Collapsed : Visibility.Visible;
+        FreeformTools.Visibility = freeform ? Visibility.Visible : Visibility.Collapsed;
+        ToolHint.Text = freeform ? "空格+拖 平移 · 滚轮缩放" : string.Empty;
         SurfaceStructuredButton.IsChecked = !freeform;
         SurfaceFreeformButton.IsChecked = freeform;
 
+        if (!freeform)
+        {
+            // 离开自由表面时把「空格平移」的临时状态收掉，避免回到结构化表面还顶着抓手。
+            FreeformBoard.SpaceHeld = false;
+        }
+
+        UpdateToolButtons();
         UpdateCanvasStatus();
     }
 
@@ -160,8 +174,87 @@ public partial class TopPanelWindow : Window
         var document = _viewModel.Model.Canvas;
         var freeform = string.Equals(CanvasSurfaces.Normalize(document?.ActiveSurfaceId), CanvasSurfaces.Freeform, StringComparison.OrdinalIgnoreCase);
         CanvasStatus.Text = freeform
-            ? $"{document?.Objects.Count ?? 0} 个图元 · 缩放 {document?.ViewportOf(CanvasSurfaces.Freeform).Zoom:0.##}×"
+            ? string.Empty
             : $"{document?.Cards.Count ?? 0} 张卡 · Ctrl+Z 撤销";
+        UpdateFreeformStatus();
+    }
+
+    /// <summary>自由表面的状态行：图元数 / 选中数 / 当前缩放 / 当前工具。</summary>
+    private void UpdateFreeformStatus()
+    {
+        var document = _viewModel.Model.Canvas;
+        var freeform = string.Equals(CanvasSurfaces.Normalize(document?.ActiveSurfaceId), CanvasSurfaces.Freeform, StringComparison.OrdinalIgnoreCase);
+        if (!freeform)
+        {
+            return;
+        }
+
+        var zoom = FreeformZoom.Percent(FreeformBoard.Zoom);
+        ZoomLabel.Text = $"{zoom:0}%";
+        var selected = FreeformBoard.Selected.Count;
+        var tool = FreeformToolCatalog.Info(_tool);
+        var shortcut = tool.Shortcut is { } key ? $"（{key}）" : string.Empty;
+        CanvasStatus.Text = selected > 0
+            ? $"{FreeformBoard.ObjectCount} 个图元 · 选中 {selected} · 缩放 {zoom:0}% · {tool.Name}{shortcut}"
+            : $"{FreeformBoard.ObjectCount} 个图元 · 缩放 {zoom:0}% · {tool.Name}{shortcut}";
+    }
+
+    private void OnToolClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string id })
+        {
+            SetTool(FreeformToolCatalog.Parse(id));
+        }
+    }
+
+    /// <summary>十工具互斥：只把点中的那个置为选中，其余一律取消。</summary>
+    private void SetTool(FreeformTool tool)
+    {
+        _tool = tool;
+        FreeformBoard.Tool = tool;
+        UpdateToolButtons();
+        UpdateFreeformStatus();
+        AppLog.Info($"[画布] 工具 {FreeformToolCatalog.IdOf(tool)}");
+    }
+
+    private void UpdateToolButtons()
+    {
+        var map = new Dictionary<FreeformTool, ToggleButton>
+        {
+            [FreeformTool.Select] = ToolSelect,
+            [FreeformTool.Pan] = ToolPan,
+            [FreeformTool.Text] = ToolText,
+            [FreeformTool.Image] = ToolImage,
+            [FreeformTool.Rect] = ToolRect,
+            [FreeformTool.Line] = ToolLine,
+            [FreeformTool.Arrow] = ToolArrow,
+            [FreeformTool.Ink] = ToolInk,
+            [FreeformTool.Eraser] = ToolEraser,
+            [FreeformTool.Zoom] = ToolZoom,
+        };
+
+        foreach (var (tool, button) in map)
+        {
+            button.IsChecked = tool == _tool;
+        }
+    }
+
+    private void OnZoomIn(object sender, RoutedEventArgs e)
+    {
+        FreeformBoard.ZoomBy(FreeformZoom.Step);
+        UpdateFreeformStatus();
+    }
+
+    private void OnZoomOut(object sender, RoutedEventArgs e)
+    {
+        FreeformBoard.ZoomBy(1 / FreeformZoom.Step);
+        UpdateFreeformStatus();
+    }
+
+    private void OnZoomFit(object sender, RoutedEventArgs e)
+    {
+        FreeformBoard.FitToView();
+        UpdateFreeformStatus();
     }
 
     /// <summary>主屏工作区（DIP，已扣任务栏）。</summary>
@@ -634,35 +727,104 @@ public partial class TopPanelWindow : Window
         FitHost();
     }
 
+    /// <summary>自由表面当前是否可见（工具快捷键、空格平移只在这一面生效）。</summary>
+    private bool IsFreeformActive =>
+        IsCanvasMode && string.Equals(
+            CanvasSurfaces.Normalize(_viewModel.Model.Canvas?.ActiveSurfaceId),
+            CanvasSurfaces.Freeform,
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTextEditing => Keyboard.FocusedElement is TextBox;
+
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
+            // 自由表面有选中时，Esc 先清选择；再按一次才收起面板。
+            if (IsFreeformActive && FreeformBoard.Selected.Count > 0)
+            {
+                FreeformBoard.ClearSelection();
+                UpdateFreeformStatus();
+                e.Handled = true;
+                return;
+            }
+
             Collapse();
+            e.Handled = true;
+            return;
+        }
+
+        // Ctrl+1 / Ctrl+2 切表面（plan §5.4 快捷键表）
+        if (IsCanvasMode && Keyboard.Modifiers == ModifierKeys.Control && (e.Key == Key.D1 || e.Key == Key.D2))
+        {
+            SetSurface(e.Key == Key.D2 ? CanvasSurfaces.Freeform : CanvasSurfaces.Structured);
+            e.Handled = true;
+            return;
+        }
+
+        // 空格临时切手形（松手复原），输入框里不抢空格
+        if (IsFreeformActive && e.Key == Key.Space && Keyboard.Modifiers == ModifierKeys.None && !IsTextEditing)
+        {
+            FreeformBoard.SpaceHeld = true;
+            e.Handled = true;
+            return;
+        }
+
+        // V/H/T/R/A/B/E 选工具（单一来源：FreeformToolCatalog）
+        if (IsFreeformActive && Keyboard.Modifiers == ModifierKeys.None && !IsTextEditing &&
+            e.Key >= Key.A && e.Key <= Key.Z &&
+            FreeformToolCatalog.FromShortcut((char)('A' + (e.Key - Key.A))) is { } shortcutTool)
+        {
+            SetTool(shortcutTool);
             e.Handled = true;
             return;
         }
 
         if (IsCanvasMode && e.Key == Key.Z && Keyboard.Modifiers == ModifierKeys.Control)
         {
-            CanvasBoard.Undo();
-            UpdateCanvasStatus();
+            if (IsFreeformActive)
+            {
+                AppLog.Info("[画布] 自由表面的撤销栈在 P1.2 接入");
+            }
+            else
+            {
+                CanvasBoard.Undo();
+                UpdateCanvasStatus();
+            }
+
             e.Handled = true;
             return;
         }
 
         if (IsCanvasMode && e.Key == Key.Y && Keyboard.Modifiers == ModifierKeys.Control)
         {
-            CanvasBoard.Redo();
-            UpdateCanvasStatus();
+            if (IsFreeformActive)
+            {
+                AppLog.Info("[画布] 自由表面的重做栈在 P1.2 接入");
+            }
+            else
+            {
+                CanvasBoard.Redo();
+                UpdateCanvasStatus();
+            }
+
             e.Handled = true;
             return;
         }
 
         if (IsCanvasMode && e.Key == Key.Delete)
         {
-            CanvasBoard.DeleteSelected();
-            UpdateCanvasStatus();
+            if (IsFreeformActive)
+            {
+                FreeformBoard.DeleteSelected();
+                UpdateFreeformStatus();
+            }
+            else
+            {
+                CanvasBoard.DeleteSelected();
+                UpdateCanvasStatus();
+            }
+
             e.Handled = true;
             return;
         }
@@ -671,6 +833,15 @@ public partial class TopPanelWindow : Window
         {
             QuickBox.Clear();
             QuickBox.Focus();
+            e.Handled = true;
+        }
+    }
+
+    private void OnPreviewKeyUp(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Space && FreeformBoard.SpaceHeld)
+        {
+            FreeformBoard.SpaceHeld = false;
             e.Handled = true;
         }
     }

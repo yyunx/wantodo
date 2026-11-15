@@ -332,6 +332,42 @@
                 </Setter>
             </Style>
 
+            <!-- 画布工具按钮（自由表面十工具）：选中即高亮加描边，同一时刻只有一个。 -->
+            <Style x:Key="ToolToggle" TargetType="ToggleButton">
+                <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+                <Setter Property="Padding" Value="6,2" />
+                <Setter Property="MinWidth" Value="26" />
+                <Setter Property="MinHeight" Value="26" />
+                <Setter Property="Margin" Value="0,0,2,0" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border x:Name="Chrome"
+                                    Background="Transparent"
+                                    BorderThickness="1"
+                                    BorderBrush="Transparent"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Hover}" />
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource AccentSoft}" />
+                                    <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource BorderActive}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <Style TargetType="TextBox">
                 <Setter Property="Background" Value="{DynamicResource SurfaceCard}" />
                 <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />

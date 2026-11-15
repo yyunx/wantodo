@@ -22,3 +22,6 @@
 | D16 | 材质在 P0.5 的作用范围 | 只给 `SettingsWindow`（Win11 上真实 Mica）；`TopPanelWindow` 本步不启用 | 面板贴桌面层且自己管拖拽/缩放/命中测试，材质透出后的观感（12 DIP 条、DWM 圆角、卡片对比度）必须人眼看过；验收 V-11 指定的就是设置页 | 低：面板加两行 `GlassSurface.Prepare/TryApply` 即可，P2.1 再做 |
 | D17 | 让 Mica 透出的前置条件 | 必须 `WindowChrome.GlassFrameThickness=-1` + `Window.Background=null`，内容层自己带 α0.72/α0.86 底色 | 探针实测：只调 `DwmSetWindowAttribute` 时 mica 与 none 逐像素相同（hr=0 但不可见）；背景置空后可见，且控件照常可点 | 低：条件集中在 `GlassSurface` |
 | D18 | 材质不可用时的画面 | 内容层退回不透明 `WindowBackground`/`CardBackground`，并记 WARN | 半透明内容叠在不透明窗口上会被误当成玻璃；探针也不支持 Win10 Acrylic（未文档化 API、无真机） | 低 |
+| D19 | 自由表面的手势入口形态 | `FreeformBoard.PointerDown/PointerMove/PointerUp` 公开，鼠标事件只做捕获与转发 | 「平移不与框选串」这类互斥手势，靠人眼看十几次不如让探针在真实控件上打一遍；公开入口也让 P1.2 的绘图工具复用同一套坐标换算 | 低：三个方法是薄转发 |
+| D20 | 缩放与滚轮的方向约定 | 滚轮向上放大、向下缩小，锚点=指针；缩放工具左键放大、Shift+左键缩小；倍率固定 1.25 | 与浏览器/看图软件的习惯一致；固定倍率让「按 N 次到端点」可测，不做平滑惯性以免和触摸板双击冲突 | 低：倍率与方向各是一行常量 |
+| D21 | 创建类工具在 P1.1 的行为 | 点下去只记 `[画布] 工具 X 的创建行为在 P1.2 接入`，不产图元 | P1.1 的验收集中在「工具可选、互斥、缩放平移正确」；若提前接创建，会顺带引进撤销、落盘时机、资产目录三件 P1.2/P1.3 的事 | 低：接创建时替换一条 switch 分支 |
