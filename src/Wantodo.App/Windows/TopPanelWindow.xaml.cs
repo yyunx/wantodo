@@ -28,6 +28,7 @@ public partial class TopPanelWindow : Window
     private int _dragStartY;
     private int _persistedDuringDrag;
     private int _moveLogCount;
+    private int _lastScreenY;
 
     private bool _resizing;
     private PanelEdge _resizeEdge;
@@ -207,6 +208,7 @@ public partial class TopPanelWindow : Window
 
     public void Expand()
     {
+        AppLog.Info($"[面板] expand ratioW={_viewModel.Model.PanelWidthRatio:F3} ratioH={_viewModel.Model.PanelHeightRatio:F3} full={FullHeight:F1} from={Height:F1} workAreaH={WorkArea.Height:F1}");
         ApplyMode();
         BodyBorder.Visibility = Visibility.Visible;
         HandlePill.Visibility = Visibility.Collapsed;
@@ -229,12 +231,14 @@ public partial class TopPanelWindow : Window
 
         _dragging = false;
         HandlePill.Visibility = Visibility.Visible;
+        AppLog.Info($"[面板] collapse from={Height:F1}");
         AnimateHeight(CollapsedHeight, 140, new CubicEase { EasingMode = EasingMode.EaseIn }, () =>
         {
             if (!IsExpanded)
             {
                 Hide();
                 BodyBorder.Visibility = Visibility.Collapsed;
+                AppLog.Info($"[面板] hidden h={Height:F1}");
             }
         });
     }
@@ -297,6 +301,7 @@ public partial class TopPanelWindow : Window
     public void BeginDrag(int screenY)
     {
         _dragging = true;
+        _lastScreenY = screenY;
         _dragStartHeight = Height;
         _dragStartY = screenY;
         _persistedDuringDrag = 0;
@@ -318,10 +323,11 @@ public partial class TopPanelWindow : Window
             scale = 1;
         }
 
-        // 高度直接等于「鼠标 Y 换算成 DIP 后减面板顶边」，不再用累计位移：
-        // 否则每次开始拖都会把上一次的偏差叠进去，越拖越偏。
-        double topPhysical = Top * scale;
-        double height = ClampCanvasHeight((screenY - topPhysical) / scale);
+        _lastScreenY = screenY;
+        // 相对起始高度算位移（钩子是物理像素，先除 DPI），这样按住把手往哪拖都跟手：
+        // 绝对位置（screenY - Top）会把「按下点离窗口顶边的距离」当成高度，一按就先缩到 12，
+        // 手感像被弹了一下；而累计位移又会把上一次的偏差叠进去，越拖越偏。两者都不用。
+        double height = ClampDragHeight(_dragStartHeight + (screenY - _dragStartY) / scale);
         Height = height;
 
         bool showBody = height > CollapsedHeight + 2;
@@ -343,13 +349,13 @@ public partial class TopPanelWindow : Window
         }
 
         _dragging = false;
-        double height = ClampCanvasHeight(Height);
-        Height = height;
+        double height = Height;
 
-        if (height >= FullHeight * 0.4)
+        // 松手时按「是否拉过最小展开高度」二选一：没拉过就当收回，拉过就按这个高度展开。
+        // 阈值不用 FullHeight 的百分比：FullHeight 本身来自记忆比例，拖小后会把阈值一起拖小，
+        // 越拖越矮，正是「拖一半就不动、还改不回来」的来源。
+        if (height > MinExpandedHeight)
         {
-            // 把手拖动本身就是「重新定高度」：把松手高度记下来，否则下次展开还是旧比例，
-            // 表现出来就是「拖到一半后一直是半高，改不回来」。
             PersistHeight(height);
             Expand();
         }
@@ -380,11 +386,18 @@ public partial class TopPanelWindow : Window
     /// <summary>所有写 <see cref="Window.Height"/> 的地方都从这里过，禁止裸赋值。</summary>
     private double ClampCanvasHeight(double height) => PanelGeometry.ClampHeight(WorkArea, height);
 
+    /// <summary>拖动中允许一路缩到收起高度，否则手往上抬时高度被 240 顶住、表现为「拉不动」。</summary>
+    private double ClampDragHeight(double height) =>
+        Math.Clamp(height, PanelGeometry.CollapsedHeight, WorkArea.Height * PanelGeometry.MaxRatio);
+
+    /// <summary>松手后仍算「展开」的最小高度：低于它就当收回。</summary>
+    private const double MinExpandedHeight = 240;
+
     private void LogHeight(string phase)
     {
         DpiScale dpi = VisualTreeHelper.GetDpi(this);
         AppLog.Info(
-            $"[画板高度] {phase} Height={Height:F1} ActualHeight={ActualHeight:F1} " +
+            $"[画板高度] {phase} y={_lastScreenY} workAreaH={WorkArea.Height:F1} Height={Height:F1} ActualHeight={ActualHeight:F1} " +
             $"Min={MinHeight:F1} Max={MaxHeight:F1} dpi={dpi.DpiScaleY:F2} " +
             $"persisted={_persistedDuringDrag} dragging={_dragging}");
     }
@@ -607,7 +620,9 @@ public partial class TopPanelWindow : Window
     private void AnimateHeight(double target, int milliseconds, IEasingFunction easing, Action? completed = null)
     {
         BeginAnimation(HeightProperty, null);
-        target = ClampCanvasHeight(target);
+        // 收起的动画目标就是 12 DIP，不能套「展开下限 240」那套夹取，否则永远收不到底、
+        // 窗口也就永远不会 Hide——表现成「点外部后收回到一半停在那里」。
+        target = ClampDragHeight(target);
         var animation = new DoubleAnimation(Height, target, TimeSpan.FromMilliseconds(milliseconds))
         {
             EasingFunction = easing,

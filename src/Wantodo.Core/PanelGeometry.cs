@@ -49,6 +49,9 @@ public static class PanelGeometry
     /// <summary>顶边留给把手拖动，这段不做缩放。</summary>
     public const double TopReserved = 12;
 
+    /// <summary>收起时只剩的一条把手高度（DIP）。</summary>
+    public const double CollapsedHeight = 12;
+
     public static double ClampRatio(double value)
     {
         if (double.IsNaN(value) || double.IsInfinity(value))

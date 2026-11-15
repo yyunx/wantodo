@@ -617,6 +617,22 @@ public sealed class CanvasBoard : Canvas
         combo.SelectedItem = combo.Items.OfType<ColumnChoice>()
             .FirstOrDefault(c => string.Equals(c.Id, columnId, StringComparison.Ordinal));
 
+        // 没选栏目时 ComboBox 会显示成一块空白（上一版用户截图里就是这样）。垫一层占位字，
+        // 选中后隐藏；不影响下拉，也不吃点击。
+        var placeholder = new TextBlock
+        {
+            Text = "选择栏目…",
+            Foreground = (Brush)FindResource("TextMuted"),
+            Margin = new Thickness(9, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
+            Visibility = combo.SelectedItem is null ? Visibility.Visible : Visibility.Collapsed,
+        };
+
+        var comboHost = new Grid();
+        comboHost.Children.Add(combo);
+        comboHost.Children.Add(placeholder);
+
         var preview = new TextBlock
         {
             Text = string.IsNullOrWhiteSpace(item.Get("text")) ? "（这条待办没有正文）" : item.Get("text")!,
@@ -628,6 +644,7 @@ public sealed class CanvasBoard : Canvas
 
         combo.SelectionChanged += (_, _) =>
         {
+            placeholder.Visibility = combo.SelectedItem is null ? Visibility.Visible : Visibility.Collapsed;
             if (combo.SelectedItem is not ColumnChoice choice)
             {
                 return;
@@ -655,10 +672,10 @@ public sealed class CanvasBoard : Canvas
         var links = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         FillLinks(links, item.Get("text"));
 
-        Grid.SetRow(combo, 0);
+        Grid.SetRow(comboHost, 0);
         Grid.SetRow(preview, 1);
         Grid.SetRow(links, 2);
-        host.Children.Add(combo);
+        host.Children.Add(comboHost);
         host.Children.Add(preview);
         host.Children.Add(links);
     }
