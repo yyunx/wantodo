@@ -52,7 +52,7 @@ public sealed class ThemeIdentityTests
     [Fact]
     public void ThemeResourceKeys_AreUniqueAndComplete()
     {
-        Assert.Equal(30, ThemeResourceKeys.All.Count);
+        Assert.Equal(32, ThemeResourceKeys.All.Count);
         Assert.Equal(ThemeResourceKeys.All.Count, ThemeResourceKeys.All.Distinct(StringComparer.Ordinal).Count());
 
         // 与 0.6.0 ThemeService 实际写过的键一一对应；少一个就是 XAML 会拿到 null。
@@ -66,6 +66,8 @@ public sealed class ThemeIdentityTests
                      "ThemeTextureBrush", "ThemeCardBorderBrush", "ThemeCardBorderThickness",
                      "ThemeCardCornerRadius", "ThemeGlowVisible", "ThemeShadowBrush", "ThemeShadowOffset",
                      "ThemeCardAlpha",
+                     // 0.7.0 P0.5 新增的 L1/L2 层
+                     "ThemeGlassContentBrush", "ThemeGlassControlBrush",
                  })
         {
             Assert.Contains(key, ThemeResourceKeys.All);

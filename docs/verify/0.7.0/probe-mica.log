@@ -1,0 +1,10 @@
+[23:42:19.475] === 探针启动 mode=click material=mica ===
+[23:42:19.661] OS build=10.0.26200.0 (Win11) mode=click material=mica
+[23:42:19.662] DwmExtendFrameIntoClientArea hr=0x00000000
+[23:42:19.664] material: DWMWA_SYSTEMBACKDROP_TYPE=DWMSBT_MAINWINDOW hr=0x00000000 → 已请求
+[23:42:19.666] GetWindowRect ok=True rect=710,60,1850,540 hwnd=0xED1628
+[23:42:19.949] 内容已渲染：mode=click material=mica hwnd=0xED1628
+[23:42:19.951] rendered: rect=710,60,1850,540 size=1140x480
+[23:42:20.612] [输入] 按钮点击生效 ✓
+[23:42:21.202] [输入] 已在 1298,208 模拟点击（若上面没有「按钮点击生效」，说明玻璃区吞了鼠标）
+[23:42:21.203] after-click: rect=710,60,1850,540 size=1140x480

@@ -28,6 +28,10 @@ public partial class SettingsWindow : Window
 
         InitializeComponent();
         LoadCurrentValues();
+
+        // 0.7.0 P0.5：设置页是「液态玻璃可见」的验收窗口（V-11）
+        Appearance.GlassSurface.Prepare(this);
+        SourceInitialized += (_, _) => Appearance.GlassSurface.TryApply(this);
     }
 
     private void LoadCurrentValues()

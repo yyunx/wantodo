@@ -1,4 +1,6 @@
+using System;
 using System.Windows.Media;
+using Wantodo.App.Interop;
 using Wantodo.Core;
 
 namespace Wantodo.App.Appearance;
@@ -20,6 +22,14 @@ public static class ThemeService
             board.CustomAccent);
 
         // 0.7.0：材质由 themeId 决定（当前只有液态玻璃），关掉效果退回纯色。
+        var liquidGlass = string.Equals(board.ThemeId, Core.ThemeIds.LiquidGlass, StringComparison.Ordinal)
+            && !board.ReducedEffects;
+        var materialSupported = GlassMaterial.IsSupported(out var materialReason);
+        GlassState.Enabled = liquidGlass && materialSupported;
+        GlassState.Reason = liquidGlass
+            ? materialReason
+            : "主题不是液态玻璃或已关闭效果";
+
         var effects = board.ReducedEffects
             ? ThemeEffects.Flat
             : ThemePalette.EffectsFor(ThemeForm.Glass);
@@ -81,6 +91,14 @@ public static class ThemeService
             : Brushes.Transparent;
         resources[ThemeResourceKeys.ShadowOffset] = effects.ShadowOffset;
         resources[ThemeResourceKeys.CardAlpha] = effects.CardAlpha;
+
+        // L1/L2 层：只有材质真的启用时才半透明，否则用不透明底，避免「假装玻璃」
+        resources[ThemeResourceKeys.GlassContentBrush] = GlassState.Enabled
+            ? Brush(colors.SurfaceCard, 0.72)
+            : Brush(colors.WindowBackground);
+        resources[ThemeResourceKeys.GlassControlBrush] = GlassState.Enabled
+            ? Brush(colors.SurfaceCard, 0.86)
+            : Brush(colors.CardBackground);
     }
 
     public static SolidColorBrush Brush(Rgb color) => Brush(color, 1);

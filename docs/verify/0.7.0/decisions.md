@@ -19,3 +19,6 @@
 | D13 | 自由表面宿主在 P0.4 的渲染范围 | 只渲染图片与文本两种图元，笔迹/图形先画边框占位 | 笔迹/图形属 P1.2；先留宿主与数据通路，避免 P0 就长出一个半成品绘图工具 | 低 |
 | D14 | 分段控件里 `＋` 的行为 | 保留按钮（Q2 要求），点击只记日志 + tooltip；不新建表面 | 本期只有两个表面，凭空造第三个会让 `Cards`/`Objects` 的「表面」语义不清 | 低 |
 | D15 | 表面切换是否重建控件 | 不重建，两个宿主常驻，只切 `Visibility` | V-04 要求「不闪白、句柄不变」；重建会让滚动位置与撤销栈一起丢 | 中：改回重建要处理状态迁移 |
+| D16 | 材质在 P0.5 的作用范围 | 只给 `SettingsWindow`（Win11 上真实 Mica）；`TopPanelWindow` 本步不启用 | 面板贴桌面层且自己管拖拽/缩放/命中测试，材质透出后的观感（12 DIP 条、DWM 圆角、卡片对比度）必须人眼看过；验收 V-11 指定的就是设置页 | 低：面板加两行 `GlassSurface.Prepare/TryApply` 即可，P2.1 再做 |
+| D17 | 让 Mica 透出的前置条件 | 必须 `WindowChrome.GlassFrameThickness=-1` + `Window.Background=null`，内容层自己带 α0.72/α0.86 底色 | 探针实测：只调 `DwmSetWindowAttribute` 时 mica 与 none 逐像素相同（hr=0 但不可见）；背景置空后可见，且控件照常可点 | 低：条件集中在 `GlassSurface` |
+| D18 | 材质不可用时的画面 | 内容层退回不透明 `WindowBackground`/`CardBackground`，并记 WARN | 半透明内容叠在不透明窗口上会被误当成玻璃；探针也不支持 Win10 Acrylic（未文档化 API、无真机） | 低 |

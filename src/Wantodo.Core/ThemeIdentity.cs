@@ -123,6 +123,12 @@ public static class ThemeResourceKeys
     public const string ShadowOffset = "ThemeShadowOffset";
     public const string CardAlpha = "ThemeCardAlpha";
 
+    /// <summary>L1 内容层（面板/画板底）：液态玻璃时是 α0.72 的 SurfaceCard，否则退成不透明。</summary>
+    public const string GlassContentBrush = "ThemeGlassContentBrush";
+
+    /// <summary>L2 控件层（按钮/输入框/工具选中态）：液态玻璃时 α0.86。</summary>
+    public const string GlassControlBrush = "ThemeGlassControlBrush";
+
     /// <summary>全部键（顺序稳定，便于测试与文档对照）。</summary>
     public static readonly IReadOnlyList<string> All = new[]
     {
@@ -132,6 +138,6 @@ public static class ThemeResourceKeys
         CornerRadiusDouble, Elevation,
         StrokeBrush, StrokeWidth, StrokeThickness, CornerRadius, TextureBrush,
         CardBorderBrush, CardBorderThickness, CardCornerRadius, GlowVisible, ShadowBrush,
-        ShadowOffset, CardAlpha,
+        ShadowOffset, CardAlpha, GlassContentBrush, GlassControlBrush,
     };
 }
