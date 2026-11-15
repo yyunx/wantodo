@@ -13,3 +13,6 @@
 | D7 | App 层剩余裸 hex 的处理 | 允许三类例外并登记：`App.xaml` 的默认回退刷子、`ThemeColorPicker` 的 HSV 渐变、`ThemeStyles.xaml` 的装饰纹理 | 前两类是「主题应用前」的兜底与选择器自身的画布，第三类是几何纹理不是主题色；P2.1 若有余力再把纹理改成令牌 | 低：换成令牌需要新增 3 个资源键 |
 | D8 | 迁移后是否立即落盘 | 是：`Load()` 里 `upgraded` 为真就 `Save` | V-02 要求「打开一次后 `data.json` 里有 paletteId」；不落盘则每次启动都重新迁移、诊断反复 | 低 |
 | D9 | 旧 `formId` 的落点 | 全部折成 `liquidGlass`，`solid` 只保留常量不启用 | 计划书 §1.4 迁移表：formId 丢弃 + WARN；本期只交付一种材质 | 中：启用 solid 要补设置项与色板取值 |
+| D10 | `CanvasStore` 的去留 | 整个类删除，`CanvasBoard` 改成接收 `Action<CanvasDocument>` 回调 | 单文件后独立读写器只会诱发「又在写 canvas.json」；回调让宿主自己决定何时合并保存（600 ms 去抖） | 低：类是自包含的，可从 git 历史取回 |
+| D11 | 撤销时 `_document` 被整份替换 | 回调里把新实例写回 `Board.Canvas` 再请求保存 | 不做就地拷贝，避免「两份文档实例」；代价是 `Board.Canvas` 引用会变，凡缓存旧引用的地方都要重新取 | 低 |
+| D12 | `DataPaths.CanvasFile` | 删除，并加单测断言该属性不存在 | 光删调用点不够，留着属性迟早被重新用上 | 低 |

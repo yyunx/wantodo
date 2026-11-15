@@ -19,7 +19,7 @@ namespace Wantodo.App.Controls;
 
 /// <summary>
 /// 形态 B 的自由画布：卡片是绝对定位的 Border，拖动与缩放都在这层处理。
-/// 数据仍由 <see cref="CanvasDocument"/> 持有，写盘走 <see cref="CanvasStore"/>。
+/// 数据由 <see cref="CanvasDocument"/> 持有；写盘交给宿主（0.7.0 起并入 <c>data.json</c>，不再有第二份文件）。
 /// </summary>
 public sealed class CanvasBoard : Canvas
 {
@@ -49,7 +49,7 @@ public sealed class CanvasBoard : Canvas
     public Func<string?, string?>? ColumnCreator { get; set; }
 
     private CanvasDocument _document = new();
-    private CanvasStore? _store;
+    private Action<CanvasDocument>? _persist;
     private string? _imagesDir;
     private CanvasItem? _selected;
     private DispatcherTimer? _ticker;
@@ -86,10 +86,13 @@ public sealed class CanvasBoard : Canvas
 
     public event EventHandler? StatusChanged;
 
-    public void Attach(CanvasDocument document, CanvasStore store, string? imagesDir)
+    /// <param name="document">数据源；0.7.0 起就是 <c>Board.Canvas</c> 那份实例。</param>
+    /// <param name="persist">落盘回调：宿主把文档挂回 Board 并触发 600 ms 合并保存。</param>
+    /// <param name="imagesDir">画布图片副本目录。</param>
+    public void Attach(CanvasDocument document, Action<CanvasDocument>? persist, string? imagesDir)
     {
         _document = document ?? new CanvasDocument();
-        _store = store;
+        _persist = persist;
         _imagesDir = imagesDir;
         Rebuild();
     }
@@ -1343,14 +1346,14 @@ public sealed class CanvasBoard : Canvas
 
     private void Save()
     {
-        if (_store is null)
+        if (_persist is null)
         {
             return;
         }
 
         try
         {
-            _store.Save(_document);
+            _persist(_document);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

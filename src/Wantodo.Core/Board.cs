@@ -61,7 +61,7 @@ public sealed class Board
 
     public const string CanvasPanelMode = "Canvas";
 
-    /// <summary>面板形态：Dock = 树布局（默认）；Canvas = 自由画布，读 board/canvas.json。</summary>
+    /// <summary>面板形态：Dock = 树布局（默认）；Canvas = 自由画布，数据在 <see cref="Canvas"/> 里。</summary>
     public string PanelMode { get; set; } = CanvasPanelMode;
 
     public double PanelWidthRatio { get; set; } = PanelGeometry.DefaultRatio;

@@ -52,8 +52,8 @@ public partial class TopPanelWindow : Window
         viewModel.Columns.CollectionChanged += OnColumnsChanged;
         ColumnsScroller.SizeChanged += OnSizeChangedFit;
 
-        var canvasStore = new CanvasStore(DataRootService.Paths.CanvasFile);
-        CanvasBoard.Attach(canvasStore.Load(), canvasStore, DataRootService.Paths.CanvasImagesDir);
+        // 0.7.0：画布住 data.json，写盘走 Board 的合并保存（600 ms 去抖），不再有 canvas.json。
+        CanvasBoard.Attach(viewModel.Model.Canvas, PersistCanvas, DataRootService.Paths.CanvasImagesDir);
         CanvasBoard.StatusChanged += (_, _) => UpdateCanvasStatus();
         CanvasBoard.ColumnsProvider = () => viewModel.Model.Columns;
         CanvasBoard.ColumnCreator = CreateCanvasColumn;
@@ -70,6 +70,13 @@ public partial class TopPanelWindow : Window
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
         Closed += OnClosed;
+    }
+
+    /// <summary>画布变更回写：换成它给的实例（撤销会整份替换），再交给合并保存。</summary>
+    private void PersistCanvas(CanvasDocument document)
+    {
+        _viewModel.Model.Canvas = document;
+        _viewModel.RequestSave();
     }
 
     private bool IsCanvasMode => string.Equals(_viewModel.Model.PanelMode, Board.CanvasPanelMode, StringComparison.OrdinalIgnoreCase);

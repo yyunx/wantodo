@@ -1,14 +1,14 @@
-using System.Text.Json;
 using Wantodo.Core;
 using Xunit;
 
 namespace Wantodo.Core.Tests;
 
-public sealed class CanvasStoreTests : IDisposable
+/// <summary>0.7.0 P0.3：画布只住 data.json，不再有第二份 canvas.json。对应验收 V-05。</summary>
+public sealed class CanvasDocumentTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "wantodo-canvas-" + Guid.NewGuid().ToString("N"));
 
-    public CanvasStoreTests() => Directory.CreateDirectory(_dir);
+    public CanvasDocumentTests() => Directory.CreateDirectory(_dir);
 
     public void Dispose()
     {
@@ -22,7 +22,7 @@ public sealed class CanvasStoreTests : IDisposable
         }
     }
 
-    private CanvasStore Store() => new(Path.Combine(_dir, "canvas.json"));
+    private JsonBoardStore Store() => new(Path.Combine(_dir, "data.json"));
 
     [Fact]
     public void Normalize_ClampsSizeAndPosition()
@@ -73,77 +73,78 @@ public sealed class CanvasStoreTests : IDisposable
     }
 
     [Fact]
-    public void SaveThenLoad_RoundTripsItemsAndPayload()
+    public void Board_RoundTripsCardsObjectsAndViewports()
     {
         var store = Store();
-        var document = new CanvasDocument();
-        var item = document.Add("link", 16, 24);
-        item.Payload["url"] = "https://example.com";
-        item.W = 300;
-        item.H = 120;
+        var board = Board.CreateDefault();
+        var card = board.Canvas.Add("link", 16, 24);
+        card.Payload["url"] = "https://example.com";
+        card.W = 300;
+        card.H = 120;
+        var stroke = board.Canvas.AddObject("stroke", 40, 50, 120, 80);
+        stroke.Payload["points"] = "0,0;10,10";
+        board.Canvas.ActiveSurfaceId = CanvasSurfaces.Freeform;
+        board.Canvas.Viewports[CanvasSurfaces.Freeform] = new CanvasViewport { Zoom = 1.75, OffsetX = -30, OffsetY = 12 };
 
-        store.Save(document);
-        var loaded = store.Load();
+        store.Save(board);
+        var loaded = store.Load().Board;
 
-        var restored = Assert.Single(loaded.Items);
-        Assert.Equal(item.Id, restored.Id);
+        var restored = Assert.Single(loaded.Canvas.Items);
         Assert.Equal("link", restored.Kind);
-        Assert.Equal(16, restored.X);
         Assert.Equal(300, restored.W);
         Assert.Equal("https://example.com", restored.Get("url"));
+        var restoredStroke = Assert.Single(loaded.Canvas.Objects);
+        Assert.Equal("stroke", restoredStroke.Kind);
+        Assert.Equal("0,0;10,10", restoredStroke.Get("points"));
+        Assert.Equal(CanvasSurfaces.Freeform, loaded.Canvas.ActiveSurfaceId);
+        Assert.Equal(1.75, loaded.Canvas.Viewports[CanvasSurfaces.Freeform].Zoom);
     }
 
     [Fact]
-    public void Load_MissingFile_ReturnsEmptyCanvas()
-    {
-        var loaded = Store().Load();
-
-        Assert.Equal(2, loaded.Version);
-        Assert.Empty(loaded.Items);
-    }
-
-    [Fact]
-    public void Load_CorruptFile_QuarantinesAndReturnsEmpty()
+    public void Canvas_LivesInsideDataJson_NotASecondFile()
     {
         var store = Store();
-        File.WriteAllText(store.FilePath, "{ not json");
+        var board = Board.CreateDefault();
+        board.Canvas.Add("note", 10, 10);
 
-        var loaded = store.Load();
+        store.Save(board);
 
-        Assert.Empty(loaded.Items);
-        Assert.True(Directory.EnumerateFiles(_dir, "canvas.json.corrupt-*").Any());
+        Assert.Empty(Directory.EnumerateFiles(_dir, "canvas.json*"));
+        Assert.Contains("\"canvas\"", File.ReadAllText(store.DataPath));
+        Assert.Single(store.Load().Board.Canvas.Items);
+    }
+
+    [Fact]
+    public void DataPaths_NoLongerExposesCanvasFile()
+    {
+        // V-05：全仓不应再有第二个画布文件路径；属性名也一并删掉，防止有人再拿它写盘。
+        Assert.Null(typeof(DataPaths).GetProperty("CanvasFile"));
+        Assert.NotNull(typeof(DataPaths).GetProperty("BoardFile"));
+        Assert.NotNull(typeof(DataPaths).GetProperty("CanvasImagesDir"));
     }
 
     [Fact]
     public void Save_SecondTime_LeavesBackup()
     {
         var store = Store();
-        var document = new CanvasDocument();
-        document.Add("note", 1, 2);
-        store.Save(document);
-        document.Add("todo", 3, 4);
-        store.Save(document);
+        var board = Board.CreateDefault();
+        board.Canvas.Add("note", 1, 2);
+        store.Save(board);
+        board.Canvas.Add("todo", 3, 4);
+        store.Save(board);
 
         Assert.True(File.Exists(store.BackupPath));
+        Assert.Equal(2, store.Load().Board.Canvas.Items.Count);
     }
 
     [Fact]
-    public void BoardAndCanvas_UseSeparateFiles()
+    public void Load_MissingFile_StartsWithEmptyCanvas()
     {
-        var boardStore = new JsonBoardStore(Path.Combine(_dir, "data.json"));
-        var canvasStore = Store();
-        var board = Board.CreateDefault();
-        var canvas = new CanvasDocument();
-        canvas.Add("note", 10, 10);
+        var loaded = Store().Load();
 
-        boardStore.Save(board);
-        canvasStore.Save(canvas);
-        boardStore.Save(board);
-
-        Assert.True(File.Exists(boardStore.DataPath));
-        Assert.True(File.Exists(canvasStore.FilePath));
-        Assert.Single(canvasStore.Load().Items);
-        Assert.Equal(Board.CanvasPanelMode, boardStore.Load().Board.PanelMode);
+        Assert.Equal(BoardLoadStatus.FirstRun, loaded.Status);
+        Assert.Empty(loaded.Board.Canvas.Items);
+        Assert.Equal(2, loaded.Board.Canvas.Version);
     }
 
     [Fact]
