@@ -208,42 +208,116 @@ public sealed class CanvasBoard : Canvas
         Grid.SetColumn(close, 1);
         header.Children.Add(close);
 
-        var body = new TextBlock
+        var bodyHost = new Grid { Margin = new Thickness(10, 6, 10, 8) };
+        TextBlock? placeholder = null;
+        if (string.Equals(item.Kind, "note", StringComparison.OrdinalIgnoreCase))
         {
-            Text = BodyText(item),
-            Margin = new Thickness(10, 6, 10, 8),
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 12,
-            Foreground = (Brush)FindResource("TextPrimary"),
-        };
-        Grid.SetRow(body, 1);
+            var editor = new TextBox
+            {
+                Text = item.Get("text") ?? string.Empty,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
+                Margin = new Thickness(0),
+                FontSize = 12,
+                AcceptsReturn = true,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+                Foreground = (Brush)FindResource("TextPrimary"),
+                CaretBrush = (Brush)FindResource("TextPrimary"),
+                Tag = item,
+            };
+            editor.TextChanged += (s, _) =>
+            {
+                var box = (TextBox)s!;
+                item.Payload["text"] = box.Text;
+                if (placeholder is not null)
+                {
+                    placeholder.Visibility = box.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+                }
+            };
+            editor.GotKeyboardFocus += (_, _) => PushUndo();
+            editor.LostKeyboardFocus += (_, _) => Save();
 
-        var grip = new Rectangle
+            placeholder = new TextBlock
+            {
+                Text = "（空）",
+                FontSize = 12,
+                Foreground = (Brush)FindResource("TextMuted"),
+                IsHitTestVisible = false,
+                Visibility = editor.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed,
+            };
+            bodyHost.Children.Add(editor);
+            bodyHost.Children.Add(placeholder);
+        }
+        else
         {
-            Width = 12,
-            Height = 12,
-            Fill = (Brush)FindResource("TextMuted"),
-            Opacity = 0.55,
+            bodyHost.Children.Add(new TextBlock
+            {
+                Text = BodyText(item),
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 12,
+                Foreground = (Brush)FindResource("TextPrimary"),
+            });
+        }
+
+        Grid.SetRow(bodyHost, 1);
+
+        // 缩放把：透明命中区 14×14，里面画三条斜线当图标；只有悬停时才亮，
+        // 平时不抢视觉（之前是一块实心灰方块，看着像渲染坏了）。
+        var gripHost = new Grid
+        {
+            Width = 14,
+            Height = 14,
+            Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Bottom,
-            Margin = new Thickness(0, 0, 2, 2),
+            Margin = new Thickness(0, 0, 1, 1),
             Cursor = Cursors.SizeNWSE,
+            ToolTip = "拖动缩放",
             Tag = item,
+            Opacity = 0.45,
         };
-        Grid.SetRowSpan(grip, 2);
+        gripHost.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M 3,11 L 11,3 M 7,12 L 12,7"),
+            Stroke = (Brush)FindResource("TextMuted"),
+            StrokeThickness = 1.2,
+            IsHitTestVisible = false,
+            SnapsToDevicePixels = true,
+        });
+        gripHost.MouseEnter += (_, _) => gripHost.Opacity = 0.9;
+        gripHost.MouseLeave += (_, _) => gripHost.Opacity = 0.45;
+        Grid.SetRowSpan(gripHost, 2);
 
         grid.Children.Add(header);
-        grid.Children.Add(body);
-        grid.Children.Add(grip);
+        grid.Children.Add(bodyHost);
+        grid.Children.Add(gripHost);
         card.Child = grid;
 
         card.MouseLeftButtonDown += OnCardMouseDown;
         card.MouseMove += OnCardMouseMove;
         card.MouseLeftButtonUp += OnCardMouseUp;
-        grip.MouseLeftButtonDown += OnGripMouseDown;
-        grip.MouseMove += OnGripMouseMove;
-        grip.MouseLeftButtonUp += OnGripMouseUp;
+        gripHost.MouseLeftButtonDown += OnGripMouseDown;
+        gripHost.MouseMove += OnGripMouseMove;
+        gripHost.MouseLeftButtonUp += OnGripMouseUp;
         return card;
+    }
+
+    private static bool InTextBox(object? source)
+    {
+        var current = source as DependencyObject;
+        while (current is not null)
+        {
+            if (current is TextBox)
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
     }
 
     private static string KindLabel(string kind) => kind switch
@@ -313,7 +387,7 @@ public sealed class CanvasBoard : Canvas
             return;
         }
 
-        if (e.OriginalSource is Button)
+        if (e.OriginalSource is Button || InTextBox(e.OriginalSource))
         {
             return;
         }
@@ -363,7 +437,7 @@ public sealed class CanvasBoard : Canvas
 
     private void OnGripMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not Rectangle grip || grip.Tag is not CanvasItem item)
+        if (sender is not FrameworkElement grip || grip.Tag is not CanvasItem item)
         {
             return;
         }
