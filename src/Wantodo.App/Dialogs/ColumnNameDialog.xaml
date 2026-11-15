@@ -27,7 +27,7 @@
                      VerticalContentAlignment="Center"
                      FontSize="13"
                      Foreground="{DynamicResource TextPrimary}"
-                     Background="#0F1621"
+                     Background="{DynamicResource CardBackground}"
                      BorderThickness="1"
                      BorderBrush="{DynamicResource Divider}"
                      CaretBrush="{DynamicResource TextPrimary}"

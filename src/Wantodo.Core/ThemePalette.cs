@@ -40,28 +40,30 @@ public readonly record struct Rgb(byte R, byte G, byte B)
     public string ToHex() => $"#{R:X2}{G:X2}{B:X2}";
 }
 
-/// <summary>主题的形式感：只换颜色是 <see cref="Flat"/>，其余三套各自加描边/纹理。</summary>
-public enum ThemeStyle
+/// <summary>主题的形式维度（与色板正交）。块 C 先把全部主题压到 <see cref="Flat"/>。</summary>
+public enum ThemeForm
 {
     Flat,
-    Soft,
+    Brutal,
+    Glass,
     Neon,
-    Comic,
+    Clay,
+    Neumorph,
 }
 
-/// <summary>形式感参数；纹理键对应 App 层 <c>ThemeStyles.xaml</c> 里的 DrawingBrush。</summary>
+/// <summary>形式参数；纹理键对应 App 层 <c>ThemeStyles.xaml</c> 里的 DrawingBrush。</summary>
 public readonly record struct ThemeEffects(
-    ThemeStyle Style,
+    ThemeForm Form,
     double StrokeWidth,
     double CornerRadius,
     double ShadowOpacity,
     string? StrokeHex,
     string? TextureKey)
 {
-    public static ThemeEffects Flat { get; } = new(ThemeStyle.Flat, 0, 10, 0, null, null);
+    public static ThemeEffects Flat { get; } = new(ThemeForm.Flat, 0, 10, 0, null, null);
 }
 
-/// <summary>一套主题下的 10 个令牌。</summary>
+/// <summary>一套主题的语义令牌：10 个基础色 + 6 个卡片/描边语义色 + 2 个数值。</summary>
 public sealed record ThemeColors(
     Rgb WindowBackground,
     Rgb CardBackground,
@@ -72,209 +74,162 @@ public sealed record ThemeColors(
     Rgb Accent,
     Rgb OnAccent,
     Rgb Hover,
-    Rgb Selected)
+    Rgb Selected,
+    Rgb SurfaceCard,
+    Rgb OnSurfaceCard,
+    Rgb BorderSubtle,
+    Rgb BorderActive,
+    Rgb AccentSoft,
+    Rgb? Glow,
+    double CornerRadius,
+    int Elevation)
 {
-    /// <summary>这套颜色属于哪种形式感；纯色预设为 <see cref="ThemeStyle.Flat"/>。</summary>
-    public ThemeStyle Style { get; init; } = ThemeStyle.Flat;
+    public ThemeForm Form { get; init; } = ThemeForm.Flat;
 }
 
 /// <summary>
-/// 配色表：GitHub 深/浅色、Dracula、Nord、Catppuccin 五套预设，外加跟随系统与自定义。
-/// 预设色取自各项目公开色板；正文/次要/弱化三档在构造时按对比度下限校正
-/// （<see cref="ThemeDerivation.EnsureContrast"/>），所以最终值可能比原色板略亮/略暗。
-/// <c>Tone</c> 只对 GitHub 深/浅色与自定义生效（decisions.md D3：不透明调色，不是窗口透明度）。
+/// v6 配色表：Tokyo Night Day / Tokyo Night、Catppuccin 四套、霓虹，共 7 套。
+/// 旧 id（GitHub 深/浅、Dracula、Nord、樱花、赛博、美漫、System、Custom）由
+/// <see cref="MigrateThemeId"/> 映射到新 id，旧 data.json 不会打不开。
+/// 正文/次要/弱化在构造时按对比度下限校正（<see cref="ThemeDerivation.EnsureContrast"/>）。
 /// </summary>
 public static class ThemePalette
 {
-    public const string DarkTheme = "Dark";
-    public const string LightTheme = "Light";
-    public const string SystemTheme = "System";
-    public const string DraculaTheme = "Dracula";
-    public const string NordTheme = "Nord";
-    public const string CatppuccinTheme = "Catppuccin";
-    public const string SakuraTheme = "Sakura";
-    public const string CyberTheme = "Cyber";
-    public const string ComicTheme = "Comic";
-    public const string CustomTheme = "Custom";
+    public const string LightTheme = "light";
+    public const string DarkTheme = "dark";
+    public const string LatteTheme = "latte";
+    public const string FrappeTheme = "frappe";
+    public const string MacchiatoTheme = "macchiato";
+    public const string MochaTheme = "mocha";
+    public const string NeonTheme = "neon";
 
-    /// <summary>设置页下拉里的顺序：跟随系统在最前，其余按深→浅排。</summary>
+    /// <summary>内部调试用，不进 UI；旧库里出现时由 <see cref="MigrateThemeId"/> 映射到深色。</summary>
+    public const string CustomTheme = "custom";
+
+    /// <summary>设置页顺序：浅 → 深 → Catppuccin 由浅到深 → 霓虹。</summary>
     public static readonly IReadOnlyList<string> ThemeNames = new[]
     {
-        SystemTheme, DarkTheme, LightTheme, SakuraTheme, CyberTheme, ComicTheme, DraculaTheme, NordTheme, CatppuccinTheme,
+        LightTheme, DarkTheme, LatteTheme, FrappeTheme, MacchiatoTheme, MochaTheme, NeonTheme,
     };
 
-    /// <summary>界面显示名；枚举值不变，旧数据不受影响。</summary>
-    public static string DisplayName(string? theme) => theme switch
+    public static string DisplayName(string? theme) => MigrateThemeId(theme) switch
     {
-        SystemTheme => "跟随系统",
         LightTheme => "浅色",
-        SakuraTheme => "樱花",
-        CyberTheme => "赛博",
-        ComicTheme => "美漫",
-        DraculaTheme => "Dracula",
-        NordTheme => "Nord",
-        CatppuccinTheme => "Catppuccin Mocha",
-        CustomTheme => "自定义",
+        LatteTheme => "Catppuccin Latte",
+        FrappeTheme => "Catppuccin Frappé",
+        MacchiatoTheme => "Catppuccin Macchiato",
+        MochaTheme => "Catppuccin Mocha",
+        NeonTheme => "霓虹",
         _ => "深色",
     };
 
-    private static readonly ThemeColors DarkBase = Build(
-        window: "#0D1117", card: "#161B22",
-        text: "#E6EDF3", secondary: "#B1BAC4", muted: "#7D8590",
-        accent: "#2F81F7", onAccent: "#0D1117", divider: "#30363D");
-
-    private static readonly ThemeColors LightBase = Build(
-        window: "#FFFFFF", card: "#F6F8FA",
-        text: "#1F2328", secondary: "#4D5560", muted: "#59636E",
-        accent: "#0969DA", onAccent: "#FFFFFF", divider: "#D1D9E0");
-
-    private static readonly ThemeColors DraculaBase = Build(
-        window: "#282A36", card: "#21222C",
-        text: "#F8F8F2", secondary: "#D0D2E4", muted: "#6272A4",
-        accent: "#BD93F9", onAccent: "#282A36", divider: "#44475A");
-
-    private static readonly ThemeColors NordBase = Build(
-        window: "#2E3440", card: "#3B4252",
-        text: "#ECEFF4", secondary: "#D8DEE9", muted: "#81A1C1",
-        accent: "#88C0D0", onAccent: "#2E3440", divider: "#434C5E");
-
-    private static readonly ThemeColors CatppuccinBase = Build(
-        window: "#1E1E2E", card: "#313244",
-        text: "#CDD6F4", secondary: "#BAC2DE", muted: "#A6ADC8",
-        accent: "#89B4FA", onAccent: "#1E1E2E", divider: "#45475A");
-
-    /// <summary>樱花：Soft 形式感。令牌与实测值见 docs/design/themes-0.6.0.md §1。</summary>
-    private static readonly ThemeColors SakuraBase = Build(
-        window: "#FFF7F8", card: "#FFFFFF",
-        text: "#3A2B31", secondary: "#6E5560", muted: "#7E6270",
-        accent: "#B23E55", onAccent: "#FFFFFF", divider: "#F0DDE2") with
-    {
-        Style = ThemeStyle.Soft,
-    };
-
-    /// <summary>主题名 → 是否浅色底（自定义按背景亮度判断）。</summary>
-    public static bool IsLight(string? theme) =>
-        theme is not null && string.Equals(theme, LightTheme, StringComparison.OrdinalIgnoreCase);
-
-    public static bool IsLightColors(ThemeColors colors) => colors.TextPrimary.R < 0x80;
-
-    /// <summary>只有这几套支持 <c>Tone</c> 调色；固定色板不跟着滑杆变。</summary>
-    public static bool SupportsTone(string? theme) =>
-        theme is null
-        || string.Equals(theme, DarkTheme, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(theme, LightTheme, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(theme, CustomTheme, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>主题名的形式感；未知/自定义一律 Flat，关闭效果开关后也按 Flat 用。</summary>
-    public static ThemeStyle StyleFor(string? theme)
-    {
-        if (string.Equals(theme, SakuraTheme, StringComparison.OrdinalIgnoreCase))
-        {
-            return ThemeStyle.Soft;
-        }
-
-        if (string.Equals(theme, CyberTheme, StringComparison.OrdinalIgnoreCase))
-        {
-            return ThemeStyle.Neon;
-        }
-
-        if (string.Equals(theme, ComicTheme, StringComparison.OrdinalIgnoreCase))
-        {
-            return ThemeStyle.Comic;
-        }
-
-        return ThemeStyle.Flat;
-    }
-
-    /// <summary>形式感参数；<see cref="ThemeStyle.Flat"/> 不描边、无纹理，圆角沿用 10。</summary>
-    public static ThemeEffects EffectsFor(ThemeStyle style) => style switch
-    {
-        ThemeStyle.Soft => new(style, 1, 6, 0.12, "#F3D3DA", "TexturePaper"),
-        ThemeStyle.Neon => new(style, 1, 4, 0.45, null, "TextureScanlines"),
-        ThemeStyle.Comic => new(style, 2, 14, 0.65, "#171A1F", "TextureHalftone"),
-        _ => ThemeEffects.Flat,
-    };
-
-    /// <summary>赛博：Neon 形式感。</summary>
-    private static readonly ThemeColors CyberBase = Build(
-        window: "#070B14", card: "#0E1524",
-        text: "#E6FAFF", secondary: "#8FA9C4", muted: "#6C8399",
-        accent: "#22E0FF", onAccent: "#04121A", divider: "#1E3A47") with
-    {
-        Style = ThemeStyle.Neon,
-    };
-
-    /// <summary>美漫：Comic 形式感。</summary>
-    private static readonly ThemeColors ComicBase = Build(
-        window: "#FFFDF3", card: "#FFFFFF",
-        text: "#171A1F", secondary: "#4A5260", muted: "#667080",
-        accent: "#D6293A", onAccent: "#FFFFFF", divider: "#E3DFCF") with
-    {
-        Style = ThemeStyle.Comic,
-    };
-    /// <summary>按主题名取色；未知主题一律按深色处理（旧文件里可能写着别的东西）。</summary>
-    public static ThemeColors For(string? theme, double tone) =>
-        For(theme, tone, systemIsLight: false, customBackground: null, customAccent: null);
-
     /// <summary>
-    /// <paramref name="systemIsLight"/> 只在 <c>System</c> 时有意义：
-    /// App 层读系统「应用主题」后传进来，Core 不碰注册表。
+    /// 旧主题 id → 新 id。删除主题必须走这里，否则旧用户启动会被静默改回深色。
     /// </summary>
-    public static ThemeColors For(
-        string? theme, double tone, bool systemIsLight, string? customBackground = null, string? customAccent = null)
+    public static string MigrateThemeId(string? theme)
     {
         if (string.IsNullOrWhiteSpace(theme))
         {
-            return ApplyTone(DarkBase, tone);
+            return DarkTheme;
         }
 
-        if (string.Equals(theme, SystemTheme, StringComparison.OrdinalIgnoreCase))
+        var value = theme.Trim();
+        return value.ToLowerInvariant() switch
         {
-            return ApplyTone(systemIsLight ? LightBase : DarkBase, tone);
-        }
-
-        if (string.Equals(theme, CustomTheme, StringComparison.OrdinalIgnoreCase))
-        {
-            return ApplyTone(ForCustom(customBackground, customAccent), tone);
-        }
-
-        if (string.Equals(theme, SakuraTheme, StringComparison.OrdinalIgnoreCase))
-        {
-            return SakuraBase;
-        }
-
-        if (string.Equals(theme, CyberTheme, StringComparison.OrdinalIgnoreCase))
-        {
-            return CyberBase;
-        }
-
-        if (string.Equals(theme, ComicTheme, StringComparison.OrdinalIgnoreCase))
-        {
-            return ComicBase;
-        }
-
-        if (string.Equals(theme, DraculaTheme, StringComparison.OrdinalIgnoreCase))
-        {
-            return DraculaBase;
-        }
-
-        if (string.Equals(theme, NordTheme, StringComparison.OrdinalIgnoreCase))
-        {
-            return NordBase;
-        }
-
-        if (string.Equals(theme, CatppuccinTheme, StringComparison.OrdinalIgnoreCase))
-        {
-            return CatppuccinBase;
-        }
-
-        return ApplyTone(IsLight(theme) ? LightBase : DarkBase, tone);
+            "light" or "github-light" or "sakura" or "comic" => LightTheme,
+            "latte" => LatteTheme,
+            "frappe" => FrappeTheme,
+            "macchiato" => MacchiatoTheme,
+            "mocha" or "dracula" or "catppuccin" => MochaTheme,
+            "neon" or "cyber" => NeonTheme,
+            "dark" or "github-dark" or "nord" or "system" or "custom" => DarkTheme,
+            _ => DarkTheme,
+        };
     }
 
-    /// <summary>
-    /// 自定义主题：只让用户选背景与强调两色，其余由 <see cref="ThemeDerivation"/> 推导。
-    /// 解析失败或为空时退回深色底，避免把窗口变成不可读的随机颜色。
-    /// </summary>
+    private static readonly ThemeColors LightBase = Build(
+        window: "#E1E2E7", card: "#F7F8FA",
+        text: "#1F2335", secondary: "#4B5478", muted: "#848CB5",
+        accent: "#2E7DE9", onAccent: "#FFFFFF", divider: "#CFD4E3", elevation: 1);
+
+    private static readonly ThemeColors DarkBase = Build(
+        window: "#1A1B26", card: "#24283B",
+        text: "#C0CAF5", secondary: "#9AA5CE", muted: "#565F89",
+        accent: "#7AA2F7", onAccent: "#16161E", divider: "#3B4261");
+
+    private static readonly ThemeColors LatteBase = Build(
+        window: "#EFF1F5", card: "#FFFFFF",
+        text: "#4C4F69", secondary: "#6C6F85", muted: "#8C8FA1",
+        accent: "#8839EF", onAccent: "#FFFFFF", divider: "#CCD0DA", elevation: 1);
+
+    private static readonly ThemeColors FrappeBase = Build(
+        window: "#303446", card: "#292C3C",
+        text: "#C6D0F5", secondary: "#A5ADCE", muted: "#838BA7",
+        accent: "#CA9EE6", onAccent: "#232634", divider: "#414559");
+
+    private static readonly ThemeColors MacchiatoBase = Build(
+        window: "#24273A", card: "#1E2030",
+        text: "#CAD3F5", secondary: "#A5ADCB", muted: "#8087A2",
+        accent: "#C6A0F6", onAccent: "#181926", divider: "#363A4F");
+
+    private static readonly ThemeColors MochaBase = Build(
+        window: "#1E1E2E", card: "#181825",
+        text: "#CDD6F4", secondary: "#A6ADC8", muted: "#7F849C",
+        accent: "#CBA6F7", onAccent: "#11111B", divider: "#313244");
+
+    private static readonly ThemeColors NeonBase = Build(
+        window: "#0B0F14", card: "#11161E",
+        text: "#E6F1FF", secondary: "#9AB0C9", muted: "#5B6B85",
+        accent: "#FF2E88", onAccent: "#0B0F14", divider: "#1F2C3A", glow: "#22D3EE");
+
+    public static bool IsLight(string? theme) =>
+        MigrateThemeId(theme) is LightTheme or LatteTheme;
+
+    public static bool IsLightColors(ThemeColors colors) => colors.TextPrimary.R < 0x80;
+
+    /// <summary>只有深/浅两套允许 Tone 调色；固定色板不跟着滑杆变。</summary>
+    public static bool SupportsTone(string? theme) =>
+        MigrateThemeId(theme) is DarkTheme or LightTheme;
+
+    public static ThemeEffects EffectsFor(ThemeForm form) => form switch
+    {
+        _ => ThemeEffects.Flat,
+    };
+
+    /// <summary>按主题名取色；未知主题按映射表回退，旧文件不会白屏。</summary>
+    public static ThemeColors For(string? theme, double tone) =>
+        For(theme, tone, systemIsLight: false, customBackground: null, customAccent: null);
+
+    public static ThemeColors For(
+        string? theme, double tone, bool systemIsLight, string? customBackground = null, string? customAccent = null)
+    {
+        var id = MigrateThemeId(theme);
+        if (string.Equals(theme, CustomTheme, StringComparison.OrdinalIgnoreCase))
+        {
+            id = CustomTheme;
+        }
+
+        if (string.Equals(theme, "System", StringComparison.OrdinalIgnoreCase))
+        {
+            id = systemIsLight ? LightTheme : DarkTheme;
+        }
+
+        var colors = id switch
+        {
+            LightTheme => LightBase,
+            LatteTheme => LatteBase,
+            FrappeTheme => FrappeBase,
+            MacchiatoTheme => MacchiatoBase,
+            MochaTheme => MochaBase,
+            NeonTheme => NeonBase,
+            CustomTheme => ForCustom(customBackground, customAccent),
+            _ => DarkBase,
+        };
+
+        return SupportsTone(id) ? ApplyTone(colors, tone) : colors;
+    }
+
+    /// <summary>内部调试用：只给背景与强调两色，其余由推导补齐（不进 UI）。</summary>
     public static ThemeColors ForCustom(string? backgroundHex, string? accentHex)
     {
         if (!TryParse(backgroundHex, out var background) || !TryParse(accentHex, out var accent))
@@ -293,12 +248,12 @@ public static class ThemePalette
             return colors;
         }
 
-        // 只有背景参与调色，文字与强调色保持不变，避免对比度被调坏
         var strength = IsLightColors(colors) ? 0.12 : 0.18;
         return colors with
         {
             WindowBackground = colors.WindowBackground.Lerp(colors.Accent, tone * strength),
             CardBackground = colors.CardBackground.Lerp(colors.Accent, tone * strength * 0.6),
+            SurfaceCard = colors.SurfaceCard.Lerp(colors.Accent, tone * strength * 0.6),
             Hover = colors.Hover.Lerp(colors.Accent, tone * strength * 0.5),
             Selected = colors.Selected.Lerp(colors.Accent, tone * strength * 0.5),
         };
@@ -306,12 +261,11 @@ public static class ThemePalette
 
     private static ThemeColors Build(
         string window, string card, string text, string secondary, string muted,
-        string accent, string onAccent, string divider)
+        string accent, string onAccent, string divider, string? glow = null, int elevation = 0)
     {
         var bg = Rgb.FromHex(window);
         var cardColor = Rgb.FromHex(card);
 
-        // 文字三档对「窗口底」与「卡片底」都要达标，取两者里更严的结果
         var textColor = EnsureBoth(bg, cardColor, Rgb.FromHex(text), ThemeDerivation.TextPrimaryTarget);
         var secondaryColor = EnsureBoth(bg, cardColor, Rgb.FromHex(secondary), ThemeDerivation.TextSecondaryTarget);
         var mutedColor = EnsureBoth(bg, cardColor, Rgb.FromHex(muted), ThemeDerivation.TextMutedTarget);
@@ -328,7 +282,15 @@ public static class ThemePalette
             Accent: accentColor,
             OnAccent: onAccentColor,
             Hover: cardColor.Lerp(textColor, 0.10),
-            Selected: cardColor.Lerp(accentColor, 0.22));
+            Selected: cardColor.Lerp(accentColor, 0.22),
+            SurfaceCard: cardColor,
+            OnSurfaceCard: textColor,
+            BorderSubtle: Rgb.FromHex(divider),
+            BorderActive: accentColor,
+            AccentSoft: bg.Lerp(accentColor, 0.18),
+            Glow: glow is null ? null : Rgb.FromHex(glow),
+            CornerRadius: 10,
+            Elevation: elevation);
     }
 
     private static Rgb EnsureBoth(Rgb first, Rgb second, Rgb foreground, double target)
@@ -341,7 +303,6 @@ public static class ThemePalette
     public static string? NormalizeHex(string? hex) =>
         TryParse(hex, out var color) ? color.ToHex() : null;
 
-    /// <summary>解析 <c>#RRGGBB</c> / <c>#AARRGGBB</c> / 不带井号的形式；失败返回 false。</summary>
     public static bool TryParseHex(string? hex, out Rgb color) => TryParse(hex, out color);
 
     private static bool TryParse(string? hex, out Rgb color)

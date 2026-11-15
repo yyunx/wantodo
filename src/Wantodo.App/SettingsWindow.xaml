@@ -43,41 +43,28 @@
 
             <TextBlock Text="外观" Style="{StaticResource FieldLabel}" />
             <WrapPanel Margin="0,0,0,10">
-                <RadioButton x:Name="SystemRadio" Content="跟随系统" Tag="System" GroupName="theme" Margin="0,0,12,6"
+                <RadioButton x:Name="LightRadio" Content="浅色" Tag="light" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
-                <RadioButton x:Name="DarkRadio" Content="深色" Tag="Dark" GroupName="theme" Margin="0,0,12,6"
+                <RadioButton x:Name="DarkRadio" Content="深色" Tag="dark" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
-                <RadioButton x:Name="LightRadio" Content="浅色" Tag="Light" GroupName="theme" Margin="0,0,12,6"
+                <RadioButton x:Name="LatteRadio" Content="Catppuccin Latte" Tag="latte" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
-                <RadioButton x:Name="SakuraRadio" Content="樱花" Tag="Sakura" GroupName="theme" Margin="0,0,12,6"
+                <RadioButton x:Name="FrappeRadio" Content="Catppuccin Frappé" Tag="frappe" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
-                <RadioButton x:Name="CyberRadio" Content="赛博" Tag="Cyber" GroupName="theme" Margin="0,0,12,6"
+                <RadioButton x:Name="MacchiatoRadio" Content="Catppuccin Macchiato" Tag="macchiato" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
-                <RadioButton x:Name="ComicRadio" Content="美漫" Tag="Comic" GroupName="theme" Margin="0,0,12,6"
+                <RadioButton x:Name="MochaRadio" Content="Catppuccin Mocha" Tag="mocha" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
-                <RadioButton x:Name="DraculaRadio" Content="Dracula" Tag="Dracula" GroupName="theme" Margin="0,0,12,6"
-                             Foreground="{DynamicResource TextPrimary}"
-                             Checked="OnThemeChanged" />
-                <RadioButton x:Name="NordRadio" Content="Nord" Tag="Nord" GroupName="theme" Margin="0,0,12,6"
-                             Foreground="{DynamicResource TextPrimary}"
-                             Checked="OnThemeChanged" />
-                <RadioButton x:Name="CatppuccinRadio" Content="Catppuccin Mocha" Tag="Catppuccin" GroupName="theme" Margin="0,0,12,6"
+                <RadioButton x:Name="NeonRadio" Content="霓虹" Tag="neon" GroupName="theme" Margin="0,0,12,6"
                              Foreground="{DynamicResource TextPrimary}"
                              Checked="OnThemeChanged" />
             </WrapPanel>
-
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                <Button x:Name="CustomThemeButton" Content="自定义…" Padding="10,3" Click="OnCustomThemeClick" />
-                <TextBlock x:Name="CustomThemeHint" Style="{StaticResource HintText}"
-                           VerticalAlignment="Center" Margin="10,0,0,0"
-                           Text="背景 + 强调两色，其余自动推导" />
-            </StackPanel>
 
             <CheckBox x:Name="ThemeEffectsCheck" Content="主题效果（描边、圆角、纹理）"
                       Margin="0,0,0,12"

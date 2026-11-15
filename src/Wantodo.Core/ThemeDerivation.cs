@@ -143,7 +143,15 @@ public static class ThemeDerivation
             Accent: accentFixed,
             OnAccent: onAccent,
             Hover: card.Lerp(text, 0.10),
-            Selected: card.Lerp(accentFixed, 0.22));
+            Selected: card.Lerp(accentFixed, 0.22),
+            SurfaceCard: card,
+            OnSurfaceCard: text,
+            BorderSubtle: background.Lerp(text, 0.16),
+            BorderActive: accentFixed,
+            AccentSoft: background.Lerp(accentFixed, 0.18),
+            Glow: null,
+            CornerRadius: 10,
+            Elevation: 0);
     }
 
     /// <summary>

@@ -37,14 +37,14 @@
                 <TextBox x:Name="MinutesBox" Width="56" Height="28" Padding="6,0" Text="25"
                          VerticalContentAlignment="Center"
                          Foreground="{DynamicResource TextPrimary}"
-                         Background="#0F1621"
+                         Background="{DynamicResource CardBackground}"
                          BorderBrush="{DynamicResource Divider}" />
                 <TextBlock Text="分" Margin="4,0,8,0" VerticalAlignment="Center"
                            Foreground="{DynamicResource TextSecondary}" />
                 <TextBox x:Name="SecondsBox" Width="48" Height="28" Padding="6,0" Text="0"
                          VerticalContentAlignment="Center"
                          Foreground="{DynamicResource TextPrimary}"
-                         Background="#0F1621"
+                         Background="{DynamicResource CardBackground}"
                          BorderBrush="{DynamicResource Divider}" />
                 <TextBlock Text="秒" Margin="4,0,0,0" VerticalAlignment="Center"
                            Foreground="{DynamicResource TextSecondary}" />

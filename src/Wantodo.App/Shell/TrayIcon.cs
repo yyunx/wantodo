@@ -47,15 +47,13 @@ public sealed class TrayIcon : IDisposable
         var themeMenu = new WinForms.ToolStripMenuItem("外观");
         foreach (var (theme, label) in new[]
                  {
-                     (ThemePalette.SystemTheme, "跟随系统"),
-                     (ThemePalette.DarkTheme, "深色"),
                      (ThemePalette.LightTheme, "浅色"),
-                     (ThemePalette.SakuraTheme, "樱花"),
-                     (ThemePalette.CyberTheme, "赛博"),
-                     (ThemePalette.ComicTheme, "美漫"),
-                     (ThemePalette.DraculaTheme, "Dracula"),
-                     (ThemePalette.NordTheme, "Nord"),
-                     (ThemePalette.CatppuccinTheme, "Catppuccin Mocha"),
+                     (ThemePalette.DarkTheme, "深色"),
+                     (ThemePalette.LatteTheme, "Catppuccin Latte"),
+                     (ThemePalette.FrappeTheme, "Catppuccin Frappé"),
+                     (ThemePalette.MacchiatoTheme, "Catppuccin Macchiato"),
+                     (ThemePalette.MochaTheme, "Catppuccin Mocha"),
+                     (ThemePalette.NeonTheme, "霓虹"),
                  })
         {
             var item = new WinForms.ToolStripMenuItem(label, null, (_, _) => _window.SetTheme(theme));

@@ -20,7 +20,7 @@ public static class ThemeService
             board.CustomAccent);
 
         var effects = board.ThemeEffects
-            ? ThemePalette.EffectsFor(colors.Style)
+            ? ThemePalette.EffectsFor(colors.Form)
             : ThemeEffects.Flat;
 
         Apply(colors, effects);
@@ -46,6 +46,15 @@ public static class ThemeService
         resources["OnAccent"] = Brush(colors.OnAccent);
         resources["Hover"] = Brush(colors.Hover);
         resources["Selected"] = Brush(colors.Selected);
+
+        resources["SurfaceCard"] = Brush(colors.SurfaceCard);
+        resources["OnSurfaceCard"] = Brush(colors.OnSurfaceCard);
+        resources["BorderSubtle"] = Brush(colors.BorderSubtle);
+        resources["BorderActive"] = Brush(colors.BorderActive);
+        resources["AccentSoft"] = Brush(colors.AccentSoft);
+        resources["Glow"] = colors.Glow is { } glow ? Brush(glow) : Brushes.Transparent;
+        resources["ThemeCornerRadiusDouble"] = colors.CornerRadius;
+        resources["ThemeElevation"] = colors.Elevation;
 
         var accent = Brush(colors.Accent);
         var stroke = effects.StrokeHex is not null && ThemePalette.TryParseHex(effects.StrokeHex, out var strokeColor)

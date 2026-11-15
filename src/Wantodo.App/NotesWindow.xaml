@@ -21,7 +21,7 @@
         <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" />
     </WindowChrome.WindowChrome>
 
-    <Border BorderThickness="1" BorderBrush="{DynamicResource Divider}" Background="{DynamicResource WindowBackground}">
+    <Border BorderThickness="1" BorderBrush="{DynamicResource BorderSubtle}" Background="{DynamicResource WindowBackground}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="34" />
@@ -66,8 +66,8 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- 左：列表 -->
-                <Border Grid.Column="0" Background="{DynamicResource CardBackground}" CornerRadius="10"
-                        BorderThickness="1" BorderBrush="{DynamicResource Divider}">
+                <Border Grid.Column="0" Background="{DynamicResource SurfaceCard}" CornerRadius="10"
+                        BorderThickness="1" BorderBrush="{DynamicResource BorderSubtle}">
                     <ListBox x:Name="NotesList"
                              Background="Transparent"
                              BorderThickness="0"
@@ -125,7 +125,7 @@
                              Margin="6,2,6,8"
                              TextChanged="OnEditorTextChanged" />
 
-                    <Border Grid.Row="1" Background="{DynamicResource CardBackground}" CornerRadius="10"
+                    <Border Grid.Row="1" Background="{DynamicResource SurfaceCard}" CornerRadius="10"
                             BorderThickness="0">
                         <TextBox x:Name="BodyBox"
                                  Background="Transparent"

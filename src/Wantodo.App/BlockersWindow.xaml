@@ -91,7 +91,7 @@
                           AllowDrop="True" DragOver="OnRowsDragOver" Drop="OnRowsDrop">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Background="{DynamicResource CardBackground}" CornerRadius="8"
+                        <Border Background="{DynamicResource SurfaceCard}" CornerRadius="8"
                                 Padding="8,6" Margin="0,0,0,6">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -135,7 +135,7 @@
             <Border BorderBrush="{DynamicResource Accent}" BorderThickness="2" CornerRadius="6" Margin="2" />
             <TextBlock Text="松手：把这条加成新的一行" HorizontalAlignment="Center" VerticalAlignment="Center"
                        FontSize="12.5" Foreground="{DynamicResource TextPrimary}"
-                       Background="{DynamicResource CardBackground}" Padding="12,6" />
+                       Background="{DynamicResource SurfaceCard}" Padding="12,6" />
         </Grid>
 
         <TextBlock Grid.Row="3" x:Name="StatusText" Margin="16,8,16,10"

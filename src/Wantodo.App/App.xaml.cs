@@ -38,6 +38,8 @@ public partial class App : Application
         Resources["ThemeStrokeBrush"] = System.Windows.Media.Brushes.Transparent;
         Resources["ThemeTextureBrush"] = System.Windows.Media.Brushes.Transparent;
         Resources["ThemeCornerRadius"] = new System.Windows.CornerRadius(10);
+        Resources["ThemeCornerRadiusDouble"] = 10d;
+        Resources["ThemeElevation"] = 0;
 
         // 单实例：第二次双击 exe 不该开出第二个窗口（两个实例同时写 data.json 会互相覆盖）。
         // 这里用的是 Local\ 命名空间（只影响当前登录会话），注销后自动释放。

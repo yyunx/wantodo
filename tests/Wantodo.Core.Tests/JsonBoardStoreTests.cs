@@ -96,7 +96,7 @@ public sealed class JsonBoardStoreTests : IDisposable
 
         Assert.Equal(BoardLoadStatus.Loaded, loaded.Status);
         Assert.Equal("Topmost", loaded.Board.Surface);
-        Assert.Equal("Light", loaded.Board.Theme);
+        Assert.Equal("light", loaded.Board.Theme);
         Assert.Equal(0.4, loaded.Board.Tone, 3);
         Assert.True(loaded.Board.Placement.HasPosition);
         Assert.Equal(33.5, loaded.Board.Placement.Left!.Value, 3);
@@ -253,7 +253,7 @@ public sealed class JsonBoardStoreTests : IDisposable
         var loaded = NewStore().Load();
 
         Assert.Equal(BoardLoadStatus.Loaded, loaded.Status);
-        Assert.Equal("Custom", loaded.Board.Theme);
+        Assert.Equal("dark", loaded.Board.Theme); // v6：旧 Custom 映射到深色，两色仍保留
         Assert.Equal("#1B2735", loaded.Board.CustomBackground);
         Assert.Equal("#E05A7A", loaded.Board.CustomAccent);
 

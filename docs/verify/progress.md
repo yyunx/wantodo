@@ -95,3 +95,10 @@ Run B 收口：21/22/23 完成（各有欠账），24 未开工（3–5 天，�
 - 证据：`docs/verify/block-b.md`
 - 欠账：可见性设置 UI 未做；面板过滤视图不持久化调宽/换位；图片卡旧 `BuildImageBody` 未删；删除未进回收；番茄自定义分段 UI 未接
 - 下一步第一条命令：进入块 C（7 套色板 + 旧 id 迁移 + 语义令牌 + 形式层 flat）
+## 块 C — 主题体系（2026-11-15）
+- 状态：**DONE（PENDING-HUMAN 4 条）**
+- 验收：`build -warnaserror` 0 警告/0 错误（2.56s）；`test --no-build` **297 通过 / 0 失败 / 525 ms**
+- 改动：`ThemePalette`（7 套色板 + 迁移表 + 6 语义色 + 2 数值令牌）、`ThemeService`（16 画刷 + 2 数值）、`Board`（加载即迁移）、设置页/托盘（7 项）、多窗口 XAML 去裸色、卡片面走 `SurfaceCard`
+- 证据：`docs/verify/block-c.md`
+- 欠账：形式层（块 D）未做；`ThemeColorPicker`/`ThemeStyles.xaml` 暂无入口；色调只对 dark/light 生效；浅色 `onAccent` 校正为近黑
+- 下一步第一条命令：进入块 D（形式层，先 `brutal`）

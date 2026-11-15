@@ -115,6 +115,7 @@ public sealed class Board
 
         PanelWidthRatio = PanelGeometry.ClampRatio(PanelWidthRatio);
         PanelHeightRatio = PanelGeometry.ClampRatio(PanelHeightRatio);
+        Theme = ThemePalette.MigrateThemeId(Theme);
         if (!string.Equals(PanelMode, CanvasPanelMode, StringComparison.OrdinalIgnoreCase))
         {
             PanelMode = DockPanelMode;

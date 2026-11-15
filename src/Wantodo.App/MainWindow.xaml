@@ -43,7 +43,7 @@
             <Setter Property="Margin" Value="0" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
             <Setter Property="CaretBrush" Value="{DynamicResource TextPrimary}" />
-            <Setter Property="SelectionBrush" Value="#556FA8FF" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentSoft}" />
             <Setter Property="FontSize" Value="12.5" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="AcceptsReturn" Value="True" />
@@ -77,7 +77,7 @@
                                        Text="&#x2713;"
                                        FontSize="9"
                                        FontWeight="Bold"
-                                       Foreground="#0F1216"
+                                       Foreground="{DynamicResource OnAccent}"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
                                        Visibility="Collapsed" />
@@ -98,7 +98,7 @@
         </Style>
         <!-- 一栏的内容（标题 / 列表 / 栏尾输入），由停靠布局的叶子节点实例化 -->
                     <DataTemplate x:Key="PaneTemplate">
-                        <Border Background="{DynamicResource CardBackground}"
+                        <Border Background="{DynamicResource SurfaceCard}"
                                 CornerRadius="{DynamicResource ThemeCornerRadius}"
                                 Margin="4"
                                 AllowDrop="True"
@@ -469,7 +469,7 @@
         <Canvas x:Name="DropPreviewLayer" Grid.Row="1" IsHitTestVisible="False" ClipToBounds="True">
             <Border x:Name="DropPreviewBox"
                     Visibility="Collapsed"
-                    Background="#336FA8FF"
+                    Background="{DynamicResource AccentSoft}"
                     BorderBrush="{DynamicResource Accent}"
                     BorderThickness="1.5"
                     CornerRadius="8" />

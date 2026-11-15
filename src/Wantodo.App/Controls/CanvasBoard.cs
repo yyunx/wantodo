@@ -243,8 +243,8 @@ public sealed class CanvasBoard : Canvas
             Height = item.H,
             CornerRadius = new CornerRadius(6),
             BorderThickness = new Thickness(1),
-            BorderBrush = (Brush)FindResource("Divider"),
-            Background = (Brush)FindResource("CardBackground"),
+            BorderBrush = (Brush)FindResource("BorderSubtle"),
+            Background = (Brush)FindResource("SurfaceCard"),
             Tag = item,
             SnapsToDevicePixels = true,
         };
@@ -1144,7 +1144,7 @@ public sealed class CanvasBoard : Canvas
         }
 
         bool frameless = _framelessCards.Contains(item.Id);
-        card.BorderBrush = (Brush)FindResource(selected ? "Accent" : "Divider");
+        card.BorderBrush = (Brush)FindResource(selected ? "BorderActive" : "BorderSubtle");
         card.BorderThickness = new Thickness(selected ? 2 : frameless ? 0 : 1);
         if (selected)
         {

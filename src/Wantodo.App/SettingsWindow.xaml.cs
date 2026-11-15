@@ -44,18 +44,14 @@ public partial class SettingsWindow : Window
                 DesktopRadio.IsChecked = true;
             }
 
-            var theme = string.IsNullOrWhiteSpace(_viewModel.Model.Theme)
-                ? ThemePalette.DarkTheme
-                : _viewModel.Model.Theme;
-            bool custom = string.Equals(theme, ThemePalette.CustomTheme, StringComparison.OrdinalIgnoreCase);
-            foreach (var radio in new[] { SystemRadio, DarkRadio, LightRadio, SakuraRadio, CyberRadio, ComicRadio, DraculaRadio, NordRadio, CatppuccinRadio })
+            var theme = ThemePalette.MigrateThemeId(_viewModel.Model.Theme);
+            var radios = new[] { LightRadio, DarkRadio, LatteRadio, FrappeRadio, MacchiatoRadio, MochaRadio, NeonRadio };
+            foreach (var radio in radios)
             {
                 radio.IsChecked = string.Equals(radio.Tag as string, theme, StringComparison.OrdinalIgnoreCase);
             }
 
-            if (!custom && SystemRadio.IsChecked != true && DarkRadio.IsChecked != true && LightRadio.IsChecked != true &&
-                SakuraRadio.IsChecked != true && CyberRadio.IsChecked != true && ComicRadio.IsChecked != true &&
-                DraculaRadio.IsChecked != true && NordRadio.IsChecked != true && CatppuccinRadio.IsChecked != true)
+            if (radios.All(r => r.IsChecked != true))
             {
                 DarkRadio.IsChecked = true;
             }
@@ -64,9 +60,6 @@ public partial class SettingsWindow : Window
 
             ToneSlider.Value = Math.Clamp(_viewModel.Model.Tone, 0, 1);
             ToneSlider.IsEnabled = ThemePalette.SupportsTone(theme);
-            CustomThemeHint.Text = custom
-                ? $"当前：背景 {_viewModel.Model.CustomBackground ?? "未设置"} · 强调 {_viewModel.Model.CustomAccent ?? "未设置"}"
-                : "背景 + 强调两色，其余自动推导";
 
             bool autoFit = !string.Equals(
                 _viewModel.Model.Placement.SizeMode, SizeModes.Manual, StringComparison.OrdinalIgnoreCase);
@@ -139,25 +132,6 @@ public partial class SettingsWindow : Window
         }
 
         _viewModel.SetPanelMode(mode);
-    }
-
-    private void OnCustomThemeClick(object sender, RoutedEventArgs e)
-    {
-        var dialog = new Dialogs.ThemeColorPicker(
-            _viewModel.Model.CustomBackground,
-            _viewModel.Model.CustomAccent)
-        {
-            Owner = this,
-        };
-
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        _viewModel.SetCustomTheme(dialog.BackgroundHex, dialog.AccentHex);
-        AppLog.Info($"自定义主题：背景 {dialog.BackgroundHex}，强调 {dialog.AccentHex}");
-        LoadCurrentValues();
     }
 
     private void OnToneChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

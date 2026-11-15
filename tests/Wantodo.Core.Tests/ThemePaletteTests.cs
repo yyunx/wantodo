@@ -9,7 +9,7 @@ public class ThemePaletteTests
     {
         var colors = ThemePalette.For("nonsense", 0);
 
-        Assert.Equal(Rgb.FromHex("#0D1117"), colors.WindowBackground);
+        Assert.Equal(Rgb.FromHex("#1A1B26"), colors.WindowBackground);
     }
 
     [Fact]
@@ -17,7 +17,7 @@ public class ThemePaletteTests
     {
         var colors = ThemePalette.For("Light", 0);
 
-        Assert.Equal(Rgb.FromHex("#F6F8FA"), colors.CardBackground);
+        Assert.Equal(Rgb.FromHex("#F7F8FA"), colors.CardBackground);
         Assert.True(colors.TextPrimary.R < 0x80, "浅色主题的文字应该偏深");
     }
 

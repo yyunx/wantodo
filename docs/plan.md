@@ -832,6 +832,14 @@ PowerShell 行切片（改 Python）、调试版与安装版共用单实例互�
 **风险**：中（发光叠在浅底上、halftone 在深色底的摩尔纹）。**预估**：1.5 天。
 **依赖**：Phase 21。**回滚点**：删两套预设与 `Neon/Comic` 分支，枚举回 5 套。
 
+**v6 块 C 增补（2026-11-15，覆盖上面「樱花/赛博/美漫」的预设设计）**：主题收敛为 7 套色板
+（`light` Tokyo Night Day、`dark` Tokyo Night、`latte`/`frappe`/`macchiato`/`mocha` Catppuccin、`neon` 霓虹），
+删除 GitHub 深/浅、Dracula、Nord、樱花、赛博、美漫；旧 `themeId` 走迁移表（github-dark/nord/system→dark、
+github-light/sakura/comic→light、dracula/catppuccin→mocha、cyber→neon、未知→dark）。新增 6 个语义色令牌
+（`SurfaceCard`、`OnSurfaceCard`、`BorderSubtle`、`BorderActive`、`AccentSoft`、`Glow`）与 2 个数值令牌
+（`CornerRadius`、`Elevation`）；卡片面一律 `SurfaceCard`，XAML 裸 hex 只允许留在资源字典里。
+证据：`docs/verify/block-c.md`，commit `block-c:`。
+
 ---
 
 ## Phase 23 — 0.6.0 收口（S1/S2）　P0

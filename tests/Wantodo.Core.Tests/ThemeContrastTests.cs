@@ -3,21 +3,20 @@ namespace Wantodo.Core.Tests;
 using Wantodo.Core;
 
 /// <summary>
-/// 五套预设 + 自定义推导的对比度下限。阈值写死在这里，改配色表就会撞红：
+/// 7 套预设的对比度下限。阈值写死在这里，改配色表就会撞红：
 /// 正文 ≥7、次要/弱化 ≥4.5、强调色上的文字 ≥4.5、卡片上的正文 ≥7。
 /// </summary>
 public class ThemeContrastTests
 {
     public static TheoryData<string> Presets => new()
     {
-        ThemePalette.DarkTheme,
         ThemePalette.LightTheme,
-        ThemePalette.SakuraTheme,
-        ThemePalette.CyberTheme,
-        ThemePalette.ComicTheme,
-        ThemePalette.DraculaTheme,
-        ThemePalette.NordTheme,
-        ThemePalette.CatppuccinTheme,
+        ThemePalette.DarkTheme,
+        ThemePalette.LatteTheme,
+        ThemePalette.FrappeTheme,
+        ThemePalette.MacchiatoTheme,
+        ThemePalette.MochaTheme,
+        ThemePalette.NeonTheme,
     };
 
     [Theory]
@@ -45,6 +44,17 @@ public class ThemeContrastTests
 
     [Theory]
     [MemberData(nameof(Presets))]
+    public void Preset_CardSurfaceMatchesSemanticTokens(string theme)
+    {
+        var colors = ThemePalette.For(theme, 0);
+
+        Assert.Equal(colors.CardBackground, colors.SurfaceCard);
+        Assert.Equal(colors.TextPrimary, colors.OnSurfaceCard);
+        Assert.Equal(colors.Accent, colors.BorderActive);
+    }
+
+    [Theory]
+    [MemberData(nameof(Presets))]
     public void Preset_HoverAndSelectedAreDistinctFromCard(string theme)
     {
         var colors = ThemePalette.For(theme, 0);
@@ -55,48 +65,51 @@ public class ThemeContrastTests
     }
 
     [Fact]
-    public void StyleFor_MapsSakuraToSoftElseFlat()
-    {
-        Assert.Equal(ThemeStyle.Soft, ThemePalette.StyleFor(ThemePalette.SakuraTheme));
-        Assert.Equal(ThemeStyle.Soft, ThemePalette.For(ThemePalette.SakuraTheme, 0).Style);
-
-        foreach (var theme in new[] { ThemePalette.DarkTheme, ThemePalette.LightTheme, ThemePalette.DraculaTheme, ThemePalette.NordTheme, ThemePalette.CatppuccinTheme })
-        {
-            Assert.Equal(ThemeStyle.Flat, ThemePalette.For(theme, 0).Style);
-        }
-    }
-
-    [Fact]
-    public void EffectsFor_FlatHasNoTexture()
-    {
-        var flat = ThemePalette.EffectsFor(ThemeStyle.Flat);
-        Assert.Null(flat.TextureKey);
-        Assert.Equal(0, flat.StrokeWidth);
-
-        var soft = ThemePalette.EffectsFor(ThemeStyle.Soft);
-        Assert.NotNull(soft.TextureKey);
-        Assert.True(soft.StrokeWidth > 0);
-    }
-
-    [Fact]
     public void DisplayName_IsFriendly()
     {
-        Assert.Equal("深色", ThemePalette.DisplayName(ThemePalette.DarkTheme));
         Assert.Equal("浅色", ThemePalette.DisplayName(ThemePalette.LightTheme));
-        Assert.Equal("樱花", ThemePalette.DisplayName(ThemePalette.SakuraTheme));
-        Assert.Equal("跟随系统", ThemePalette.DisplayName(ThemePalette.SystemTheme));
+        Assert.Equal("深色", ThemePalette.DisplayName(ThemePalette.DarkTheme));
+        Assert.Equal("Catppuccin Mocha", ThemePalette.DisplayName(ThemePalette.MochaTheme));
+        Assert.Equal("霓虹", ThemePalette.DisplayName(ThemePalette.NeonTheme));
     }
+
+    [Theory]
+    [InlineData("github-dark", ThemePalette.DarkTheme)]
+    [InlineData("github-light", ThemePalette.LightTheme)]
+    [InlineData("nord", ThemePalette.DarkTheme)]
+    [InlineData("dracula", ThemePalette.MochaTheme)]
+    [InlineData("catppuccin", ThemePalette.MochaTheme)]
+    [InlineData("sakura", ThemePalette.LightTheme)]
+    [InlineData("comic", ThemePalette.LightTheme)]
+    [InlineData("cyber", ThemePalette.NeonTheme)]
+    [InlineData("custom", ThemePalette.DarkTheme)]
+    [InlineData("System", ThemePalette.DarkTheme)]
+    [InlineData("", ThemePalette.DarkTheme)]
+    [InlineData("what-else", ThemePalette.DarkTheme)]
+    public void MigrateThemeId_MapsLegacyIds(string legacy, string expected)
+    {
+        Assert.Equal(expected, ThemePalette.MigrateThemeId(legacy));
+    }
+
+    [Theory]
+    [MemberData(nameof(Presets))]
+    public void MigratedThemes_AreValid(string theme)
+    {
+        Assert.Equal(theme, ThemePalette.MigrateThemeId(theme));
+        Assert.Contains(theme, ThemePalette.ThemeNames);
+    }
+
     [Fact]
     public void For_PresetNamesAreCaseInsensitive()
     {
-        Assert.Equal(ThemePalette.For("dracula", 0), ThemePalette.For("Dracula", 0));
-        Assert.Equal(ThemePalette.For("NORD", 0), ThemePalette.For("Nord", 0));
+        Assert.Equal(ThemePalette.For("mocha", 0), ThemePalette.For("MOCHA", 0));
+        Assert.Equal(ThemePalette.For("dark", 0), ThemePalette.For("GitHub-Dark", 0));
     }
 
     [Fact]
     public void For_FixedPalettesIgnoreTone()
     {
-        foreach (var theme in new[] { ThemePalette.DraculaTheme, ThemePalette.NordTheme, ThemePalette.CatppuccinTheme })
+        foreach (var theme in new[] { ThemePalette.LatteTheme, ThemePalette.FrappeTheme, ThemePalette.MochaTheme, ThemePalette.NeonTheme })
         {
             Assert.Equal(ThemePalette.For(theme, 0), ThemePalette.For(theme, 1));
             Assert.False(ThemePalette.SupportsTone(theme), $"{theme} 不应该跟着色调滑杆变");
@@ -104,10 +117,10 @@ public class ThemeContrastTests
     }
 
     [Fact]
-    public void For_SystemFollowsFlag()
+    public void For_LegacySystemFollowsFlag()
     {
-        var dark = ThemePalette.For(ThemePalette.SystemTheme, 0, systemIsLight: false);
-        var light = ThemePalette.For(ThemePalette.SystemTheme, 0, systemIsLight: true);
+        var dark = ThemePalette.For("System", 0, systemIsLight: false);
+        var light = ThemePalette.For("System", 0, systemIsLight: true);
 
         Assert.Equal(ThemePalette.For(ThemePalette.DarkTheme, 0), dark);
         Assert.Equal(ThemePalette.For(ThemePalette.LightTheme, 0), light);
@@ -116,7 +129,7 @@ public class ThemeContrastTests
     [Fact]
     public void ForCustom_DerivesReadablePaletteFrom2Colors()
     {
-        var colors = ThemePalette.For(ThemePalette.CustomTheme, 0, false, "#1B2735", "#E05A7A");
+        var colors = ThemePalette.ForCustom("#1B2735", "#E05A7A");
 
         Assert.True(ThemeDerivation.Contrast(colors.WindowBackground, colors.TextPrimary) >= ThemeDerivation.TextPrimaryTarget);
         Assert.True(ThemeDerivation.Contrast(colors.CardBackground, colors.TextPrimary) >= ThemeDerivation.TextPrimaryTarget);
@@ -193,17 +206,6 @@ public class ThemeContrastTests
     }
 
     [Fact]
-    public void ForCustom_ToneOnlyMovesBackground()
-    {
-        var plain = ThemePalette.ForCustom("#1B2735", "#E05A7A");
-        var toned = ThemePalette.For(ThemePalette.CustomTheme, 1, false, "#1B2735", "#E05A7A");
-
-        Assert.NotEqual(plain.WindowBackground, toned.WindowBackground);
-        Assert.Equal(plain.TextPrimary, toned.TextPrimary);
-        Assert.Equal(plain.Accent, toned.Accent);
-    }
-
-    [Fact]
     public void EnsureContrast_LeavesGoodPairAlone()
     {
         var bg = Rgb.FromHex("#10151C");
@@ -229,5 +231,21 @@ public class ThemeContrastTests
     {
         Assert.Equal(21, ThemeDerivation.Contrast(new Rgb(0, 0, 0), new Rgb(255, 255, 255)), 3);
         Assert.Equal(1, ThemeDerivation.Contrast(new Rgb(10, 20, 30), new Rgb(10, 20, 30)), 3);
+    }
+
+    [Fact]
+    public void LightThemes_AreLight()
+    {
+        Assert.True(ThemePalette.IsLight(ThemePalette.LightTheme));
+        Assert.True(ThemePalette.IsLight(ThemePalette.LatteTheme));
+        Assert.False(ThemePalette.IsLight(ThemePalette.DarkTheme));
+        Assert.False(ThemePalette.IsLight(ThemePalette.NeonTheme));
+    }
+
+    [Fact]
+    public void Neon_HasGlowAndOthersDoNot()
+    {
+        Assert.NotNull(ThemePalette.For(ThemePalette.NeonTheme, 0).Glow);
+        Assert.Null(ThemePalette.For(ThemePalette.DarkTheme, 0).Glow);
     }
 }
