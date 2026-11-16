@@ -14,23 +14,41 @@
 | P1.3 | 无铬图片 + 剪贴板 + 资产策略 | DONE（含 6 项 PENDING-HUMAN） | [p1.3.md](p1.3.md) · [探针日志](p1.3-probe.log) |
 | P1.4 | 待办投影 / 拖动改名分离 / 计时状态机 | DONE（含 6 项 PENDING-HUMAN） | [p1.4.md](p1.4.md) · [探针日志](p1.4-probe.log) |
 | P2.1 | 颜色键 + 右键菜单 + 滚动条 + 空状态 | DONE（含 5 项 PENDING-HUMAN） | [p2.1.md](p2.1.md) · [探针日志](p2.1-probe.log) |
-| P2.2 | 笔迹静态化 + 性能 + 包体积 | DONE-WITH-DEBT（含 6 项 PENDING-HUMAN + 包体积欠账 55,955 B） | [p2.2.md](p2.2.md) · [探针日志](p2.2-probe.log) |
-| P2.3 | release-0.7.0 + README + 两个包 + 总结 | TODO | — |
+| P2.2 | 笔迹静态化 + 性能 + 包体积 | DONE-WITH-DEBT（含 6 项 PENDING-HUMAN + 两条红线均超） | [p2.2.md](p2.2.md) · [探针日志](p2.2-probe.log) |
+| P2.3 | release-0.7.0 + README + 两个包 + 总结 | DONE | [p2.3.md](p2.3.md) |
+
+## 状态：12 步全部走完（2026-11-16）
+
+`feat/0.7.0` 上 10 个 commit，未 push。收口数字：`build -warnaserror` 0 警告 0 错误、
+`test --no-build` **437 通过 / 0 失败**、探针 **81 条 PASS**。
+
+两条红线都超了，都没改（Q10）：
+
+| 包 | 本次 | 红线 | 超出 |
+|---|---|---|---|
+| FDD zip | 285,331 B | 229,376 B | 55,955 B |
+| SC zip | 63,957,693 B | 63,900,000 B | 57,693 B |
 
 ## 下一步
 
-P2.3 收口（release notes + README + 两个包 + 起床总结）：
+**没有本批的下一步了。** 剩余工作都是需要人（或需要退出真机实例）的：
 
-1. `docs/release-0.7.0.md`：新模型（材质 × 色板正交）、双表面、P0–P2 的实际交付、**FDD zip 285,331 B 超红线 55,955 B（未放宽红线，写清候选减重方向）**、`trash/assets-*` 的清理方式；
-2. README 更新（0.7.0 能做什么、快捷键表、数据目录结构 `board/ink` 与 `board/canvas-images`）；
-3. 两个包：FDD（`publish\fdd-0.7.0`，已 publish）+ SC，记录字节数；
-4. 起床简报 ≤15 行 + 「我替你做的决定」表（D1–D38）+ PENDING-HUMAN 清单（按 V-xx 分组）+ 数字对比表。
+1. 按 [p2.2.md](p2.2.md) §4 退出正在跑的实例，跑 portable 副本，把首帧 / private 抄进本文件（V-12 的三条数字目前全是 PENDING-HUMAN）；
+2. 按 [p2.3.md](p2.3.md) §5 的表逐条肉眼验收并补截图；
+3. 决定要不要为包体积开工（候选：拆 WPF 资源字典、删旧链接卡渲染路径、图片资产懒加载），这条要开新计划；
+4. 是否 `git push` 由你决定，本批全程未推。
 
-## 未偿清单（收口时必须交代）
+> 关于真实数据：P2.2 收口时核对过一次 `E:\Wantodo\board\data.json`（Length 4834 / mtime 2026-11-15 22:03:50，未变）。
+> 2026-11-16 17:21:36 该文件被改写过一次（Length 5292，内容仍是 `"version": 2` / `theme: Sakura`）——
+> 那是你自己在用的 0.6.0 实例保存的，不是本批：本批唯一一次启动 App 用的是 `publish\0.7.0-test` 的 portable 副本，
+> 且被单实例 Mutex 直接挡下（exit=0，连日志目录都没建），没有任何写路径碰到 `E:\Wantodo\`。
+
+
+## 未偿清单（收口交代）
 
 - 主窗口未接材质（矩阵 #1，P2.1 写明理由）
 - 面板顶栏圆角 10 / 自由表面背景网格 / 计时进度环 / 令牌名取色 / 空状态引导按钮 / 拖拽虚线（矩阵 ◐✗，#4/#9/#12/#15/#21/#22）
-- **FDD zip 285,331 B，超红线 229,376 B 共 55,955 B**（Q10：不许改红线，写进 release notes；本步已做零成本减重 −2,739 B）
+- **FDD zip 285,331 B 超红线 55,955 B；SC zip 63,957,693 B 超红线 57,693 B**（Q10：不许改红线，已写进 release notes；本批只做零成本减重 −2,739 B）
 - V-12 的三条数字（首帧 ≤1153 ms / private ≤105.1 MB / 50 卡 500 笔 ≥55 fps）全部 PENDING-HUMAN：单实例 Mutex 被真机实例占用，portable 副本启动即退出；复测命令在 `p2.2.md` §4
 - 笔迹静态化在 CPU 软件光栅代理下反而更慢（D36），真实合成器收益未验证
 - 笔迹层是新增渲染层，首帧与内存未在真机复测
@@ -39,9 +57,13 @@ P2.3 收口（release notes + README + 两个包 + 起床总结）：
 - 图片资产总量 200 MB 提示只有逻辑层测试，未用真实大目录验（P1.3）
 - 待办投影每秒重建行（D30），超过 50 条走截断，未做虚拟化
 - 面板材质在真机上的拖拽/命中是否回归，只能人眼验（P2.1 PENDING-HUMAN 第 3 条）
+- 所有截图类 PENDING-HUMAN（约 20 张）都还没补，清单在 `p2.3.md` §5
 
-## 下一步第一条命令
+## 复跑命令
 
 ```
-$env:DOTNET_ROOT="$env:LOCALAPPDATA\Microsoft\dotnet"; $env:PATH="$env:DOTNET_ROOT;$env:PATH"; & "$env:DOTNET_ROOT\dotnet.exe" build Wantodo.slnx -warnaserror
+$env:DOTNET_ROOT="$env:LOCALAPPDATA\Microsoft\dotnet"; $env:PATH="$env:DOTNET_ROOT;$env:PATH"
+& "$env:DOTNET_ROOT\dotnet.exe" build Wantodo.slnx -warnaserror
+& "$env:DOTNET_ROOT\dotnet.exe" test --no-build
+& "$env:DOTNET_ROOT\dotnet.exe" spike\FreeformProbe\bin\Debug\net10.0-windows\FreeformProbe.dll
 ```
