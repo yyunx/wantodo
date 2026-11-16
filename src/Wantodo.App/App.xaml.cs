@@ -96,6 +96,23 @@ public partial class App : Application
             AppLog.Warn(diagnostic);
         }
 
+        // P2.2：启动时对一次账——没有任何图元引用的笔迹/图片挪进回收目录（D23/D27 的欠账）。
+        // 只挪不删，且挪走的东西仍能从 trash/assets-<ts>/ 里翻回来。
+        var cleaned = AssetCleanup.Run(
+            result.Board.Canvas,
+            Wantodo.App.Storage.DataRootService.Paths.CanvasInkDir,
+            Wantodo.App.Storage.DataRootService.Paths.CanvasImagesDir,
+            Wantodo.App.Storage.DataRootService.Paths.TrashDir);
+        if (cleaned.MovedFiles > 0)
+        {
+            AppLog.Info($"[资产清理] 孤儿文件 {cleaned.MovedFiles} 个（{cleaned.MovedBytes} B）已挪进回收目录");
+        }
+
+        foreach (var error in cleaned.Errors)
+        {
+            AppLog.Warn(error);
+        }
+
         var window = new MainWindow(result.Board, _store, Wantodo.App.Storage.DataRootService.Paths);
         MainWindow = window;
         window.ContentRendered += OnFirstFrameRendered;

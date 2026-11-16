@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Ink;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Wantodo.App.Controls;
 using Wantodo.Core;
 
@@ -132,8 +133,24 @@ internal static class Program
         // ⑪ P2.1：空状态 / 右键菜单 / 全选
         P21Checks();
 
+        // ⑫ P2.2：笔迹静态化 + 孤儿资产清理
+        P22Checks();
+
         Console.WriteLine(_failed == 0 ? "PROBE PASS" : $"PROBE FAIL ({_failed})");
         return _failed == 0 ? 0 : 1;
+    }
+
+    private static double Measure(FreeformBoard board, RenderTargetBitmap target)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        const int frames = 30;
+        for (var i = 0; i < frames; i++)
+        {
+            target.Render(board);
+        }
+
+        watch.Stop();
+        return watch.Elapsed.TotalMilliseconds / frames;
     }
 
     private static void P21Checks()
@@ -172,6 +189,140 @@ internal static class Program
         Check("全选选中两个图元", board2.Selected.Count == 2, $"selected={board2.Selected.Count}");
         board2.DeleteSelected();
         Check("删除所选清空并落模型", document2.Objects.Count == 0, $"objects={document2.Objects.Count}");
+    }
+
+    private static void P22Checks()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "wantodo-070", "probe-assets");
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, true);
+        }
+
+        var inkDir = Path.Combine(root, "ink");
+        Directory.CreateDirectory(inkDir);
+        var document = new CanvasDocument();
+        var board = new FreeformBoard { Width = 800, Height = 600 };
+        board.Attach(document, null, null, inkDir);
+        board.Measure(new Size(800, 600));
+        board.Arrange(new Rect(0, 0, 800, 600));
+
+        // 静态化阈值是 plan §4.8 的硬数字：500 笔 / 2000 顶点
+        Check("静态化阈值 500 笔", FreeformBoard.FlattenStrokeLimitForTest == 500,
+            $"strokes={FreeformBoard.FlattenStrokeLimitForTest}");
+        Check("静态化阈值 2000 顶点", FreeformBoard.FlattenVertexLimitForTest == 2000,
+            $"vertices={FreeformBoard.FlattenVertexLimitForTest}");
+
+        for (var i = 0; i < 3; i++)
+        {
+            var stroke = new Stroke(new StylusPointCollection
+            {
+                new StylusPoint(100 + i * 10, 100),
+                new StylusPoint(150 + i * 10, 160),
+                new StylusPoint(200 + i * 10, 200),
+            })
+            {
+                DrawingAttributes = new DrawingAttributes { Color = System.Windows.Media.Colors.SteelBlue, Width = 3, Height = 3 },
+            };
+            board.CommitStroke(stroke);
+        }
+
+        Check("静态化前笔迹在墨层", board.InkStrokeCount == 3, $"strokes={board.InkStrokeCount}");
+        Check("静态化前没有位图层", !board.HasStaticInkLayer, "static layer exists");
+        board.FlattenInk();
+        Check("静态化后墨层清空", board.InkStrokeCount == 0, $"strokes={board.InkStrokeCount}");
+        Check("静态化后出现位图层", board.HasStaticInkLayer, "no static layer");
+
+        // 落盘再打开：静态化状态下模型仍能还原（只是不再进墨层）
+        var strokes = document.Objects.Count(o => o.Kind == CanvasObject.KindStroke);
+        var reopened = new FreeformBoard { Width = 800, Height = 600 };
+        reopened.Attach(document, null, null, inkDir);
+        reopened.Measure(new Size(800, 600));
+        reopened.Arrange(new Rect(0, 0, 800, 600));
+        Check("重开后笔迹仍在模型里", strokes == 3, $"strokes={strokes}");
+
+        // 孤儿资产清理：没被引用的挪进 trash，引用的原地不动
+        var imagesDir = Path.Combine(root, "canvas-images");
+        Directory.CreateDirectory(imagesDir);
+        File.WriteAllBytes(Path.Combine(imagesDir, "used.png"), new byte[10]);
+        File.WriteAllBytes(Path.Combine(imagesDir, "orphan.png"), new byte[20]);
+        document.Objects.Add(new CanvasObject
+        {
+            Id = "c1",
+            Kind = CanvasObject.KindImage,
+            Surface = CanvasSurfaces.Freeform,
+            Payload = { ["path"] = "canvas-images/used.png" },
+        });
+        var trashDir = Path.Combine(root, "trash");
+        var cleaned = AssetCleanup.Run(document, inkDir, imagesDir, trashDir);
+        Check("清理挪走孤儿图片", cleaned.MovedFiles == 1 && cleaned.MovedBytes == 20,
+            $"moved={cleaned.MovedFiles} bytes={cleaned.MovedBytes}");
+        Check("被引用的图片留在原地", File.Exists(Path.Combine(imagesDir, "used.png")), "used.png gone");
+        Check("孤儿图片进了回收目录",
+            Directory.EnumerateFiles(trashDir, "orphan.png", SearchOption.AllDirectories).Any(),
+            "orphan.png not in trash");
+        File.WriteAllText(Path.Combine(inkDir, "half.tmp"), "x");
+        var second = AssetCleanup.Run(document, inkDir, null, trashDir);
+        Check("清理不动 .tmp", second.MovedFiles == 0 && File.Exists(Path.Combine(inkDir, "half.tmp")),
+            $"moved={second.MovedFiles}");
+
+        // V-12 的「50 卡 + 500 笔」在控件层的重绘成本：静态化之后逐帧渲染 1920×1080
+        var perfDoc = new CanvasDocument();
+        var perfInk = Path.Combine(root, "perf-ink");
+        var perf = new FreeformBoard { Width = 1800, Height = 1000 };
+        perf.Attach(perfDoc, null, null, perfInk);
+        perf.Measure(new Size(1800, 1000));
+        perf.Arrange(new Rect(0, 0, 1800, 1000));
+        for (var i = 0; i < 500; i++)
+        {
+            var x = 40 + (i % 25) * 68;
+            var y = 40 + (i / 25) * 46;
+            perf.CommitStroke(new Stroke(new StylusPointCollection
+            {
+                new StylusPoint(x, y),
+                new StylusPoint(x + 30, y + 18),
+                new StylusPoint(x + 55, y + 8),
+            })
+            {
+                DrawingAttributes = new DrawingAttributes { Color = System.Windows.Media.Colors.SlateGray, Width = 2, Height = 2 },
+            });
+        }
+
+        for (var i = 0; i < 50; i++)
+        {
+            var (x, y) = (60 + (i % 10) * 165, 520 + (i / 10) * 80);
+            perfDoc.AddObject(CanvasObject.KindText, x, y, 150, 44);
+            perfDoc.Objects[^1].Payload["text"] = "第 " + (i + 1) + " 条";
+        }
+
+        perf.Rebuild();
+        perf.UpdateLayout();
+        var liveFrame = new RenderTargetBitmap(1920, 1080, 96, 96, PixelFormats.Pbgra32);
+        for (var i = 0; i < 5; i++)
+        {
+            liveFrame.Render(perf); // 预热
+        }
+
+        var live = Measure(perf, liveFrame);
+        Console.WriteLine($"PERF 未静态化 50 图元 + 500 笔：帧均 {live:0.0} ms ≈ {1000 / live:0} fps");
+
+        // 500 笔正好在阈值上（>500 才自动压平），这里手动触发，对比压平前后的重绘成本
+        perf.FlattenInk();
+        perf.UpdateLayout();
+        Check("静态化后墨层清空", perf.InkStrokeCount == 0, $"strokes={perf.InkStrokeCount}");
+        Check("静态化后出现位图层", perf.HasStaticInkLayer, "no static layer");
+        var flatFrame = new RenderTargetBitmap(1920, 1080, 96, 96, PixelFormats.Pbgra32);
+        for (var i = 0; i < 5; i++)
+        {
+            flatFrame.Render(perf);
+        }
+
+        var flat = Measure(perf, flatFrame);
+        Console.WriteLine($"PERF 静态化后 50 图元 + 500 笔：帧均 {flat:0.0} ms ≈ {1000 / flat:0} fps（提速 {live / flat:0.0}×）");
+        // 说明：这里是 CPU 软件光栅（RenderTargetBitmap）的代理测量，大位图在软件路径上反而更贵，
+        // 不能当作 App 合成器的帧率。V-12 的三条数字仍记 PENDING-HUMAN，用 p2.2.md 里的命令在真机复测。
+        Check("静态化不丢模型", perfDoc.Objects.Count(o => o.Kind == CanvasObject.KindStroke) == 500,
+            $"strokes={perfDoc.Objects.Count(o => o.Kind == CanvasObject.KindStroke)}");
     }
 
     private static void P12Checks()

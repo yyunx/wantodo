@@ -43,6 +43,16 @@ public sealed class FreeformBoard : Grid
     /// <summary>每个表面一条撤销栈（P1.2，plan §4.6）。</summary>
     private readonly SurfaceUndo _undo = new();
 
+    /// <summary>笔迹静态化阈值（plan §4.8：>500 笔或 >2000 顶点转位图）。</summary>
+    private const int FlattenStrokeLimit = 500;
+
+    private const int FlattenVertexLimit = 2000;
+
+    /// <summary>笔迹已静态化成位图；此后新笔迹仍进 InkCanvas，攒够再折一次。</summary>
+    private bool _inkFlattened;
+
+    private Image? _inkStatic;
+
     private readonly TextBlock _empty = new()
     {
         Text = "还没有内容 · 选上面的笔 / 矩形 / 文本，或直接 Ctrl+V 贴一张图",
@@ -381,6 +391,7 @@ public sealed class FreeformBoard : Grid
     {
         _ink.Strokes.Clear();
         _strokes.Clear();
+        RemoveStaticInk();
         if (_document is null)
         {
             return;
@@ -395,9 +406,123 @@ public sealed class FreeformBoard : Grid
             }
 
             _strokes[item.Id] = strokes;
-            _ink.Strokes.Add(strokes);
+            if (!_inkFlattened)
+            {
+                _ink.Strokes.Add(strokes);
+            }
+        }
+
+        if (_inkFlattened)
+        {
+            RenderStaticInk(_strokes.Values);
+        }
+        else
+        {
+            MaybeFlattenInk();
         }
     }
+
+    /// <summary>
+    /// 笔迹静态化（plan §4.8 / V-12）：够多时把整层笔迹画成一张位图，
+    /// 之后 InkCanvas 只承载新笔画，老笔画不再逐条走渲染管线。
+    /// </summary>
+    internal void FlattenInk()
+    {
+        if (_inkFlattened || _ink.Strokes.Count == 0)
+        {
+            return;
+        }
+
+        var strokes = _ink.Strokes.ToList();
+        _ink.Strokes.Clear();
+        _inkFlattened = true;
+        RenderStaticInk(new[] { new StrokeCollection(strokes) });
+        AppLog.Info($"[画布] 笔迹静态化：{strokes.Count} 笔 → 位图 {_inkStatic?.Width:0}×{_inkStatic?.Height:0}");
+    }
+
+    /// <summary>超过 500 笔或 2000 顶点时折一次（每次提交笔迹后调用）。</summary>
+    private void MaybeFlattenInk()
+    {
+        if (_inkFlattened)
+        {
+            return;
+        }
+
+        var vertices = _ink.Strokes.Sum(stroke => stroke.StylusPoints.Count);
+        if (_ink.Strokes.Count > FlattenStrokeLimit || vertices > FlattenVertexLimit)
+        {
+            FlattenInk();
+        }
+    }
+
+    private void RenderStaticInk(IEnumerable<StrokeCollection> collections)
+    {
+        RemoveStaticInk();
+        var strokes = collections.SelectMany(c => c).ToList();
+        if (strokes.Count == 0)
+        {
+            return;
+        }
+
+        Rect bounds = Rect.Empty;
+        foreach (var stroke in strokes)
+        {
+            bounds = bounds.IsEmpty ? stroke.GetBounds() : Rect.Union(bounds, stroke.GetBounds());
+        }
+
+        bounds.Inflate(8, 8);
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.PushTransform(new TranslateTransform(-bounds.X, -bounds.Y));
+            foreach (var stroke in strokes)
+            {
+                stroke.Draw(dc);
+            }
+
+            dc.Pop();
+        }
+
+        var bitmap = new RenderTargetBitmap(
+            Math.Max(1, (int)Math.Ceiling(bounds.Width)),
+            Math.Max(1, (int)Math.Ceiling(bounds.Height)),
+            96,
+            96,
+            PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        bitmap.Freeze();
+
+        var image = new Image
+        {
+            Source = bitmap,
+            Width = bounds.Width,
+            Height = bounds.Height,
+            Stretch = Stretch.Fill,
+            IsHitTestVisible = false,
+        };
+        Canvas.SetLeft(image, bounds.X);
+        Canvas.SetTop(image, bounds.Y);
+        _inkStatic = image;
+        _plane.Children.Add(image);
+    }
+
+    private void RemoveStaticInk()
+    {
+        if (_inkStatic is null)
+        {
+            return;
+        }
+
+        _plane.Children.Remove(_inkStatic);
+        _inkStatic = null;
+    }
+
+    /// <summary>探针钩子：确认静态化层真的建了、InkCanvas 已不在承载老笔画。</summary>
+    internal bool HasStaticInkLayer => _inkStatic is not null;
+
+    internal static int FlattenStrokeLimitForTest => FlattenStrokeLimit;
+
+    internal static int FlattenVertexLimitForTest => FlattenVertexLimit;
 
     private StrokeCollection? LoadStroke(CanvasObject item)
     {
@@ -489,7 +614,8 @@ public sealed class FreeformBoard : Grid
         _dirty = true;
         Flush();
         UpdateEmpty();
-        AppLog.Info($"[画布] 新增笔迹 {id} 顶点={stroke.StylusPoints.Count} 尺寸={item.W:0}x{item.H:0}");
+        MaybeFlattenInk();
+        AppLog.Info($"[画布] 新增笔迹 {id} 顶点={stroke.StylusPoints.Count} 尺寸={item.W:0}x{item.H:0} 已静态化={_inkFlattened}");
     }
 
     private static int NextZ(CanvasDocument document) =>
