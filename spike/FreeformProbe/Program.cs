@@ -1098,6 +1098,13 @@ internal static class Program
         // PopupRoot 是 WPF 内部类型，只能用类型名认：这里拿不到实例，直接验判据函数对它类型名的判断。
         Check("类型名判据能吃 PopupRoot 这类内部类型", PopupCapture.LooksLikePopupTypeName("PopupRoot"), "PopupRoot");
         Check("普通控件类型名不算弹出层", !PopupCapture.LooksLikePopupTypeName("FreeformBoard"), "FreeformBoard");
+
+        // 捕获自愈只该针对画板自己的手势：ComboBox 持捕获是它关闭下拉的正常机制，
+        // 被清掉就成了「选栏目没反应」。
+        var combo = new ComboBox();
+        Check("ComboBox 的捕获不算画板手势（自愈不能清它）", !TopEdgePanelService.IsBoardGesture(combo), "ComboBox");
+        var boardOnly = new FreeformBoard { Width = 100, Height = 100 };
+        Check("画板自己的捕获才算画板手势", TopEdgePanelService.IsBoardGesture(boardOnly), "FreeformBoard");
     }
 
     private static void WriteVisualPng(string path, Visual visual, int width, int height)

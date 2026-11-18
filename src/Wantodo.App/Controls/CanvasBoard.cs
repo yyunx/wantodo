@@ -1014,7 +1014,11 @@ public sealed class CanvasBoard : Canvas
 
             item.Payload["columnId"] = targetId;
             Save();
-            Refresh(force: true);
+
+            // 别在 ComboBox 自己的 SelectionChanged 里重建整块卡：那会把正在收起下拉的
+            // 控件从可视树上摘掉，轻则下拉残留，重则异常被 App 吞掉、用户看到「没反应」。
+            // 排到下一次消息循环再刷新，界面上等效于立刻生效。
+            Dispatcher.BeginInvoke(new Action(() => Refresh(force: true)), DispatcherPriority.Background);
         };
 
         // 旧版待办卡的正文：留着当备注（新卡片不写这个字段）

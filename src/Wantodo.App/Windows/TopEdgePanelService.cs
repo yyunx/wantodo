@@ -177,21 +177,18 @@ public sealed class TopEdgePanelService : IDisposable
         var inside = _panel.ContainsScreenPoint(x, y);
         // 弹出层（下拉框/颜色面板/右键菜单/ToolTip）与模态对话框都靠捕获判定「点了外面」，
         // 这一下很可能正落在它自己的选项上：既不能清捕获，也不能当成「点了面板外」。
-        // 待办卡里的栏目下拉是 WPF 临时建的 PopupRoot，不属于面板自己的两个 Popup，
-        // 只能靠「捕获者是不是弹出层」来认。
         var popupUp = _panel.IsAnyPopupOpen || _panel.IsModalOpen || PopupCapture.IsPopup(captured);
         AppLog.Info($"[指针] 全局按下 screen=({x},{y}) 面板内={inside} 捕获={captured?.GetType().Name ?? "无"} 弹出层={popupUp} 窗口={NativeMethods.DescribeWindowAt(x, y)}");
-        if (captured is not null && !popupUp)
+        if (captured is not null && !popupUp && IsBoardGesture(captured))
         {
-            // 自愈：钩子先于 WPF 路由，此刻还挂着的捕获一定是上一轮手势泄漏来的。
-            // 不放掉它，这一下点击就被那个元素吞掉；画板在矩形工具下又会把吞掉的点击
-            // 当成零尺寸图形静默丢弃，于是「工具栏点不动」且日志一片空白。
+            // 自愈只管「画板自己的手势捕获」：画板/画布/卡片在拖动或建图形时抓鼠标，
+            // 万一中途抛异常没释放，之后每一次点击都会被它吞掉 —— 那才是「面板点不动」。
             //
-            // 但 Popup（颜色面板/列选择）正是靠捕获来判定「点了外面」的：
-            // 这时候清捕获等于替用户点了一下外面，面板会在按下的瞬间关掉，
-            // 色块永远收不到那一次点击。
+            // 别把范围放大到「任何捕获」：ComboBox 拿着捕获是它判定「点了外面就收起下拉」
+            // 的正常机制（实测日志里就是 `捕获=ComboBox`），清掉等于替用户点了一下外面，
+            // 下拉在按下的瞬间关掉、选项永远收不到点击 —— 这正是「选栏目没反应」。
             System.Windows.Input.Mouse.Capture(null);
-            AppLog.Warn($"[指针] 释放泄漏的鼠标捕获（{captured.GetType().Name}）");
+            AppLog.Warn($"[指针] 释放画板泄漏的鼠标捕获（{captured.GetType().Name}）");
         }
 
         // 面板不是置顶窗口：只要别的普通窗口压在它上面，那一带的点击就永远不会到面板，
@@ -232,7 +229,8 @@ public sealed class TopEdgePanelService : IDisposable
 
         // 下拉框/颜色面板的弹出层是独立 HWND，点它里面的选项会落在面板矩形外；
         // 不能因为这一下把整个面板收起来，否则选列、改色等于关窗。
-        if (popupUp || PopupCapture.IsPopup(System.Windows.Input.Mouse.Captured))
+        // 判定用「这一下有元素持有捕获」而不是只认 Popup：ComboBox 自己就会持有捕获。
+        if (popupUp || captured is not null)
         {
             return;
         }
@@ -309,5 +307,15 @@ public sealed class TopEdgePanelService : IDisposable
     {
         Stop();
         _viewModel.TopPanelVisibilityChanged -= _visibilityHandler;
+    }
+
+    /// <summary>
+    /// 这份鼠标捕获是不是「画板自己的手势」——只有这种才可能是泄漏来的，才值得清掉。
+    /// ComboBox / Popup / 输入框拿着捕获都属于正常交互，碰它就会毁掉控件行为。
+    /// </summary>
+    internal static bool IsBoardGesture(object captured)
+    {
+        return captured is Controls.FreeformBoard or Controls.CanvasBoard
+            || (captured is System.Windows.FrameworkElement { Tag: CanvasObject });
     }
 }

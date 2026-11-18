@@ -45,28 +45,32 @@
 
 ## 5. 待办卡的「选择栏目 / 新建栏目」点了没反应
 
-两处原因叠加：
+第一轮改完（`PopupCapture` + `InControl` + 模态守卫）后用户复测：**下拉能打开了，但选中现有栏目仍然没反应**。
+`%TEMP%\wantodo-test\data\logs\app-20261119.log` 抓到了确切现场：
 
-**(a) 钩子的捕获自愈把下拉关掉了。** `TopEdgePanelService.OnGlobalLeftButtonDown` 会在按下瞬间
-`Mouse.Capture(null)`（原本用来修「面板被泄漏捕获卡住」），而 WPF 的下拉框 `Popup(StaysOpen=false)`
-正是靠鼠标捕获判定「点了外面」。待办卡里的 ComboBox 下拉不属于面板自己的
-`ColorPopup` / `ColumnPicker`，`IsAnyPopupOpen` 认不出它，于是按下即被清捕获 → 下拉立刻关闭 →
-选项收不到点击。
+```
+00:07:01.874 [INFO] [卡片] 待办卡栏目下拉打开 选项=5
+00:07:02.317 [INFO] [指针] 全局按下 screen=(971,604) 面板内=True 捕获=ComboBox 弹出层=False 窗口=… pid=8248
+00:07:02.470 [INFO] [卡片] 待办卡栏目下拉关闭        ← 没有「待办卡 选择=…」
+```
 
-- 新增 `src/Wantodo.App/Windows/PopupCapture.cs`：`IsPopup(object?)` 用类型（`Popup`/`ContextMenu`/`ToolTip`）
-  与类型名（`PopupRoot` 是 WPF 内部类型，只能按名字认）判断捕获归属；`LooksLikePopupTypeName` 单独暴露给探针。
-- `TopEdgePanelService`：`popupUp = _panel.IsAnyPopupOpen || _panel.IsModalOpen || PopupCapture.IsPopup(captured)`，
-  捕获自愈、「点面板外收起」都以它为前置条件。
+真因：那一瞬的捕获者是 **ComboBox 本身**（不是 `PopupRoot`），而捕获自愈的条件是「有捕获且不是 Popup」，
+于是它在按下的瞬间 `Mouse.Capture(null)` —— WPF 的下拉框正是靠这份捕获判定「点了外面」，
+清掉等于替用户点了一下外面：下拉立刻关闭，选项收不到点击，也就永远没有 `SelectionChanged`。
 
-**(b) 卡片把这一下抢去当拖动起点了。** `OnCardMouseDown` 原来只放过 `Button` 与 `TextBox`，
-ComboBox 的按下会落到卡片处理器上 → `card.CaptureMouse()` + `Select(...)`，下拉永远打不开。
+修法（收敛自愈的适用范围）：
 
-- 新增 `InControl(object?)`：沿视觉树上溯，命中 `ButtonBase/ScrollBar/TextBoxBase/ComboBox/ListBox` 返回 true，
-  先撞到卡片本体（`Border` 且 `Tag is CanvasItem`）则返回 false。
+- `TopEdgePanelService` 新增 `internal static bool IsBoardGesture(object captured)`：
+  只有 `FreeformBoard` / `CanvasBoard` / `Tag is CanvasObject` 的卡片才算「画板自己的手势捕获」，
+  才可能是泄漏来的；ComboBox / Popup / 输入框持捕获都是正常交互，一律不动。
+- 「点面板外收起」的例外从「是不是 Popup」放宽成「这一下有没有元素持有捕获」（`captured is not null`），
+  否则点下拉项（弹出层是独立 HWND、可能落在面板矩形外）会把面板收起。
+- `CanvasBoard` 的 `SelectionChanged` 里把 `Refresh(force: true)` 改成
+  `Dispatcher.BeginInvoke(..., DispatcherPriority.Background)`：不要在 ComboBox 自己的事件里
+  把正在收起下拉的控件从可视树上摘掉。
 
-**(c) 模态对话框期间面板会被收起。** 新建栏目的 `ColumnNameDialog` 是独立窗口，点它会落在面板矩形外。
-`TopPanelWindow` 新增 `_modalDepth` / `IsModalOpen` / `ShowModal(Window)`，`CreateCanvasColumn`、
-`OnCanvasAddTimer`、`PickImage`（系统选图）都包在里面；`TopEdgePanelService` 也据此跳过收起。
+第一轮的两个改动仍然保留且有用：`PopupCapture`（认 `PopupRoot`）、`InControl`（卡片放行卡内控件）、
+模态对话框守卫。
 
 诊断打点（供复测回传）：`[卡片] 待办卡栏目下拉打开 选项=N`、`[卡片] 待办卡 选择=<id> 新建=<bool>`、
 `[卡片] 新建栏目 名字=… id=…`。
@@ -90,6 +94,8 @@ dotnet spike\FreeformProbe\bin\Debug\net10.0-windows\FreeformProbe.dll
     真正的 Popup 算弹出层 (Popup)
     类型名判据能吃 PopupRoot 这类内部类型 (PopupRoot)
     普通控件类型名不算弹出层 (FreeformBoard)
+    ComboBox 的捕获不算画板手势（自愈不能清它） (ComboBox)
+    画板自己的捕获才算画板手势 (FreeformBoard)
 ```
 
 需要人肉眼确认（我这边无法驱动真实鼠标：`mouse_event`/`SendInput` 在这台机器上被丢弃，
