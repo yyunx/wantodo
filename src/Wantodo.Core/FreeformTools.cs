@@ -1,7 +1,7 @@
 namespace Wantodo.Core;
 
 /// <summary>
-/// 自由表面的十个工具（0.7.0 P1.1）。
+/// 自由表面的十一个工具（0.7.0 P1.1；0.7.1 按用户反馈把矩形拆出圆，凑成「形状」一组）。
 /// </summary>
 /// <remarks>
 /// 之所以放在 Core 而不是 App：工具 id、快捷键、显示名是「单一来源常量表」，
@@ -15,6 +15,7 @@ public enum FreeformTool
     Text,
     Image,
     Rect,
+    Circle,
     Line,
     Arrow,
     Ink,
@@ -38,6 +39,7 @@ public static class FreeformToolCatalog
         new(FreeformTool.Text, "text", "文本", 'T'),
         new(FreeformTool.Image, "image", "图片", null),
         new(FreeformTool.Rect, "rect", "矩形", 'R'),
+        new(FreeformTool.Circle, "circle", "圆", 'O'),
         new(FreeformTool.Line, "line", "线", null),
         new(FreeformTool.Arrow, "arrow", "箭头", 'A'),
         new(FreeformTool.Ink, "ink", "画笔", 'B'),

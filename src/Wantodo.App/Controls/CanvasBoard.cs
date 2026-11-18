@@ -1617,6 +1617,10 @@ public sealed class CanvasBoard : Canvas
         _startX = item.X;
         _startY = item.Y;
         _dragStarted = false;
+
+        // 必须按下就抓鼠标：快速拖动时指针会在 4 DIP 阈值内跑出卡片，
+        // 不捕获的话 MouseMove 直接断流，表现为「卡片拖不动」（用户反馈 B4）。
+        card.CaptureMouse();
         e.Handled = true;
     }
 
@@ -1643,7 +1647,6 @@ public sealed class CanvasBoard : Canvas
 
             _dragStarted = true;
             PushUndo();
-            _dragCard.CaptureMouse();
         }
 
         item.X = Math.Max(0, Snap(_startX + delta.X));
@@ -1662,9 +1665,14 @@ public sealed class CanvasBoard : Canvas
 
         if (_dragStarted)
         {
-            _dragCard.ReleaseMouseCapture();
             Save();
             e.Handled = true;
+        }
+
+        // 按下时抓了鼠标，抬起一定要放，否则后续点击全被这张卡片吞掉。
+        if (Mouse.Captured == _dragCard)
+        {
+            _dragCard.ReleaseMouseCapture();
         }
 
         _dragCard = null;

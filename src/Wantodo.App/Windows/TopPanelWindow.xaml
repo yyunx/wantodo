@@ -150,33 +150,64 @@
                             <StackPanel x:Name="StructuredTools" Orientation="Horizontal" Margin="0,6,0,0">
                                 <Button Content="记事" Click="OnCanvasAddNote" Padding="8,3" Margin="0,0,4,0" />
                                 <Button Content="待办" Click="OnCanvasAddTodo" Padding="8,3" Margin="0,0,4,0" />
-                                <Button Content="计时" Click="OnCanvasAddTimer" Padding="8,3" Margin="0,0,4,0" />
-                                <Button Content="图片" Click="OnCanvasAddImage" Padding="8,3" />
+                                <Button Content="计时" Click="OnCanvasAddTimer" Padding="8,3" />
                             </StackPanel>
 
-                            <!-- 自由表面十工具：选择/手形/文本/图片/矩形/线/箭头/画笔/橡皮/缩放（互斥高亮） -->
+                            <!--
+                                自由表面工具条（B2/C7）：按用途分组，组内同类收在一起。
+                                结构化表面只有卡片，画笔/箭头/形状只属于这里（图片入口也只在自由面）。
+                            -->
                             <DockPanel x:Name="FreeformTools" Margin="0,6,0,0" Visibility="Collapsed">
                                 <StackPanel Orientation="Horizontal">
-                                    <ToggleButton x:Name="ToolSelect" Content="选" Tag="select" Style="{StaticResource ToolToggle}"
-                                                  ToolTip="选择（V）" Click="OnToolClick" />
-                                    <ToggleButton x:Name="ToolPan" Content="手" Tag="pan" Style="{StaticResource ToolToggle}"
-                                                  ToolTip="手形（H，空格临时）" Click="OnToolClick" />
-                                    <ToggleButton x:Name="ToolText" Content="T" Tag="text" Style="{StaticResource ToolToggle}"
-                                                  ToolTip="文本（T）" Click="OnToolClick" />
-                                    <ToggleButton x:Name="ToolImage" Content="图" Tag="image" Style="{StaticResource ToolToggle}"
-                                                  ToolTip="图片" Click="OnToolClick" />
-                                    <ToggleButton x:Name="ToolRect" Content="▭" Tag="rect" Style="{StaticResource ToolToggle}"
-                                                  ToolTip="矩形（R）" Click="OnToolClick" />
-                                    <ToggleButton x:Name="ToolLine" Content="／" Tag="line" Style="{StaticResource ToolToggle}"
-                                                  ToolTip="线" Click="OnToolClick" />
-                                    <ToggleButton x:Name="ToolArrow" Content="↗" Tag="arrow" Style="{StaticResource ToolToggle}"
-                                                  ToolTip="箭头（A）" Click="OnToolClick" />
-                                    <ToggleButton x:Name="ToolInk" Content="笔" Tag="ink" Style="{StaticResource ToolToggle}"
-                                                  ToolTip="画笔（B）" Click="OnToolClick" />
-                                    <ToggleButton x:Name="ToolEraser" Content="擦" Tag="eraser" Style="{StaticResource ToolToggle}"
-                                                  ToolTip="橡皮（E）" Click="OnToolClick" />
-                                    <ToggleButton x:Name="ToolZoom" Content="放" Tag="zoom" Style="{StaticResource ToolToggle}"
-                                                  ToolTip="缩放（点击放大，Shift+点击缩小）" Click="OnToolClick" />
+                                    <Border Padding="2" Margin="0,0,4,0" CornerRadius="8"
+                                            Background="{DynamicResource BorderSubtle}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ToggleButton x:Name="ToolSelect" Content="选" Tag="select" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="选择（V）" Click="OnToolClick" />
+                                            <ToggleButton x:Name="ToolPan" Content="手" Tag="pan" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="手形（H，空格临时）" Click="OnToolClick" />
+                                            <ToggleButton x:Name="ToolZoom" Content="放" Tag="zoom" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="缩放工具：点击放大，Shift+点击缩小" Click="OnToolClick" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Padding="2" Margin="0,0,4,0" CornerRadius="8"
+                                            Background="{DynamicResource BorderSubtle}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ToggleButton x:Name="ToolText" Content="T" Tag="text" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="文本（T）" Click="OnToolClick" />
+                                            <ToggleButton x:Name="ToolImage" Content="图" Tag="image" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="图片（自由表面专属）" Click="OnToolClick" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Padding="2" Margin="0,0,4,0" CornerRadius="8"
+                                            Background="{DynamicResource BorderSubtle}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ToggleButton x:Name="ToolRect" Content="▭" Tag="rect" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="矩形（R）" Click="OnToolClick" />
+                                            <ToggleButton x:Name="ToolCircle" Content="○" Tag="circle" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="圆（O）" Click="OnToolClick" />
+                                            <ToggleButton x:Name="ToolDash" Content="虚" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="线型：实线 / 虚线（对线、箭头、矩形、圆生效）" Click="OnToolDashClick" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Padding="2" Margin="0,0,4,0" CornerRadius="8"
+                                            Background="{DynamicResource BorderSubtle}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ToggleButton x:Name="ToolLine" Content="／" Tag="line" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="线（同一组里还可以切虚线）" Click="OnToolClick" />
+                                            <ToggleButton x:Name="ToolArrow" Content="↗" Tag="arrow" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="箭头（A）" Click="OnToolClick" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Padding="2" Margin="0,0,4,0" CornerRadius="8"
+                                            Background="{DynamicResource BorderSubtle}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ToggleButton x:Name="ToolInk" Content="笔" Tag="ink" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="画笔（B）" Click="OnToolClick" />
+                                            <ToggleButton x:Name="ToolEraser" Content="擦" Tag="eraser" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="橡皮（E，按住拖可连续擦）" Click="OnToolClick" />
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                                     <Button Content="−" Click="OnZoomOut" Padding="7,2" MinWidth="26" ToolTip="缩小（滚轮也可）" />

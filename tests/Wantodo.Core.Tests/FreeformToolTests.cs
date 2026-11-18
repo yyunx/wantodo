@@ -7,14 +7,14 @@ namespace Wantodo.Core.Tests;
 public sealed class FreeformToolTests
 {
     [Fact]
-    public void Catalog_HasTenTools_WithUniqueIdsAndNames()
+    public void Catalog_HasElevenTools_WithUniqueIdsAndNames()
     {
-        Assert.Equal(10, FreeformToolCatalog.Count);
-        Assert.Equal(10, FreeformToolCatalog.All.Select(t => t.Id).Distinct().Count());
-        Assert.Equal(10, FreeformToolCatalog.All.Select(t => t.Name).Distinct().Count());
-        Assert.Equal(10, FreeformToolCatalog.All.Select(t => t.Tool).Distinct().Count());
+        Assert.Equal(11, FreeformToolCatalog.Count);
+        Assert.Equal(11, FreeformToolCatalog.All.Select(t => t.Id).Distinct().Count());
+        Assert.Equal(11, FreeformToolCatalog.All.Select(t => t.Name).Distinct().Count());
+        Assert.Equal(11, FreeformToolCatalog.All.Select(t => t.Tool).Distinct().Count());
 
-        // 需求原文的十个工具一个都不能缺
+        // 需求原文的十个工具一个都不能缺；0.7.1 又拆出「圆」（形状组要有同类可放）
         foreach (var tool in Enum.GetValues<FreeformTool>())
         {
             Assert.Contains(FreeformToolCatalog.All, t => t.Tool == tool);
@@ -25,13 +25,14 @@ public sealed class FreeformToolTests
     public void Catalog_Shortcuts_MatchPlanAndAreUnique()
     {
         var withShortcut = FreeformToolCatalog.All.Where(t => t.Shortcut is not null).ToList();
-        Assert.Equal(7, withShortcut.Count);
-        Assert.Equal(7, withShortcut.Select(t => char.ToUpperInvariant(t.Shortcut!.Value)).Distinct().Count());
+        Assert.Equal(8, withShortcut.Count);
+        Assert.Equal(8, withShortcut.Select(t => char.ToUpperInvariant(t.Shortcut!.Value)).Distinct().Count());
 
         Assert.Equal(FreeformTool.Select, FreeformToolCatalog.FromShortcut('V'));
         Assert.Equal(FreeformTool.Pan, FreeformToolCatalog.FromShortcut('h'));
         Assert.Equal(FreeformTool.Text, FreeformToolCatalog.FromShortcut('T'));
         Assert.Equal(FreeformTool.Rect, FreeformToolCatalog.FromShortcut('R'));
+        Assert.Equal(FreeformTool.Circle, FreeformToolCatalog.FromShortcut('O'));
         Assert.Equal(FreeformTool.Arrow, FreeformToolCatalog.FromShortcut('A'));
         Assert.Equal(FreeformTool.Ink, FreeformToolCatalog.FromShortcut('B'));
         Assert.Equal(FreeformTool.Eraser, FreeformToolCatalog.FromShortcut('E'));

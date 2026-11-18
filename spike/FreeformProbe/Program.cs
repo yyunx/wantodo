@@ -136,6 +136,9 @@ internal static class Program
         // ⑫ P2.2：笔迹静态化 + 孤儿资产清理
         P22Checks();
 
+        // ⑫.5 0.7.1 用户反馈批 1：圆工具 + 线型开关（B2/B3/B4 的工具归属与拖动改动见 XamlChecks）
+        P071Checks();
+
         // ⑬ 资源字典自检：0.7.0 首次实机启动崩在重复隐式样式（ScrollBar 定义了两遍）
         XamlChecks();
 
@@ -161,6 +164,51 @@ internal static class Program
     /// 才抛 ArgumentException「Item has already been added」——0.7.0 第一次实机启动就是这么崩的。
     /// 这里在探针阶段把它变成一条可自动发现的失败。
     /// </summary>
+    /// <summary>
+    /// 0.7.1 用户反馈批 1：圆工具、线型开关。拖动捕获与工具归属是文本级断言，放在 XamlChecks。
+    /// </summary>
+    private static void P071Checks()
+    {
+        var document = new CanvasDocument();
+        var board = new FreeformBoard { Width = 800, Height = 600 };
+        board.Attach(document, () => { }, null, Path.Combine(Path.GetTempPath(), "wantodo-070", "ink-shape"));
+        board.Measure(new Size(800, 600));
+        board.Arrange(new Rect(0, 0, 800, 600));
+
+        board.Tool = FreeformTool.Circle;
+        board.PointerDown(new Point(100, 100), ModifierKeys.None);
+        board.PointerMove(new Point(180, 150));
+        board.PointerUp();
+
+        var circle = document.Objects.LastOrDefault(o => o.Get("shape") == "circle");
+        Check("圆工具落模型（C7）", circle is not null, "no circle object");
+        Check("圆落在按下位置且尺寸跟手", circle is not null && Math.Abs(circle.X - 100) < 1 && Math.Abs(circle.W - 80) < 2,
+            circle is null ? "n/a" : $"x={circle.X} w={circle.W}");
+
+        board.StrokeDashed = true;
+        board.Tool = FreeformTool.Rect;
+        board.PointerDown(new Point(300, 300), ModifierKeys.None);
+        board.PointerMove(new Point(360, 350));
+        board.PointerUp();
+
+        var rect = document.Objects.LastOrDefault(o => o.Get("shape") == "rect");
+        Check("线型开关写进 payload（C7）", rect?.Get("dash") == "1", rect is null ? "no rect" : $"dash={rect.Get("dash")}");
+        Check("虚线图元能重建可视（不抛）", board.ObjectCount >= 2, $"objects={board.ObjectCount}");
+
+        // 工具归属：结构化表面不该有画笔/箭头/图片，自由表面必须有（B2/B3 的语义来源）。
+        Check("工具表里有圆", FreeformToolCatalog.All.Any(t => t.Tool == FreeformTool.Circle), "missing circle");
+        Check("圆有快捷键 O", FreeformToolCatalog.FromShortcut('O') == FreeformTool.Circle, "no shortcut O");
+
+        // B2：笔工具必须让墨层吃鼠标；切面回来时 SyncToolLayer 要能把它重新打开。
+        board.Tool = FreeformTool.Ink;
+        Check("笔工具下墨层吃鼠标", board.InkLayerActiveForTest, "ink layer not hit-testable");
+        board.Tool = FreeformTool.Select;
+        Check("非笔工具下墨层不吃鼠标", !board.InkLayerActiveForTest, "ink layer still grabs mouse");
+        board.Tool = FreeformTool.Ink;
+        board.SyncToolLayer();
+        Check("切面同步后墨层仍是热的（B2）", board.InkLayerActiveForTest, "sync lost ink layer");
+    }
+
     private static void XamlChecks()
     {
         var root = FindRepoRoot();
@@ -192,6 +240,28 @@ internal static class Program
             .ToList();
         Check("App.xaml 无重复隐式样式", implicitStyles.Count == 0,
             implicitStyles.Count == 0 ? "ok" : string.Join(",", implicitStyles));
+
+        // 工具归属（用户反馈 B2/B3）：结构化表面不该有画笔/箭头/图片；自由表面必须有。
+        // 这里读 XAML 源码而不是跑窗口，是因为探针不启动真 App（单实例 Mutex）。
+        var panelXaml = Path.Combine(root, "src", "Wantodo.App", "Windows", "TopPanelWindow.xaml");
+        Check("TopPanelWindow.xaml 存在", File.Exists(panelXaml), panelXaml);
+        if (File.Exists(panelXaml))
+        {
+            var text = File.ReadAllText(panelXaml);
+            Check("结构化工具条没有图片入口（B3）", !text.Contains("OnCanvasAddImage"), "still wired");
+            Check("自由工具条有图片工具", text.Contains("Tag=\"image\""), "missing image tool");
+            Check("自由工具条有圆工具（C7）", text.Contains("Tag=\"circle\""), "missing circle tool");
+        }
+
+        // B4：卡片按下必须立刻捕获鼠标，否则快速拖动时指针跑出卡片就断流，表现为「拖不动」。
+        var boardCs = Path.Combine(root, "src", "Wantodo.App", "Controls", "CanvasBoard.cs");
+        if (File.Exists(boardCs))
+        {
+            var code = File.ReadAllText(boardCs);
+            var start = code.IndexOf("private void OnCardMouseDown", StringComparison.Ordinal);
+            var body = start >= 0 ? code.Substring(start, Math.Min(900, code.Length - start)) : string.Empty;
+            Check("卡片按下即捕获鼠标（B4）", body.Contains("CaptureMouse()"), "no capture on mouse down");
+        }
     }
 
     private static string? FindRepoRoot()

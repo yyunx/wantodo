@@ -129,7 +129,13 @@ public partial class TopPanelWindow : Window
         SurfaceStructuredButton.IsChecked = !freeform;
         SurfaceFreeformButton.IsChecked = freeform;
 
-        if (!freeform)
+        if (freeform)
+        {
+            // B2：笔迹层是否吃鼠标只在工具改变时刷新；切面回来时强制同步一次，
+            // 否则「切走再切回、工具还是笔」会命中状态过期，看起来像笔点了没反应。
+            FreeformBoard.SyncToolLayer();
+        }
+        else
         {
             // 离开自由表面时把「空格平移」的临时状态收掉，避免回到结构化表面还顶着抓手。
             FreeformBoard.SpaceHeld = false;
@@ -302,6 +308,7 @@ public partial class TopPanelWindow : Window
             [FreeformTool.Text] = ToolText,
             [FreeformTool.Image] = ToolImage,
             [FreeformTool.Rect] = ToolRect,
+            [FreeformTool.Circle] = ToolCircle,
             [FreeformTool.Line] = ToolLine,
             [FreeformTool.Arrow] = ToolArrow,
             [FreeformTool.Ink] = ToolInk,
@@ -313,6 +320,13 @@ public partial class TopPanelWindow : Window
         {
             button.IsChecked = tool == _tool;
         }
+    }
+
+    /// <summary>线型开关（C7）：只影响之后新建的图形，不改已画的。</summary>
+    private void OnToolDashClick(object sender, RoutedEventArgs e)
+    {
+        FreeformBoard.StrokeDashed = ToolDash.IsChecked == true;
+        AppLog.Info($"[画布] 线型 {(FreeformBoard.StrokeDashed ? "虚线" : "实线")}");
     }
 
     private void OnZoomIn(object sender, RoutedEventArgs e)
@@ -384,10 +398,10 @@ public partial class TopPanelWindow : Window
     }
 
     /// <summary>
-    /// 插入图片（plan §4.7）：图片只存在于自由表面，所以这个按钮在结构化表面下等于
-    /// 「切到自由表面 + 在视口中心落位」两步一次完成，插入后焦点留在自由表面。
+    /// 插入图片的入口只在自由表面（B3）：结构化工具栏不再有「图片」按钮，
+    /// 自由表面的「图」工具负责选文件。这段保留给自由表面的图片工具与粘贴/拖放事件复用。
     /// </summary>
-    private void OnCanvasAddImage(object sender, RoutedEventArgs e)
+    private void InsertImageAtPendingPoint()
     {
         if (!IsFreeformActive)
         {
@@ -399,7 +413,7 @@ public partial class TopPanelWindow : Window
             return;
         }
 
-        if (FreeformBoard.AddImageObject(file) is null)
+        if (FreeformBoard.AddImageObject(file, FreeformBoard.PendingImagePoint) is null)
         {
             AppLog.Warn($"画板插入图片失败：{file}");
         }

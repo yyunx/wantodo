@@ -96,6 +96,14 @@ public sealed class FreeformBoard : Grid
     private bool _creating;
     private Point _createStart;
     private FrameworkElement? _createPreview;
+    private bool _strokeDashed;
+
+    /// <summary>新建的线/箭头/矩形/圆是否走虚线（工具条 C7 的线型开关）。</summary>
+    public bool StrokeDashed
+    {
+        get => _strokeDashed;
+        set => _strokeDashed = value;
+    }
 
     private TextBox? _textEditor;
     private CanvasObject? _editingItem;
@@ -188,6 +196,16 @@ public sealed class FreeformBoard : Grid
         }
     }
 
+    /// <summary>
+    /// 表面被切回来时重放一次「工具层」状态。
+    /// </summary>
+    /// <remarks>
+    /// 笔迹层是否吃鼠标只由 <see cref="UpdateInkLayer"/> 决定，而它只在 <see cref="Tool"/> 变化时跑。
+    /// 之前切到结构化再切回来、工具仍是「笔」时，命中状态是旧的（用户看到的就是「笔点了没反应」），
+    /// 所以切面时强制同步一次。
+    /// </remarks>
+    public void SyncToolLayer() => UpdateInkLayer();
+
     /// <summary>空格临时切手形：由窗口的 PreviewKeyDown 驱动，松开即复原。</summary>
     public bool SpaceHeld
     {
@@ -203,6 +221,9 @@ public sealed class FreeformBoard : Grid
             ApplyCursor();
         }
     }
+
+    /// <summary>探针用：笔迹层当前是否吃鼠标（B2 的回归点）。</summary>
+    internal bool InkLayerActiveForTest => _ink.IsHitTestVisible;
 
     public double Zoom => _document?.ViewportOf(SurfaceId).Zoom ?? 1.0;
 
@@ -705,6 +726,7 @@ public sealed class FreeformBoard : Grid
         item.Payload["shape"] = tool switch
         {
             FreeformTool.Rect => "rect",
+            FreeformTool.Circle => "circle",
             FreeformTool.Line => "line",
             _ => "arrow",
         };
@@ -714,6 +736,10 @@ public sealed class FreeformBoard : Grid
         item.Payload["y2"] = end.Y.ToString("0.##", CultureInfo.InvariantCulture);
         item.Payload["color"] = "accent";
         item.Payload["strokeWidth"] = "2";
+        if (_strokeDashed)
+        {
+            item.Payload["dash"] = "1";
+        }
         _document.Objects.Add(item);
         SelectOnly(id);
         Rebuild();
@@ -1316,6 +1342,7 @@ public sealed class FreeformBoard : Grid
                     CreateText(board);
                     break;
                 case FreeformTool.Rect:
+                case FreeformTool.Circle:
                 case FreeformTool.Line:
                 case FreeformTool.Arrow:
                     BeginCreate(board, _tool);
@@ -1656,14 +1683,16 @@ public sealed class FreeformBoard : Grid
                 element = new System.Windows.Shapes.Path { Data = geometry };
                 break;
             default:
-                element = new Rectangle
-                {
-                    Width = width,
-                    Height = height,
-                    RadiusX = 4,
-                    RadiusY = 4,
-                    Fill = Brushes.Transparent,
-                };
+                element = shape == "circle"
+                    ? new Ellipse { Width = width, Height = height, Fill = Brushes.Transparent }
+                    : new Rectangle
+                    {
+                        Width = width,
+                        Height = height,
+                        RadiusX = 4,
+                        RadiusY = 4,
+                        Fill = Brushes.Transparent,
+                    };
                 Canvas.SetLeft(element, Math.Min(x1, x2));
                 Canvas.SetTop(element, Math.Min(y1, y2));
                 break;
@@ -1671,6 +1700,11 @@ public sealed class FreeformBoard : Grid
 
         element.StrokeThickness = 2;
         element.SetResourceReference(Shape.StrokeProperty, "BorderActive");
+        if (string.Equals(item.Get("dash"), "1", StringComparison.Ordinal))
+        {
+            element.StrokeDashArray = new DoubleCollection { 4, 3 };
+        }
+
         element.IsHitTestVisible = false;
         return element;
     }
