@@ -136,6 +136,9 @@ internal static class Program
         // ⑫ P2.2：笔迹静态化 + 孤儿资产清理
         P22Checks();
 
+        // ⑬ 资源字典自检：0.7.0 首次实机启动崩在重复隐式样式（ScrollBar 定义了两遍）
+        XamlChecks();
+
         Console.WriteLine(_failed == 0 ? "PROBE PASS" : $"PROBE FAIL ({_failed})");
         return _failed == 0 ? 0 : 1;
     }
@@ -151,6 +154,56 @@ internal static class Program
 
         watch.Stop();
         return watch.Elapsed.TotalMilliseconds / frames;
+    }
+
+    /// <summary>
+    /// 资源字典自检。WPF 允许「隐式样式」重复定义在编译期静默通过，运行期加载 App.xaml 时
+    /// 才抛 ArgumentException「Item has already been added」——0.7.0 第一次实机启动就是这么崩的。
+    /// 这里在探针阶段把它变成一条可自动发现的失败。
+    /// </summary>
+    private static void XamlChecks()
+    {
+        var root = FindRepoRoot();
+        Check("仓库根可见", root is not null, root ?? "(未找到 Wantodo.slnx)");
+        if (root is null) return;
+
+        var appXaml = Path.Combine(root, "src", "Wantodo.App", "App.xaml");
+        Check("App.xaml 存在", File.Exists(appXaml), appXaml);
+        if (!File.Exists(appXaml)) return;
+
+        var doc = System.Xml.Linq.XDocument.Load(appXaml);
+        System.Xml.Linq.XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        System.Xml.Linq.XNamespace p = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+
+        var keys = doc.Descendants()
+            .Select(e => e.Attribute(x + "Key")?.Value)
+            .Where(v => v is not null)
+            .GroupBy(v => v!, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+        Check("App.xaml 无重复 x:Key", keys.Count == 0, keys.Count == 0 ? "ok" : string.Join(",", keys));
+
+        var implicitStyles = doc.Descendants(p + "Style")
+            .Where(e => e.Attribute(x + "Key") is null)
+            .GroupBy(e => e.Attribute("TargetType")?.Value ?? "", StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key + "×" + g.Count())
+            .ToList();
+        Check("App.xaml 无重复隐式样式", implicitStyles.Count == 0,
+            implicitStyles.Count == 0 ? "ok" : string.Join(",", implicitStyles));
+    }
+
+    private static string? FindRepoRoot()
+    {
+        var dir = AppContext.BaseDirectory;
+        for (var i = 0; i < 8 && dir is not null; i++)
+        {
+            if (File.Exists(Path.Combine(dir, "Wantodo.slnx"))) return dir;
+            dir = Directory.GetParent(dir)?.FullName;
+        }
+
+        return null;
     }
 
     private static void P21Checks()

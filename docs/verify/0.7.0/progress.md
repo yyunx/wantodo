@@ -67,3 +67,14 @@ $env:DOTNET_ROOT="$env:LOCALAPPDATA\Microsoft\dotnet"; $env:PATH="$env:DOTNET_RO
 & "$env:DOTNET_ROOT\dotnet.exe" test --no-build
 & "$env:DOTNET_ROOT\dotnet.exe" spike\FreeformProbe\bin\Debug\net10.0-windows\FreeformProbe.dll
 ```
+
+## 2026-11-18 装进安装目录并首次实机启动（hotfix）
+
+- `src/Wantodo.App/Wantodo.App.csproj` 的 `<Version>` 由 `0.6.0` 升到 `0.7.0`（0.7.0 批次漏升，安装后仍显示 0.6.0.0）：commit `58946f2`。
+- 用自包含单文件发布替换 `C:\Users\ty\AppData\Local\Programs\wantodo\Wantodo.exe`；旧 0.6.0 备份为同目录 `Wantodo-0.6.0-20261118-203442.exe.bak`。开始菜单 `wantodo.lnk` 指向的正是这个路径，目标文件换成 0.7.0 即等于「快捷方式已更新」。
+- **第一次启动即崩**：`XamlParseException` → `ArgumentException: Item has already been added. Key: ScrollBar`。根因是 `App.xaml` 里 0.6.0 的旧隐式 `ScrollBar` 样式与 P2.1 新写的隐式样式重复；WPF 编译期不报，运行期加载 BAML 才炸。
+- 修复：删旧样式，只留 P2.1 版；探针新增第 ⑬ 段 `XamlChecks()`，断言 `App.xaml` 无重复 `x:Key`、无重复隐式 `TargetType`。细节见 `hotfix-startup-crash.md`。
+- 复验：build 0 警告 0 错误、test 437 通过、探针 PROBE PASS；安装后启动 pid 22104、主窗口可见、`首帧 1294ms / private 109MB`；`E:\Wantodo\board\data.json` 升到 `version 3`（`paletteId=light`、4 栏 11 条保留），生成 `data.json.pre-070.bak`，`canvas.json` 改名 `canvas.imported-20261118-203801.json`，孤儿图片 2 个挪进 `trash/assets-20261118-203801/`。
+- 迁移前的数据整份备份在 `E:\Wantodo-backup-20261118-203252`（13 文件、351,428 B）。
+- 崩溃残留进程 `pid 26908` 杀不掉（Access denied），但不持有单实例 Mutex，不影响使用；重启系统会消失。
+- 由此修正一条旧结论：0.7.0 此前**从未真正启动过**（portable 副本被 Mutex 挡在写路径之前），所以 `p2.2.md` 里的首帧/内存数字是空白，本次 1294 ms / 109 MB 是第一次实测，仍不构成 V-12 的 50 卡 500 笔场景。

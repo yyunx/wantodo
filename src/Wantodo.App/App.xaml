@@ -143,63 +143,6 @@
             </Setter>
         </Style>
 
-            <!-- 细滚动条：默认 WPF 滚动条又宽又是浅色，跟深色小组件不搭。
-             只接管外观，Track 的 ViewportSize / 分页命令保持 WPF 原生行为（模板必须给全，否则会滚不动）。 -->
-        <Style TargetType="ScrollBar">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Width" Value="9" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ScrollBar">
-                        <Grid Background="Transparent">
-                            <Track x:Name="PART_Track"
-                                   Orientation="{TemplateBinding Orientation}">
-                                <Track.DecreaseRepeatButton>
-                                    <RepeatButton x:Name="DecreaseBtn"
-                                                  Command="ScrollBar.PageUpCommand"
-                                                  Opacity="0"
-                                                  Focusable="False" />
-                                </Track.DecreaseRepeatButton>
-                                <Track.Thumb>
-                                    <Thumb>
-                                        <Thumb.Template>
-                                            <ControlTemplate TargetType="Thumb">
-                                                <Border Background="{DynamicResource OverlaySoft}"
-                                                        CornerRadius="4"
-                                                        Margin="2" />
-                                            </ControlTemplate>
-                                        </Thumb.Template>
-                                    </Thumb>
-                                </Track.Thumb>
-                                <Track.IncreaseRepeatButton>
-                                    <RepeatButton x:Name="IncreaseBtn"
-                                                  Command="ScrollBar.PageDownCommand"
-                                                  Opacity="0"
-                                                  Focusable="False" />
-                                </Track.IncreaseRepeatButton>
-                            </Track>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="Orientation" Value="Vertical">
-                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="True" />
-                            </Trigger>
-                            <Trigger Property="Orientation" Value="Horizontal">
-                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
-                                <Setter TargetName="DecreaseBtn" Property="Command" Value="ScrollBar.PageLeftCommand" />
-                                <Setter TargetName="IncreaseBtn" Property="Command" Value="ScrollBar.PageRightCommand" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="Orientation" Value="Horizontal">
-                    <Setter Property="Width" Value="Auto" />
-                    <Setter Property="Height" Value="9" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
         <!-- 全局下拉框：默认模板用的是系统白底，深色主题下会像一块白砖。
              整块换模板（只改 Background 不够：默认模板自己那层 Border 是主题色）。
              前提：本应用只有不可编辑的 ComboBox，没有 PART_EditableTextBox。 -->
