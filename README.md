@@ -1,8 +1,8 @@
-# wantodo
+﻿# wantodo
 
 贴在 Windows 桌面上的便签板——像手机主屏的小组件，但里面是你的待办、随手记和"卡在什么地方"。
 
-![wantodo](docs/verify/image-20261110232825066.png)
+![wantodo](docs/images/panel-cards.png)
 
 它能贴在桌面图标那一层：**Win + D 之后还在**，普通窗口可以盖住它，不抢焦点，也不会挡在浏览器前面。
 
@@ -14,8 +14,8 @@
 
 | 包 | 大小 | 需要装 .NET 吗 | 适合 |
 | --- | --- | --- | --- |
-| `wantodo-0.7.0-win-x64.zip` | 61.0 MB | 不需要 | 直接发给别人，解压双击即用 |
-| `wantodo-0.7.0-fdd-win-x64.zip` | 0.27 MB | 需要 [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) | 自己机器已经装了运行时，想省空间 |
+| `wantodo-0.6.0-win-x64.zip` | 61.0 MB | 不需要 | 直接发给别人，解压双击即用 |
+| `wantodo-0.6.0-fdd-win-x64.zip` | 0.3 MB | 需要 [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) | 自己机器已经装了运行时，想省空间 |
 
 用法：解压 → 双击 `Wantodo.exe`。第一次运行如果被 SmartScreen 拦下（exe 没有代码签名），点「更多信息 → 仍要运行」。
 
@@ -31,17 +31,22 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 ## 功能
 
-**两个表面**
+**两个表面：卡片式 / 画布**
 
-顶栏第一行左侧是分段控件：**结构化**（多栏待办板）和**自由**（随手画、贴图、摆位置）。共用一份数据、一个窗口、一套主题，切换只是换视图；两个表面各有自己的撤销栈（各 50 步）。
+顶栏第一行左侧是分段控件：**卡片式**（可以拖来拖去的便签卡，每张卡是记事 / 待办 / 计时 / 图片）和**画布**（随手画、贴图、摆位置）。共用一份数据、一个窗口、一套主题，切换只是换视图；两个表面各有自己的撤销栈（各 50 步）。
 
-- 结构化：4 种卡（记事 / 待办 / 计时 / 图片），栏目下拉、卡头拖动、双击改名
-- 自由：十个工具（选择/手形/文本/图片/矩形/线/箭头/画笔/橡皮/缩放），缩放 25%–400%，`空格 + 拖` 平移，右键菜单有粘贴/全选/删除
+- 卡片式：4 种卡（记事 / 待办 / 计时 / 图片），栏目下拉、卡头拖动、双击改名
+- 画布：十个工具（选择/手形/文本/图片/矩形/线/箭头/画笔/橡皮/缩放），缩放 25%–400%，`空格 + 拖` 平移，右键菜单有粘贴/全选/删除
+- 工具栏上的**色块直接显示当前画笔颜色**（`#CBA6F7` 这样），点开可选 8 种颜色与 4 档粗细，换色马上反映在色块上
+- 切到笔 / 橡皮 / 放大镜时**鼠标形状跟着变**（画笔、橡皮、放大镜），不用猜现在是哪个工具
+- 画笔颜色认准「你挑的那个色」：换主题、换背景都不会把已经选好的笔色悄悄改掉（想跟随色板就选「跟随色板强调色」）
+- 橡皮有 12 DIP 的容差，不用像素级对准也能擦掉；按住不放可以连续擦
 
 **主题：材质 × 色板**
 
 - 材质（本期只有「液态玻璃」）决定圆角与透明度，色板决定颜色，两者正交
-- 7 套色板：Tokyo Night Day / Tokyo Night / Latte / Frappé / Macchiato / Mocha / Neon；画布状态行右端有 7 个色点，点一下换色
+- 7 套色板：Tokyo Night Day / Tokyo Night / Latte / Frappé / Macchiato / Mocha / Neon；状态行右端有 7 个色点，**色点显示的就是那套色板的背景色**，点一下换色
+- 换色是**立刻生效**的：卡片、画布上的图形、色点都会即时跟着换（不用像以前那样"动一下才刷新"）
 - 液态玻璃：Win11 22621+ 用 Mica（面板与设置页能看到桌面透出来），老系统自动退纯色并写日志，不会假装有玻璃
 
 **多栏待办板**
@@ -63,7 +68,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 - 卡头按住移动超过 4 DIP 才拖动；改名只走**双击标题**或 `F2`（0.6.0 里“想拖却改名”的老问题已修）
 - 待办卡是**栏目投影**：桌面上加一条，1 秒内出现在卡里；卡里勾选，桌面同步划线；卡里回车也能加
 - 计时卡：未开始 → 已设置 → 进行中 ⇄ 已暂停 → 已结束；设置完不会自动跑；番茄钟可分段（最多 4 段，自定义每段的重复数/专注/休息）
-- 图片卡无外框，双击打开；自由表面还可以直接画笔迹、矩形、线、箭头、文本
+- 图片卡无外框，双击打开；画布上还可以直接画笔迹、矩形、线、箭头、文本
 
 **随心记**（顶栏「随心记」入口 / 托盘 / `Ctrl + Alt + Space`）
 
@@ -88,6 +93,14 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 ---
 
 ## 截图
+
+**卡片式**——四张卡、栏目下拉、右上角色板
+
+![卡片式](docs/images/panel-cards.png)
+
+**画布**——十个工具、当前画笔色、缩放与适应
+
+![画布](docs/images/panel-canvas.png)
 
 **工具栏**（加栏 / 卡住 / 随心记）
 
@@ -130,14 +143,14 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 | 就地编辑 | `Esc` | 取消 |
 | 栏标题 | 双击 | 改名 |
 | 栏顶部横条 | 按住拖动 | 停靠到别的位置 |
-| 画布 | `Ctrl + 1` / `Ctrl + 2` | 切到结构化 / 自由表面 |
+| 画布 | `Ctrl + 1` / `Ctrl + 2` | 切到卡片式 / 画布 |
 | 画布卡片 | 双击标题、`F2` | 改名；`Enter` 提交、`Esc` 取消 |
 | 画布卡片 | `Ctrl + Z` / `Ctrl + Y` | 当前表面撤销 / 重做（各 50 步） |
 | 画布卡片 | `Delete` | 删除选中卡片 |
-| 自由表面 | `V` `H` `T` `R` `A` `B` `E` | 选择 / 手形 / 文本 / 矩形 / 线 / 画笔 / 橡皮 |
-| 自由表面 | `空格 + 拖` | 平移画布（选择工具下拖空白是框选，不混淆） |
-| 自由表面 | 滚轮 | 以指针为锚缩放（25%–400%） |
-| 自由表面 | `Ctrl + V` | 贴剪贴板图片（自动切到自由表面） |
+| 画布 | `V` `H` `T` `R` `A` `B` `E` | 选择 / 手形 / 文本 / 矩形 / 线 / 画笔 / 橡皮 |
+| 画布 | `空格 + 拖` | 平移画布（选择工具下拖空白是框选，不混淆） |
+| 画布 | 滚轮 | 以指针为锚缩放（25%–400%） |
+| 画布 | `Ctrl + V` | 贴剪贴板图片（自动切到画布） |
 
 ---
 
@@ -146,8 +159,8 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 <数据根>\
   board\data.json               便签板 + 画布（v3，原子写 + data.bak 回退 + 损坏隔离）
-  board\canvas-images\<hash>.<ext>  自由表面的图片资产（按内容哈希命名，同图只存一份）
-  board\ink\<id>.isf            自由表面的笔迹（一笔一个文件，二进制不进 json）
+  board\canvas-images\<hash>.<ext>  画布的图片资产（按内容哈希命名，同图只存一份）
+  board\ink\<id>.isf            画布的笔迹（一笔一个文件，二进制不进 json）
   board\blockers.md             卡住清单（Markdown 表格，可直接编辑）
   notes\inbox\*.md|txt          随心记（文件名即标题，md 带 front matter）
   logs\app-yyyyMMdd.log
@@ -156,7 +169,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
   README.txt                    这个目录是干什么的
 ```
 
-0.7.0 首次启动会把旧数据升级到 v3：先留 `data.json.pre-070.bak`，再把旧 `canvas.json` 的内容并进 `data.json`，旧文件改名 `canvas.imported-<时间戳>.json` 保留（不删）。
+0.6.0 首次启动会把旧数据升级到 v3：先留 `data.json.pre-070.bak`，再把旧 `canvas.json` 的内容并进 `data.json`，旧文件改名 `canvas.imported-<时间戳>.json` 保留（不删）。
 
 整个数据根目录拷走就是完整备份；换机器拷回去即可继续用。
 
@@ -192,7 +205,7 @@ src/Wantodo.Core/          模型、画布与撤销快照、布局树、持久�
 src/Wantodo.App/           WPF 宿主：窗口、ViewModel、Interop(桌面层与材质)、画布控件、托盘、对话框
 tests/Wantodo.Core.Tests/  437 个单元测试
 docs/                      规格、计划、决策、设计、验收记录、使用说明
-spike/                     一次性探针（桌面层、液态玻璃、自由表面手势），不进产品构建
+spike/                     一次性探针（桌面层、液态玻璃、画布手势），不进产品构建
 ```
 
 技术栈：WPF + .NET 10。桌面层是通过 `SetWindowLongPtr(GWLP_HWNDPARENT, Progman)` 把窗口挂成桌面窗口的 **owner**（不是 `SetParent`），所以 Win+D 不隐藏、普通窗口能盖住。细节见 `docs/decisions.md`。
@@ -207,7 +220,7 @@ spike/                     一次性探针（桌面层、液态玻璃、自由�
 | [docs/spec.md](docs/spec.md) | 产品规格与数据模型 |
 | [docs/plan.md](docs/plan.md) | 分阶段计划与验收记录 |
 | [docs/plan-0.7.0.md](docs/plan-0.7.0.md) | 0.7.0「双表面画布」计划书（定义先行：术语、令牌矩阵、验收项） |
-| [docs/release-0.7.0.md](docs/release-0.7.0.md) | 本版变化、已知限制、包体积账 |
+| [docs/release-0.6.0.md](docs/release-0.6.0.md) | 本版变化、已知限制、包体积账 |
 | [docs/decisions.md](docs/decisions.md) | 技术决策与取舍（D1–D17） |
 | [docs/verify/0.7.0/](docs/verify/0.7.0/) | 0.7.0 每步命令输出、探针日志、PENDING 清单 |
 | [docs/design/](docs/design/) | 数据根、停靠布局、面板画布、术语表 |

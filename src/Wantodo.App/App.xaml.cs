@@ -125,6 +125,16 @@ public partial class App : Application
         // 顶边下拉面板：默认关；开关打开才建热区与钩子（Phase 17 验收要求关闭时零开销）。
         _topPanel = new Wantodo.App.Windows.TopEdgePanelService(window.ViewModel);
         _topPanel.Sync();
+
+        // README 截图：--shot <目录> 用真实窗口渲染两张面板图后退出，见 Diagnostics/PanelShot.cs。
+        if (Wantodo.App.Diagnostics.PanelShot.TryGetDirectory(e.Args, out var shotDirectory)
+            && shotDirectory is not null
+            && _topPanel is { } panelService)
+        {
+            Dispatcher.BeginInvoke(
+                new Action(() => Wantodo.App.Diagnostics.PanelShot.Run(panelService, window.ViewModel, shotDirectory, Shutdown)),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
     }
 
     /// <summary>启动耗时 + 内存：这两个数字每个阶段都要留档，见 docs/verify/phase3.md。</summary>

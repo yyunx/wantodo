@@ -140,8 +140,14 @@ public sealed class TopEdgePanelService : IDisposable
     {
         _dwell?.Stop();
 
+        EnsurePanel().ShowHandle();
+    }
+
+    /// <summary>拿到（必要时创建）面板窗口。截图诊断用：不靠鼠标停在顶边 120ms 才建窗口。</summary>
+    internal TopPanelWindow EnsurePanel()
+    {
         _panel ??= new TopPanelWindow(_viewModel);
-        _panel.ShowHandle();
+        return _panel;
     }
 
     private void OnCoversChanged(bool covers)

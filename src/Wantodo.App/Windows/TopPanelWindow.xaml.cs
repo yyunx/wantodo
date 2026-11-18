@@ -156,7 +156,7 @@ public partial class TopPanelWindow : Window
         UpdateCanvasStatus();
     }
 
-    private void SetSurface(string surface)
+    internal void SetSurface(string surface)
     {
         var document = _viewModel.Model.Canvas;
         if (document is null)
@@ -225,19 +225,23 @@ public partial class TopPanelWindow : Window
                 SystemTheme.IsLightApplicationTheme(),
                 _viewModel.Model.CustomBackground,
                 _viewModel.Model.CustomAccent);
+            // 色点 = 该色板的背景色（不是强调色）：用户按色点挑的是「底会长什么样」，
+            // 之前画的是强调色，选完发现底色完全对不上（反馈：选择之后和切换之后的背景不匹配）。
+            var background = new SolidColorBrush(Color.FromRgb(colors.CardBackground.R, colors.CardBackground.G, colors.CardBackground.B));
+            background.Freeze();
+
+            var selected = string.Equals(id, current, StringComparison.OrdinalIgnoreCase);
             var dot = new Border
             {
-                Width = 10,
-                Height = 10,
-                CornerRadius = new CornerRadius(5),
+                Width = 14,
+                Height = 14,
+                CornerRadius = new CornerRadius(7),
                 Margin = new Thickness(4, 0, 0, 0),
-                Background = new SolidColorBrush(Color.FromRgb(colors.Accent.R, colors.Accent.G, colors.Accent.B)),
+                Background = background,
                 Cursor = Cursors.Hand,
-                ToolTip = ThemePalette.DisplayName(id),
-                BorderThickness = new Thickness(1.5),
-                BorderBrush = string.Equals(id, current, StringComparison.OrdinalIgnoreCase)
-                    ? (Brush)FindResource("TextPrimary")
-                    : Brushes.Transparent,
+                ToolTip = $"{ThemePalette.DisplayName(id)}（背景 #{colors.CardBackground.R:X2}{colors.CardBackground.G:X2}{colors.CardBackground.B:X2}）",
+                BorderThickness = new Thickness(selected ? 2 : 1),
+                BorderBrush = selected ? (Brush)FindResource("TextPrimary") : (Brush)FindResource("BorderSubtle"),
             };
             var palette = id;
             dot.MouseLeftButtonUp += (_, args) =>
