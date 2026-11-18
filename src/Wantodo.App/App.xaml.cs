@@ -47,7 +47,11 @@ public partial class App : Application
 
         // 单实例：第二次双击 exe 不该开出第二个窗口（两个实例同时写 data.json 会互相覆盖）。
         // 这里用的是 Local\ 命名空间（只影响当前登录会话），注销后自动释放。
-        _singleInstance = new Mutex(initiallyOwned: true, @"Local\Wantodo.SingleInstance", out var createdNew);
+        //
+        // 便携副本（目录里有 portable.txt）用自己的命名空间：便携版的意义就是「插上 U 盘就能跑」，
+        // 它跟机器上已经装好的那份是两个数据根，互相不该顶掉。否则双击便携 exe 只会把
+        // 已安装的那份叫到前台，看起来像「新版本毫无变化」——这条踩过。
+        _singleInstance = new Mutex(initiallyOwned: true, SingleInstanceName(), out var createdNew);
         if (!createdNew)
         {
             var existing = NativeMethods.FindWindow(null, MainWindowTitle);
@@ -151,6 +155,33 @@ public partial class App : Application
     }
 
     private static bool _restartRequested;
+
+    /// <summary>
+    /// 单实例名。安装版沿用固定名字（双击第二次只会把第一个叫到前台）；
+    /// 便携副本按所在目录派生，各自独立——便携版和安装版是两个数据根，不该互相顶掉。
+    /// </summary>
+    private static string SingleInstanceName()
+    {
+        const string defaultName = @"Local\Wantodo.SingleInstance";
+        string baseDir;
+        try
+        {
+            baseDir = AppContext.BaseDirectory;
+        }
+        catch (Exception)
+        {
+            return defaultName;
+        }
+
+        if (!System.IO.File.Exists(System.IO.Path.Combine(baseDir, DataRootResolver.PortableMarkerName)))
+        {
+            return defaultName;
+        }
+
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(baseDir.ToUpperInvariant()));
+        return $@"Local\Wantodo.Portable.{Convert.ToHexString(hash.AsSpan(0, 8))}";
+    }
 
     /// <summary>迁移完数据后要求重启：退出时由 cmd 起一个新进程，避开单实例互斥。</summary>
     public static void RequestRestart() => _restartRequested = true;

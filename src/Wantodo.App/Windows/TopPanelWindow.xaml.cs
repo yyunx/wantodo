@@ -86,6 +86,9 @@ public partial class TopPanelWindow : Window
 
         PreviewKeyDown += OnPreviewKeyDown;
         PreviewKeyUp += OnPreviewKeyUp;
+        // 诊断：面板窗口到底有没有收到这一次按下。配合 TopEdgePanelService 的
+        // 「[指针] 全局按下」打点，两边对比就能区分「点击没到窗口」与「到了窗口却被画板吃掉」。
+        AddHandler(PreviewMouseDownEvent, new MouseButtonEventHandler(OnPanelPreviewMouseDown), true);
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
         Closed += OnClosed;
@@ -122,12 +125,17 @@ public partial class TopPanelWindow : Window
         var freeform = string.Equals(surface, CanvasSurfaces.Freeform, StringComparison.OrdinalIgnoreCase);
 
         CanvasScroller.Visibility = freeform ? Visibility.Collapsed : Visibility.Visible;
-        FreeformScroller.Visibility = freeform ? Visibility.Collapsed : Visibility.Visible;
+        // 这里曾经写反成 freeform ? Collapsed : Visible：结果是「结构化」时两块画板同时可见、
+        // 「自由」时两块都折叠 —— 用户看到的就是「自由画板点了没反应、结构化里卡片也能被挡住」。
+        FreeformScroller.Visibility = freeform ? Visibility.Visible : Visibility.Collapsed;
         StructuredTools.Visibility = freeform ? Visibility.Collapsed : Visibility.Visible;
         FreeformTools.Visibility = freeform ? Visibility.Visible : Visibility.Collapsed;
         ToolHint.Text = freeform ? "空格+拖 平移 · 滚轮缩放" : string.Empty;
         SurfaceStructuredButton.IsChecked = !freeform;
         SurfaceFreeformButton.IsChecked = freeform;
+        AppLog.Info(
+            $"[画布] 可见性 surface={surface} canvas={CanvasScroller.Visibility} freeform={FreeformScroller.Visibility} " +
+            $"结构化工具={StructuredTools.Visibility} 自由工具={FreeformTools.Visibility}");
 
         if (freeform)
         {
@@ -289,6 +297,22 @@ public partial class TopPanelWindow : Window
         }
     }
 
+    /// <summary>
+    /// 诊断打点：面板窗口收到的每一次按下。有这一行 → 点击到了 WPF；
+    /// 没有这一行而钩子那边有「全局按下 面板内=True」→ 点击被别处的鼠标捕获截走了。
+    /// </summary>
+    private void OnPanelPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        var local = e.GetPosition(this);
+        var source = e.OriginalSource is FrameworkElement fe
+            ? $"{fe.GetType().Name}{(string.IsNullOrEmpty(fe.Name) ? "" : "#" + fe.Name)}"
+            : e.OriginalSource?.GetType().Name ?? "?";
+        var captured = Mouse.Captured is FrameworkElement cap
+            ? $"{cap.GetType().Name}{(string.IsNullOrEmpty(cap.Name) ? "" : "#" + cap.Name)}"
+            : Mouse.Captured?.GetType().Name ?? "无";
+        AppLog.Info($"[指针] 面板按下 local=({local.X:0},{local.Y:0}) 源={source} 捕获={captured}");
+    }
+
     /// <summary>十工具互斥：只把点中的那个置为选中，其余一律取消。</summary>
     private void SetTool(FreeformTool tool)
     {
@@ -329,6 +353,95 @@ public partial class TopPanelWindow : Window
         AppLog.Info($"[画布] 线型 {(FreeformBoard.StrokeDashed ? "虚线" : "实线")}");
     }
 
+    /// <summary>颜色与粗细（C8）：一次选一项，之后新建的笔迹/图形都用它。</summary>
+    private void OnToolColorClick(object sender, RoutedEventArgs e)
+    {
+        if (ColorSwatches.Children.Count == 0)
+        {
+            BuildColorPopup();
+        }
+
+        ColorPopup.IsOpen = ToolColor.IsChecked == true;
+        AppLog.Info($"[画布] 颜色面板 checked={ToolColor.IsChecked} open={ColorPopup.IsOpen}");
+    }
+
+    private void BuildColorPopup()
+    {
+        foreach (var (name, key) in StrokeColors)
+        {
+            var swatch = new Border
+            {
+                Width = 22,
+                Height = 22,
+                Margin = new Thickness(0, 0, 6, 6),
+                CornerRadius = new CornerRadius(11),
+                BorderThickness = new Thickness(1),
+                Cursor = Cursors.Hand,
+                ToolTip = name,
+                Tag = key,
+            };
+            if (key == "accent")
+            {
+                swatch.SetResourceReference(Border.BackgroundProperty, "Accent");
+                swatch.SetResourceReference(Border.BorderBrushProperty, "BorderActive");
+            }
+            else
+            {
+                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(key));
+                brush.Freeze();
+                swatch.Background = brush;
+                swatch.BorderBrush = brush;
+            }
+
+            swatch.MouseLeftButtonUp += (_, _) =>
+            {
+                ApplyStrokeStyle(key, FreeformBoard.StrokeWidth);
+                ColorPopup.IsOpen = false;
+            };
+            ColorSwatches.Children.Add(swatch);
+        }
+
+        foreach (var width in StrokeWidths)
+        {
+            var button = new Button
+            {
+                Content = $"{width:0}",
+                Padding = new Thickness(8, 2, 8, 2),
+                MinWidth = 26,
+                Margin = new Thickness(0, 0, 6, 0),
+                ToolTip = $"粗细 {width:0} DIP",
+                Tag = width,
+            };
+            button.Click += (_, _) =>
+            {
+                ApplyStrokeStyle(FreeformBoard.ColorKey, width);
+                ColorPopup.IsOpen = false;
+            };
+            WidthChoices.Children.Add(button);
+        }
+    }
+
+    private static readonly (string Name, string Key)[] StrokeColors =
+    {
+        ("跟随色板强调色", "accent"),
+        ("红", "#E5484D"),
+        ("橙", "#F76B15"),
+        ("黄", "#FFB224"),
+        ("绿", "#30A46C"),
+        ("蓝", "#0091FF"),
+        ("紫", "#8E4EC6"),
+        ("灰", "#8B8D98"),
+    };
+
+    private static readonly double[] StrokeWidths = { 2, 3, 5, 8 };
+
+    private void ApplyStrokeStyle(string key, double width)
+    {
+        FreeformBoard.SetColorKey(key);
+        FreeformBoard.SetStrokeWidth(width);
+        AppLog.Info($"[画布] 颜色={key} 粗细={width:0} DIP");
+    }
+
     private void OnZoomIn(object sender, RoutedEventArgs e)
     {
         FreeformBoard.ZoomBy(FreeformZoom.Step);
@@ -365,6 +478,27 @@ public partial class TopPanelWindow : Window
 
     /// <summary>列选择下拉是否打开：打开时点下拉项会被钩子误判成「点面板外」。</summary>
     public bool IsPickerOpen => ColumnPicker.IsDropDownOpen;
+
+    /// <summary>
+    /// 面板看得见、点却点不动时，最常见的原因是它被别的普通窗口压住了（面板不是置顶窗口）。
+    /// 每次在面板范围内按下都把自己提回非置顶窗口的最上层，下一次点击就能落到面板上。
+    /// </summary>
+    public void EnsureAboveWindows()
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+
+        try
+        {
+            NativeMethods.RaiseToTopOfBand(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        }
+        catch (InvalidOperationException ex)
+        {
+            AppLog.Warn($"[面板] 提升层级失败：{ex.Message}");
+        }
+    }
 
     protected override void OnSourceInitialized(EventArgs e)
     {

@@ -142,6 +142,9 @@ internal static class Program
         // ⑬ 资源字典自检：0.7.0 首次实机启动崩在重复隐式样式（ScrollBar 定义了两遍）
         XamlChecks();
 
+        // ⑭ 0.7.1 现场排查：视口 offset 让画布原点落在可视区下方时，上半截的笔迹到底渲不渲出来
+        InkOffscreenChecks();
+
         Console.WriteLine(_failed == 0 ? "PROBE PASS" : $"PROBE FAIL ({_failed})");
         return _failed == 0 ? 0 : 1;
     }
@@ -207,6 +210,84 @@ internal static class Program
         board.Tool = FreeformTool.Ink;
         board.SyncToolLayer();
         Check("切面同步后墨层仍是热的（B2）", board.InkLayerActiveForTest, "sync lost ink layer");
+
+        // 平移过的视口下真的能落笔（真实数据里那组 offset 会用到）：输入自己收点，
+        // 墨层只当显示器，因此不再有「平移后上半截点不动」的死区。
+        var viewport = board.Document!.ViewportOf(CanvasSurfaces.Freeform);
+        viewport.Zoom = 1;
+        viewport.OffsetX = -45.33;
+        viewport.OffsetY = 384.67;
+        board.Rebuild();
+        board.Measure(new Size(800, 600));
+        board.Arrange(new Rect(0, 0, 800, 600));
+        board.UpdateLayout();
+
+        var strokesBefore = document.Objects.Count(o => o.Kind == CanvasObject.KindStroke);
+        board.Tool = FreeformTool.Ink;
+        // 落笔点必须在可视区（board y≈500 → canvas y≈115），否则会被 Normalize 夹到 0，
+        // 笔画点留在负区，橡皮按模型矩形算就永远擦不到。
+        board.PointerDown(new Point(240, 500), ModifierKeys.None);
+        board.PointerMove(new Point(260, 510));
+        board.PointerMove(new Point(280, 520));
+        board.PointerUp();
+        var strokesAfter = document.Objects.Count(o => o.Kind == CanvasObject.KindStroke);
+        Check(
+            "平移后也能落笔（B2）",
+            strokesAfter == strokesBefore + 1,
+            $"before={strokesBefore} after={strokesAfter}");
+
+        board.Tool = FreeformTool.Eraser;
+        board.PointerDown(new Point(250, 505), ModifierKeys.None);
+        board.PointerMove(new Point(270, 515));
+        board.PointerUp();
+        Check(
+            "按住橡皮拖过连擦（C5）",
+            document.Objects.Count(o => o.Kind == CanvasObject.KindStroke) == strokesAfter - 1,
+            $"strokes={document.Objects.Count(o => o.Kind == CanvasObject.KindStroke)}");
+
+        // C8：颜色与粗细落到新图元上，并且重建后的可视真的用这个颜色。
+        board.SetColorKey("#E5484D");
+        board.SetStrokeWidth(5);
+        board.Tool = FreeformTool.Rect;
+        board.PointerDown(new Point(500, 300), ModifierKeys.None);
+        board.PointerMove(new Point(560, 350));
+        board.PointerUp();
+
+        var colored = document.Objects.LastOrDefault(o => o.Get("color") == "#E5484D");
+        Check("颜色写进 payload（C8）", colored is not null, "no object with custom color");
+        Check("粗细写进 payload（C8）", colored?.Get("strokeWidth") == "5",
+            colored is null ? "n/a" : $"strokeWidth={colored.Get("strokeWidth")}");
+
+        var visual = colored is null ? null : board.ShapeVisualOf(colored.Id);
+        Check(
+            "重建后可视使用自定义颜色（C8）",
+            visual?.Stroke is SolidColorBrush brush && brush.Color == (Color)ColorConverter.ConvertFromString("#E5484D"),
+            visual?.Stroke is SolidColorBrush b2 ? b2.Color.ToString() : "n/a");
+
+        board.SetColorKey("accent");
+        board.SetStrokeWidth(3);
+        Check(
+            "恢复强调色后不再自定义（C8）",
+            board.ColorKey == "accent" && board.StrokeWidth == 3,
+            $"key={board.ColorKey} width={board.StrokeWidth}");
+
+        // C6：按下开始拖，就已经是箭头本身（不是等到抬手才画，也不是虚线矩形框）。
+        board.Tool = FreeformTool.Arrow;
+        board.PointerDown(new Point(620, 260), ModifierKeys.None);
+        board.PointerMove(new Point(700, 310));
+        var midDrag = board.CreatePreviewForTest;
+        Check(
+            "箭头拖拽中就有预览（C6）",
+            midDrag is System.Windows.Shapes.Path,
+            midDrag is null ? "no preview" : midDrag.GetType().Name);
+        var geometryBounds = (midDrag as System.Windows.Shapes.Path)?.Data?.Bounds ?? Rect.Empty;
+        Check(
+            "预览随指针变形（C6）",
+            Math.Abs(geometryBounds.Width - 80) < 12,
+            $"geo={geometryBounds.Width:0}×{geometryBounds.Height:0}");
+        board.PointerUp();
+        var arrow = document.Objects.LastOrDefault(o => o.Get("shape") == "arrow");
+        Check("松手落定成箭头（C6）", arrow is not null, "no arrow object");
     }
 
     private static void XamlChecks()
@@ -261,6 +342,36 @@ internal static class Program
             var start = code.IndexOf("private void OnCardMouseDown", StringComparison.Ordinal);
             var body = start >= 0 ? code.Substring(start, Math.Min(900, code.Length - start)) : string.Empty;
             Check("卡片按下即捕获鼠标（B4）", body.Contains("CaptureMouse()"), "no capture on mouse down");
+        }
+
+        // B2 回归：两块画板的可见性必须互补。曾经写成 freeform ? Collapsed : Visible，
+        // 结果「结构化」时两块同时可见、「自由」时两块都折叠 —— 表现就是「自由画板点了没反应」。
+        var panelCs = Path.Combine(root, "src", "Wantodo.App", "Windows", "TopPanelWindow.xaml.cs");
+        if (File.Exists(panelCs))
+        {
+            var code = File.ReadAllText(panelCs);
+            Check(
+                "自由表面可见性没写反（B2）",
+                code.Contains("FreeformScroller.Visibility = freeform ? Visibility.Visible", StringComparison.Ordinal),
+                "FreeformScroller 可见性映射反了");
+            Check(
+                "结构化表面可见性没写反（B2）",
+                code.Contains("CanvasScroller.Visibility = freeform ? Visibility.Collapsed", StringComparison.Ordinal),
+                "CanvasScroller 可见性映射反了");
+        }
+
+        // 笔迹回归：InkCanvas 在 StrokeCollected 之前已把笔画放进自己的集合，
+        // 再无脑 Add 会抛 duplicate stroke 并中断后续落盘。
+        var freeformCs = Path.Combine(root, "src", "Wantodo.App", "Controls", "FreeformBoard.cs");
+        if (File.Exists(freeformCs))
+        {
+            var code = File.ReadAllText(freeformCs);
+            var start = code.IndexOf("internal void CommitStroke", StringComparison.Ordinal);
+            var body = start >= 0 ? code.Substring(start, Math.Min(2000, code.Length - start)) : string.Empty;
+            Check(
+                "笔迹不重复加入墨层（不会抛 duplicate stroke）",
+                !body.Contains("\r\n        _ink.Strokes.Add(stroke);") && !body.Contains("\n        _ink.Strokes.Add(stroke);"),
+                "CommitStroke 里还在无条件 Add");
         }
     }
 
@@ -789,6 +900,137 @@ internal static class Program
         };
         item.Payload = new Dictionary<string, string> { ["text"] = text };
         return item;
+    }
+
+    /// <summary>
+    /// 现场排查（m00001 bug ②）：真实数据里视口是 zoom=1、offset=(-45.33, 384.67)，
+    /// 于是画布原点落在控件顶端下方 384.67 DIP —— 上半截的落笔全是负画布坐标。
+    /// 这里在真渲染管线上验证「负坐标笔迹能不能出现在画面上」，并落 PNG 供人眼确认。
+    /// </summary>
+    private static void InkOffscreenChecks()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "wantodo-offscreen");
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+
+        Directory.CreateDirectory(root);
+        var document = new CanvasDocument();
+        var board = new FreeformBoard { Width = 800, Height = 600 };
+        board.Attach(document, () => { }, null, Path.Combine(root, "ink"));
+
+        var viewport = document.ViewportOf(CanvasSurfaces.Freeform);
+        viewport.Zoom = 1;
+        viewport.OffsetX = -45.33;
+        viewport.OffsetY = 384.67;
+        board.Rebuild();
+        board.Measure(new Size(800, 600));
+        board.Arrange(new Rect(0, 0, 800, 600));
+        board.UpdateLayout();
+
+        board.Tool = FreeformTool.Ink;
+
+        // 上半截：board y=200 → canvas y = 200-384.67 = -184.67（负）
+        board.PointerDown(new Point(240, 200), ModifierKeys.None);
+        board.PointerMove(new Point(270, 210));
+        board.PointerMove(new Point(300, 220));
+        board.PointerUp();
+
+        // 下半截：board y=500 → canvas y = 115.33（正）
+        board.PointerDown(new Point(240, 500), ModifierKeys.None);
+        board.PointerMove(new Point(270, 510));
+        board.PointerMove(new Point(300, 520));
+        board.PointerUp();
+
+        board.UpdateLayout();
+
+        var ink = (InkCanvas)typeof(FreeformBoard)
+            .GetField("_ink", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(board)!;
+        var inkHost = (Canvas)typeof(FreeformBoard)
+            .GetField("_inkHost", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(board)!;
+
+        Console.WriteLine($"  ink: w={ink.Width} h={ink.Height} left={Canvas.GetLeft(ink):0.##} top={Canvas.GetTop(ink):0.##} " +
+                          $"strokes={ink.Strokes.Count} clip={ink.ClipToBounds} hostClip={inkHost.ClipToBounds}");
+        foreach (var stroke in ink.Strokes)
+        {
+            var b = stroke.GetBounds();
+            var first = stroke.StylusPoints[0];
+            Console.WriteLine($"  stroke bounds=({b.X:0.##},{b.Y:0.##},{b.Width:0.##},{b.Height:0.##}) firstPt=({first.X:0.##},{first.Y:0.##})");
+        }
+
+        var images = Path.Combine(root, "png");
+        Directory.CreateDirectory(images);
+        WriteVisualPng(Path.Combine(images, "board.png"), board, 800, 600);
+        WriteVisualPng(Path.Combine(images, "ink-only.png"), ink, 16000, 600);
+        Console.WriteLine($"  png => {images}");
+
+        var topBand = CountInkPixels(board, 800, 600, new Int32Rect(230, 190, 90, 40));
+        var bottomBand = CountInkPixels(board, 800, 600, new Int32Rect(230, 490, 90, 40));
+        Console.WriteLine($"  ink pixels: top band={topBand} bottom band={bottomBand}");
+
+        // 回归锁：根因是 InkCanvas 默认 ClipToBounds=true 把负画布坐标整段裁掉。
+        // 构造里必须已经关掉它，否则这里会重新变成 0。
+        Check("墨层不再自裁剪（InkCanvas.ClipToBounds=false）", !ink.ClipToBounds, $"ClipToBounds={ink.ClipToBounds}");
+        Check("负画布坐标的笔迹也渲染出来（bug ② 上半截）", topBand > 0, $"topBand={topBand}");
+        Check("正画布坐标的笔迹渲染出来（对照）", bottomBand > 0, $"bottomBand={bottomBand}");
+
+        var upper = document.Objects.FirstOrDefault(o => o.Kind == CanvasObject.KindStroke && o.Y < 300);
+        Console.WriteLine($"  upper object: {(upper is null ? "<none>" : $"x={upper.X:0.##} y={upper.Y:0.##} w={upper.W:0.##} h={upper.H:0.##}")}");
+        Check("负坐标笔迹的模型矩形不被夹到 0", upper is not null && upper.Y < 0,
+            upper is null ? "<none>" : $"y={upper.Y:0.##}");
+
+        // 橡皮按模型矩形命中：上半截那一笔必须擦得掉（旧版本这里会擦到下半截或什么都不擦）
+        var beforeErase = document.Objects.Count;
+        board.Tool = FreeformTool.Eraser;
+        board.PointerDown(new Point(270, 210), ModifierKeys.None);
+        board.PointerUp();
+        Console.WriteLine($"  eraser top: objects {beforeErase} -> {document.Objects.Count}");
+        Check("橡皮擦掉上半截笔迹（命中不再错位）", document.Objects.Count == beforeErase - 1,
+            $"before={beforeErase} after={document.Objects.Count}");
+
+        var bottomObjs = document.Objects.Where(o => o.Kind == CanvasObject.KindStroke).ToList();
+        board.PointerDown(new Point(270, 510), ModifierKeys.None);
+        board.PointerUp();
+        Check("橡皮擦掉下半截笔迹（对照）", document.Objects.Count == bottomObjs.Count - 1,
+            $"before={bottomObjs.Count} after={document.Objects.Count}");
+        board.Tool = FreeformTool.Ink;
+    }
+
+    private static void WriteVisualPng(string path, Visual visual, int width, int height)
+    {
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(path);
+        encoder.Save(stream);
+    }
+
+    private static int CountInkPixels(Visual visual, int width, int height, Int32Rect region)
+    {
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+
+        var stride = width * 4;
+        var buffer = new byte[stride * height];
+        bitmap.CopyPixels(buffer, stride, 0);
+
+        var count = 0;
+        for (var y = region.Y; y < region.Y + region.Height && y < height; y++)
+        {
+            for (var x = region.X; x < region.X + region.Width && x < width; x++)
+            {
+                if (buffer[y * stride + x * 4 + 3] > 8)
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
     }
 
     private static void Check(string name, bool ok, string detail)

@@ -206,6 +206,22 @@
                                                           ToolTip="画笔（B）" Click="OnToolClick" />
                                             <ToggleButton x:Name="ToolEraser" Content="擦" Tag="eraser" Style="{StaticResource ToolToggle}"
                                                           ToolTip="橡皮（E，按住拖可连续擦）" Click="OnToolClick" />
+                                            <ToggleButton x:Name="ToolColor" Content="色" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="线条颜色与粗细（对笔、线、箭头、矩形、圆生效）" Click="OnToolColorClick" />
+                                            <Popup x:Name="ColorPopup" PlacementTarget="{Binding ElementName=ToolColor}"
+                                                   Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                                                   PopupAnimation="Fade">
+                                                <Border Background="{DynamicResource SurfaceCard}"
+                                                        BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1"
+                                                        CornerRadius="8" Padding="8" Margin="0,4,0,0">
+                                                    <StackPanel>
+                                                        <WrapPanel x:Name="ColorSwatches" Width="196" />
+                                                        <TextBlock Text="粗细" FontSize="11" Margin="0,8,0,4"
+                                                                   Foreground="{DynamicResource TextMuted}" />
+                                                        <StackPanel x:Name="WidthChoices" Orientation="Horizontal" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Popup>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>

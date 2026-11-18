@@ -29,6 +29,7 @@ internal static class NativeMethods
     internal const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     internal const int DWMWCP_ROUND = 2;
 
+    internal static readonly IntPtr HWND_TOP = new(0);
     internal static readonly IntPtr HWND_TOPMOST = new(-1);
     internal static readonly IntPtr HWND_NOTOPMOST = new(-2);
 
@@ -202,6 +203,55 @@ internal static class NativeMethods
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     internal static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    internal static extern IntPtr WindowFromPoint(POINT point);
+
+    /// <summary>屏幕点上是哪个窗口——排查「点击被谁吃了」的唯一可靠依据。</summary>
+    internal static string DescribeWindowAt(int x, int y)
+    {
+        var hWnd = WindowFromPoint(new POINT { X = x, Y = y });
+        if (hWnd == IntPtr.Zero)
+        {
+            return "<none>";
+        }
+
+        GetWindowThreadProcessId(hWnd, out var pid);
+        var className = ClassNameOf(hWnd);
+        return $"{hWnd} {className} pid={pid}";
+    }
+
+    /// <summary>
+    /// 该屏幕点上最顶层的窗口是不是本进程的——用来判断「面板看得见，但点击落到了别人身上」。
+    /// </summary>
+    internal static bool WindowAtBelongsToCurrentProcess(int x, int y)
+    {
+        var hWnd = WindowFromPoint(new POINT { X = x, Y = y });
+        if (hWnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        GetWindowThreadProcessId(hWnd, out var pid);
+        return pid == (uint)Environment.ProcessId;
+    }
+
+    /// <summary>把窗口提到非置顶窗口的最上层（不激活、不改尺寸、不改位置）。</summary>
+    internal static void RaiseToTopOfBand(IntPtr hWnd)
+    {
+        if (hWnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var exStyle = GetWindowLongPtr(hWnd, GWL_EXSTYLE).ToInt64();
+        if ((exStyle & WS_EX_TOPMOST) != 0)
+        {
+            return;
+        }
+
+        SetWindowPos(hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
 
     internal static string ClassNameOf(IntPtr hWnd)
     {

@@ -171,6 +171,28 @@ public sealed class TopEdgePanelService : IDisposable
 
         // 面板自己不抢焦点，WPF 的鼠标捕获在未激活窗口上并不可靠；
         // 拖动与缩放都改由全局钩子驱动。先判边缘（Phase 19），再判 12 DIP 把手带。
+        // 这行打点用来区分「点击根本没到面板」与「到了面板但被画板吃掉」——
+        // 钩子在事件路由之前跑，是唯一能看到每一次真实按下的地方。
+        var captured = System.Windows.Input.Mouse.Captured;
+        var inside = _panel.ContainsScreenPoint(x, y);
+        AppLog.Info($"[指针] 全局按下 screen=({x},{y}) 面板内={inside} 捕获={captured?.GetType().Name ?? "无"} 窗口={NativeMethods.DescribeWindowAt(x, y)}");
+        if (captured is not null)
+        {
+            // 自愈：钩子先于 WPF 路由，此刻还挂着的捕获一定是上一轮手势泄漏来的。
+            // 不放掉它，这一下点击就被那个元素吞掉；画板在矩形工具下又会把吞掉的点击
+            // 当成零尺寸图形静默丢弃，于是「工具栏点不动」且日志一片空白。
+            System.Windows.Input.Mouse.Capture(null);
+            AppLog.Warn($"[指针] 释放泄漏的鼠标捕获（{captured.GetType().Name}）");
+        }
+
+        // 面板不是置顶窗口：只要别的普通窗口压在它上面，那一带的点击就永远不会到面板，
+        // 表现正是「面板看得见、点哪儿都没反应，只有点面板外还能靠钩子收起」。
+        // 这里先认出被谁压住，再把自己提回最上层，下一次点击就能落回来。
+        if (inside && !NativeMethods.WindowAtBelongsToCurrentProcess(x, y))
+        {
+            AppLog.Warn($"[指针] 面板被别的窗口压住，点击落到了 {NativeMethods.DescribeWindowAt(x, y)}；已把面板提到最上层");
+            _panel.EnsureAboveWindows();
+        }
         if (_panel.HitTestEdge(x, y, out PanelEdge edge))
         {
             _panel.BeginResize(edge, x, y);

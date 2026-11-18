@@ -28,6 +28,13 @@ public sealed class FreeformBoard : Grid
     private readonly Canvas _overlay = new();
     private readonly ScaleTransform _scale = new(1, 1);
     private readonly TranslateTransform _offset = new(0, 0);
+
+    /// <summary>墨层能承载的坐标范围（含负坐标，见构造函数里的 +8000 平移）。</summary>
+    private const double InkCanvasExtent = 16000;
+
+    private const double InkCanvasPadding = InkCanvasExtent / 2;
+
+    private readonly Canvas _inkHost = new() { ClipToBounds = false, IsHitTestVisible = false };
     private readonly Dictionary<string, FrameworkElement> _visuals = new(StringComparer.Ordinal);
 
     /// <summary>图形图元的可视元素（绝对坐标，不套 <see cref="Wrap"/>，所以单独记）。</summary>
@@ -95,7 +102,61 @@ public sealed class FreeformBoard : Grid
 
     private bool _creating;
     private Point _createStart;
-    private FrameworkElement? _createPreview;
+    private Shape? _createPreview;
+
+    // 笔与橡皮自己收点：InkCanvas 一旦被 RenderTransform 平移，命中区跟着走，
+    // 画布上半截会落到「没反应」的死区里。所以墨层只当显示器，输入全部走 Pointer*。
+    private StylusPointCollection? _strokePoints;
+    private Stroke? _stroke;
+    private bool _erasing;
+
+    /// <summary>画笔颜色；<see cref="Colors.Transparent"/> 表示跟随当前色板的强调色（C8）。</summary>
+    public Color StrokeColor { get; set; } = Colors.Transparent;
+
+    /// <summary>画笔粗细（DIP）。</summary>
+    public double StrokeWidth { get; set; } = 3;
+
+    /// <summary>当前画的颜色键（`accent` 或 `#RRGGBB`）；笔和图形共用（C8）。</summary>
+    public string ColorKey { get; private set; } = "accent";
+
+    /// <summary>图形线宽（DIP）；跟画笔共用一个粗细档位。</summary>
+    public double ShapeWidth { get; private set; } = 2;
+
+    /// <summary>设置颜色：`accent` 表示跟随色板强调色，其余按 #RRGGBB 解析。</summary>
+    public void SetColorKey(string? key)
+    {
+        var normalized = string.IsNullOrWhiteSpace(key) ? "accent" : key.Trim();
+        ColorKey = normalized.Equals("accent", StringComparison.OrdinalIgnoreCase) ? "accent" : normalized;
+        StrokeColor = ParseColor(ColorKey);
+        StrokeWidth = Math.Clamp(StrokeWidth, 1, 24);
+        ShapeWidth = Math.Clamp(StrokeWidth, 1, 16);
+        UpdateInkLayer();
+    }
+
+    /// <summary>设置粗细（1–24 DIP），图形线宽跟着走同一档。</summary>
+    public void SetStrokeWidth(double width)
+    {
+        StrokeWidth = Math.Clamp(width, 1, 24);
+        ShapeWidth = Math.Clamp(StrokeWidth, 1, 16);
+        UpdateInkLayer();
+    }
+
+    private static Color ParseColor(string key)
+    {
+        if (key.Equals("accent", StringComparison.OrdinalIgnoreCase))
+        {
+            return Colors.Transparent;
+        }
+
+        try
+        {
+            return (Color)ColorConverter.ConvertFromString(key);
+        }
+        catch (FormatException)
+        {
+            return Colors.Transparent;
+        }
+    }
     private bool _strokeDashed;
 
     /// <summary>新建的线/箭头/矩形/圆是否走虚线（工具条 C7 的线型开关）。</summary>
@@ -121,16 +182,35 @@ public sealed class FreeformBoard : Grid
         _plane.IsHitTestVisible = false;
 
         // 笔迹层跟内容层吃同一套缩放/平移；非笔迹工具时整层不参与命中，鼠标照样落到本控件。
-        _ink.RenderTransform = new TransformGroup { Children = { _scale, _offset } };
+        // InkCanvas 默认 ClipToBounds=true，会把自己的笔画裁到元素边界的局部 [0,w]×[0,h] 里；
+        // 而画布坐标允许为负（视口 offset 让原点落在可视区下方），RenderTransform 又不改变裁剪用
+        // 的局部坐标——只把内容往正区间挪是白挪的，canvas y<0 的笔迹一个像素都画不出来，
+        // 这就是「笔只有下半截能画」的根因。关掉这层裁剪，负坐标才真正落进可视区。
+        _ink.ClipToBounds = false;
+        _ink.Width = InkCanvasExtent;
+        _ink.Height = InkCanvasExtent;
+        _ink.HorizontalAlignment = HorizontalAlignment.Left;
+        _ink.VerticalAlignment = VerticalAlignment.Top;
+        _ink.RenderTransform = new TransformGroup
+        {
+            Children =
+            {
+                new TranslateTransform(InkCanvasPadding, InkCanvasPadding),
+                _scale,
+                _offset,
+            },
+        };
         _ink.Background = Brushes.Transparent;
         _ink.EditingMode = InkCanvasEditingMode.None;
         _ink.IsHitTestVisible = false;
         _ink.UseCustomCursor = true;
         _ink.Cursor = Cursors.Pen;
         _ink.StrokeCollected += OnStrokeCollected;
+        _inkHost.IsHitTestVisible = false;
+        _inkHost.Children.Add(_ink);
 
         Children.Add(_plane);
-        Children.Add(_ink);
+        Children.Add(_inkHost);
         Children.Add(_overlay);
         Children.Add(_empty);
 
@@ -223,7 +303,8 @@ public sealed class FreeformBoard : Grid
     }
 
     /// <summary>探针用：笔迹层当前是否吃鼠标（B2 的回归点）。</summary>
-    internal bool InkLayerActiveForTest => _ink.IsHitTestVisible;
+    /// <summary>笔工具下本控件自己收点（探针与真机同一条路径）。</summary>
+    internal bool InkLayerActiveForTest => _tool == FreeformTool.Ink;
 
     public double Zoom => _document?.ViewportOf(SurfaceId).Zoom ?? 1.0;
 
@@ -236,6 +317,11 @@ public sealed class FreeformBoard : Grid
 
     /// <summary>某个图元当前的视觉元素（探针用来确认图片真的没外框）。</summary>
     internal FrameworkElement? VisualOf(string id) => _visuals.TryGetValue(id, out var element) ? element : null;
+
+    internal Shape? ShapeVisualOf(string id) => _shapeVisuals.TryGetValue(id, out var shape) ? shape : null;
+
+    /// <summary>拖拽中的预览图元（C6：按下就该看见最终图形，而不是一个虚线框）。</summary>
+    internal Shape? CreatePreviewForTest => _createPreview;
 
     /// <summary>缩放/平移结束后触发，供状态行刷新（不参与保存）。</summary>
     public event EventHandler? ViewportChanged;
@@ -374,6 +460,10 @@ public sealed class FreeformBoard : Grid
         RebuildInk();
         ApplySelectionVisuals();
         UpdateEmpty();
+        AppLog.Info(
+            $"[自由表面] rebuild 图元={ObjectCount} 可视={_plane.Children.Count} 笔迹={_ink.Strokes.Count} " +
+            $"缩放={viewport.Zoom:0.##} 偏移=({viewport.OffsetX:0.#},{viewport.OffsetY:0.#}) " +
+            $"控件={ActualWidth:0}x{ActualHeight:0}");
     }
 
     private bool Matches(CanvasObject item) =>
@@ -386,25 +476,34 @@ public sealed class FreeformBoard : Grid
 
     // ---- 笔迹层（plan §4.8：InkCanvas 只承载笔画，几何图元自绘）-------------
 
-    /// <summary>笔迹工具时让 InkCanvas 接管指针，其余工具放行。</summary>
+    /// <summary>
+    /// 墨层只负责把笔画画出来，命中永远交给本控件（<see cref="PointerDown"/> 收点）。
+    /// 这里只负责让笔尖颜色/粗细跟上当前选择。
+    /// </summary>
     private void UpdateInkLayer()
     {
-        var ink = _tool == FreeformTool.Ink;
-        _ink.IsHitTestVisible = ink;
-        _ink.EditingMode = ink ? InkCanvasEditingMode.Ink : InkCanvasEditingMode.None;
-        if (ink)
+        _ink.IsHitTestVisible = false;
+        _ink.EditingMode = InkCanvasEditingMode.None;
+        var width = Math.Clamp(StrokeWidth, 1, 24);
+        var color = ResolveStrokeColor();
+        _ink.DefaultDrawingAttributes = new DrawingAttributes
         {
-            var width = 3.0;
-            var color = (FindResource("Accent") as SolidColorBrush)?.Color ?? Colors.White;
-            _ink.DefaultDrawingAttributes = new DrawingAttributes
-            {
-                Color = color,
-                Width = width,
-                Height = width,
-                FitToCurve = true,
-                StylusTip = StylusTip.Ellipse,
-            };
+            Color = color,
+            Width = width,
+            Height = width,
+            FitToCurve = true,
+            StylusTip = StylusTip.Ellipse,
+        };
+    }
+
+    private Color ResolveStrokeColor()
+    {
+        if (StrokeColor != Colors.Transparent)
+        {
+            return StrokeColor;
         }
+
+        return (FindResource("Accent") as SolidColorBrush)?.Color ?? Colors.White;
     }
 
     /// <summary>从文档重建笔迹层：一笔一个对象，内容来自 <c>payload.path</c> 指向的 ISF。</summary>
@@ -418,6 +517,7 @@ public sealed class FreeformBoard : Grid
             return;
         }
 
+        var repaired = 0;
         foreach (var item in _document.Objects.Where(Matches).Where(o => o.Kind == CanvasObject.KindStroke))
         {
             var strokes = LoadStroke(item);
@@ -426,11 +526,25 @@ public sealed class FreeformBoard : Grid
                 continue;
             }
 
+            // 自愈：旧版本把笔迹的模型矩形 Math.Max(0,…) 夹到了 0，和 ISF 里的真实位置错开，
+            // 橡皮/框选/选中框全按错的矩形命中。ISF 是权威，读出来后顺手把矩形校正回去。
+            if (SyncStrokeBounds(item, strokes))
+            {
+                repaired++;
+            }
+
             _strokes[item.Id] = strokes;
             if (!_inkFlattened)
             {
                 _ink.Strokes.Add(strokes);
             }
+        }
+
+        if (repaired > 0)
+        {
+            AppLog.Info($"[画布] 笔迹矩形自愈 {repaired} 笔（模型矩形被旧版本夹到 0）");
+            _dirty = true;
+            Flush();
         }
 
         if (_inkFlattened)
@@ -579,6 +693,45 @@ public sealed class FreeformBoard : Grid
             ? (IOPath.IsPathRooted(relative) ? relative : IOPath.Combine(_inkDir ?? string.Empty, relative))
             : null;
 
+    /// <summary>
+    /// 让笔迹对象的模型矩形与 ISF 里的真实外框一致（ISF 是权威）。
+    /// 返回是否真的改过；改过就说明这条记录来自会夹到 0 的旧版本。
+    /// </summary>
+    private static bool SyncStrokeBounds(CanvasObject item, StrokeCollection strokes)
+    {
+        if (strokes.Count == 0)
+        {
+            return false;
+        }
+
+        var bounds = Rect.Empty;
+        foreach (var stroke in strokes)
+        {
+            var b = stroke.GetBounds();
+            bounds = bounds.IsEmpty ? b : Rect.Union(bounds, b);
+        }
+
+        if (bounds.IsEmpty)
+        {
+            return false;
+        }
+
+        var w = Math.Max(CanvasObject.MinWidth, bounds.Width);
+        var h = Math.Max(CanvasObject.MinHeight, bounds.Height);
+        if (Math.Abs(item.X - bounds.X) < 0.5 && Math.Abs(item.Y - bounds.Y) < 0.5 &&
+            Math.Abs(item.W - w) < 0.5 && Math.Abs(item.H - h) < 0.5)
+        {
+            return false;
+        }
+
+        item.X = bounds.X;
+        item.Y = bounds.Y;
+        item.W = w;
+        item.H = h;
+        item.Normalize();
+        return true;
+    }
+
     private void OnStrokeCollected(object sender, InkCanvasStrokeCollectedEventArgs e) => CommitStroke(e.Stroke);
 
     /// <summary>
@@ -602,8 +755,11 @@ public sealed class FreeformBoard : Grid
             Id = id,
             Kind = CanvasObject.KindStroke,
             Surface = SurfaceId,
-            X = Math.Max(0, bounds.X),
-            Y = Math.Max(0, bounds.Y),
+            // 画布是「原点可落在可视区中央」的无限平面（FitToView 也居中），坐标允许为负；
+            // 曾经这里 Math.Max(0,…) 把负坐标夹到 0，模型矩形就和笔迹实际位置错开，
+            // 橡皮/框选/拖动全按错的矩形命中——上半截的笔迹既画不出来、擦不掉。
+            X = bounds.X,
+            Y = bounds.Y,
             W = Math.Max(CanvasObject.MinWidth, bounds.Width),
             H = Math.Max(CanvasObject.MinHeight, bounds.Height),
             ZIndex = NextZ(document),
@@ -627,11 +783,17 @@ public sealed class FreeformBoard : Grid
         }
 
         item.Payload["path"] = fileName;
-        item.Payload["color"] = "accent";
-        item.Payload["strokeWidth"] = "3";
+        item.Payload["color"] = ColorKey;
+        item.Payload["strokeWidth"] = StrokeWidth.ToString("0.##", CultureInfo.InvariantCulture);
         document.Objects.Add(item);
         _strokes[id] = new StrokeCollection { stroke };
-        _ink.Strokes.Add(stroke);
+        // InkCanvas 在 StrokeCollected 前已经把笔画放进自己的集合；重复加会抛
+        // ArgumentException（duplicate stroke），把后面的落盘与重画全部中断。
+        if (!_ink.Strokes.Contains(stroke))
+        {
+            _ink.Strokes.Add(stroke);
+        }
+
         _dirty = true;
         Flush();
         UpdateEmpty();
@@ -642,6 +804,71 @@ public sealed class FreeformBoard : Grid
     private static int NextZ(CanvasDocument document) =>
         document.Objects.Count == 0 ? 1 : Math.Clamp(document.Objects.Max(o => o.ZIndex) + 1, 1, 999);
 
+    // ---- 画笔与橡皮（自己收点，不走 InkCanvas 的输入）------------------------
+
+    /// <summary>按下：起一个新笔画，先挂在墨层上实时显示，抬手再落模型。</summary>
+    private void BeginStroke(Point canvas)
+    {
+        _strokePoints = new StylusPointCollection { new StylusPoint(canvas.X, canvas.Y) };
+        var width = Math.Clamp(StrokeWidth, 1, 24);
+        var attributes = new DrawingAttributes
+        {
+            Color = ResolveStrokeColor(),
+            Width = width,
+            Height = width,
+            FitToCurve = true,
+            StylusTip = StylusTip.Ellipse,
+        };
+        _stroke = new Stroke(_strokePoints, attributes);
+        _ink.Strokes.Add(_stroke);
+    }
+
+    private void AddStrokePoint(Point canvas)
+    {
+        if (_strokePoints is null)
+        {
+            return;
+        }
+
+        var last = _strokePoints[_strokePoints.Count - 1];
+        // 太密的点没有信息量，还会让 ISF 变大
+        if (Math.Abs(last.X - canvas.X) < 0.6 && Math.Abs(last.Y - canvas.Y) < 0.6)
+        {
+            return;
+        }
+
+        _strokePoints.Add(new StylusPoint(canvas.X, canvas.Y));
+    }
+
+    private void EndStroke()
+    {
+        var stroke = _stroke;
+        _stroke = null;
+        _strokePoints = null;
+        if (stroke is null)
+        {
+            return;
+        }
+
+        if (stroke.StylusPoints.Count < 2)
+        {
+            // 点一下不留一个点：这是「没画」，不是一笔
+            _ink.Strokes.Remove(stroke);
+            return;
+        }
+
+        CommitStroke(stroke);
+    }
+
+    /// <summary>橡皮：按住拖过就连续擦（C5），按画布坐标命中。</summary>
+    private void EraseAt(Point canvas)
+    {
+        if (HitTest(canvas) is { } target)
+        {
+            DeleteObject(target.Id);
+        }
+    }
+
     // ---- 图形与文本创建 -----------------------------------------------------
 
     /// <summary>拖动式创建（矩形/线/箭头）：按下记起点，移动画预览，抬起落模型。</summary>
@@ -649,18 +876,20 @@ public sealed class FreeformBoard : Grid
     {
         _creating = true;
         _createStart = ToCanvas(board);
-        _createPreview = new Rectangle
+        var shape = ShapeName(tool);
+        var preview = NewShapeVisual(shape);
+        preview.StrokeThickness = Math.Clamp(ShapeWidth, 1, 16);
+        ApplyStrokeColor(preview, ColorKey);
+        preview.IsHitTestVisible = false;
+        if (_strokeDashed)
         {
-            StrokeThickness = 1,
-            StrokeDashArray = new DoubleCollection { 3, 3 },
-            Fill = Brushes.Transparent,
-            IsHitTestVisible = false,
-        };
-        _createPreview.SetResourceReference(Shape.StrokeProperty, "Accent");
-        Canvas.SetLeft(_createPreview, _createStart.X);
-        Canvas.SetTop(_createPreview, _createStart.Y);
-        _plane.Children.Add(_createPreview);
-        _ = tool;
+            preview.StrokeDashArray = new DoubleCollection { 4, 3 };
+        }
+
+        // C6：预览就是最终图形本身（箭头按下即见箭头），不是外包一个虚线框。
+        PositionShape(preview, shape, _createStart.X, _createStart.Y, _createStart.X + 1, _createStart.Y + 1);
+        _plane.Children.Add(preview);
+        _createPreview = preview;
     }
 
     private void UpdateCreate(Point board)
@@ -671,11 +900,7 @@ public sealed class FreeformBoard : Grid
         }
 
         var current = ToCanvas(board);
-        var rect = new Rect(_createStart, current);
-        Canvas.SetLeft(_createPreview, rect.X);
-        Canvas.SetTop(_createPreview, rect.Y);
-        _createPreview.Width = Math.Max(1, rect.Width);
-        _createPreview.Height = Math.Max(1, rect.Height);
+        PositionShape(_createPreview, ShapeName(_tool), _createStart.X, _createStart.Y, current.X, current.Y);
     }
 
     private void EndCreate(Point board)
@@ -716,8 +941,8 @@ public sealed class FreeformBoard : Grid
             Id = id,
             Kind = CanvasObject.KindShape,
             Surface = SurfaceId,
-            X = Math.Max(0, rect.X),
-            Y = Math.Max(0, rect.Y),
+            X = rect.X,
+            Y = rect.Y,
             W = Math.Max(CanvasObject.MinWidth, rect.Width),
             H = Math.Max(CanvasObject.MinHeight, rect.Height),
             ZIndex = NextZ(_document),
@@ -734,8 +959,8 @@ public sealed class FreeformBoard : Grid
         item.Payload["y1"] = start.Y.ToString("0.##", CultureInfo.InvariantCulture);
         item.Payload["x2"] = end.X.ToString("0.##", CultureInfo.InvariantCulture);
         item.Payload["y2"] = end.Y.ToString("0.##", CultureInfo.InvariantCulture);
-        item.Payload["color"] = "accent";
-        item.Payload["strokeWidth"] = "2";
+        item.Payload["color"] = ColorKey;
+        item.Payload["strokeWidth"] = ShapeWidth.ToString("0.##", CultureInfo.InvariantCulture);
         if (_strokeDashed)
         {
             item.Payload["dash"] = "1";
@@ -764,8 +989,8 @@ public sealed class FreeformBoard : Grid
             Id = id,
             Kind = CanvasObject.KindText,
             Surface = SurfaceId,
-            X = Math.Max(0, canvas.X - 8),
-            Y = Math.Max(0, canvas.Y - 10),
+            X = canvas.X - 8,
+            Y = canvas.Y - 10,
             W = 160,
             H = 40,
             ZIndex = NextZ(_document),
@@ -890,6 +1115,10 @@ public sealed class FreeformBoard : Grid
         _scale.ScaleY = _scale.ScaleX;
         _offset.X = offsetX;
         _offset.Y = offsetY;
+        // 墨层用「+半幅平移 → 缩放 → 平移」表示画布坐标；元素本身要反向挪半个缩放后的幅面，
+        // 这样画布坐标 0 才落在 offset 处，负坐标也不会被 InkCanvas 的边界裁掉。
+        Canvas.SetLeft(_ink, -InkCanvasPadding * _scale.ScaleX);
+        Canvas.SetTop(_ink, -InkCanvasPadding * _scale.ScaleX);
     }
 
     /// <summary>以 <paramref name="anchor"/>（控件坐标）为锚点缩放，锚点下的画布内容不跑。</summary>
@@ -1075,8 +1304,10 @@ public sealed class FreeformBoard : Grid
         foreach (var (id, shape) in _shapeVisuals)
         {
             var selected = _selected.Contains(id);
-            shape.StrokeThickness = selected ? 3 : 2;
-            shape.SetResourceReference(Shape.StrokeProperty, selected ? "Accent" : "BorderActive");
+            var item = _document?.Objects.FirstOrDefault(o => o.Id == id);
+            // 选中只加粗，颜色回落到图元自己的色（C8）：选中不该把红色变成强调色。
+            shape.StrokeThickness = Math.Clamp(Parse(item?.Get("strokeWidth"), 2), 1, 16) + (selected ? 1 : 0);
+            ApplyStrokeColor(shape, item?.Get("color"));
         }
     }
 
@@ -1174,8 +1405,8 @@ public sealed class FreeformBoard : Grid
             Id = document.NextObjectId(),
             Kind = CanvasObject.KindImage,
             Surface = SurfaceId,
-            X = Math.Max(0, point.X - (width / 2)),
-            Y = Math.Max(0, point.Y - (height / 2)),
+            X = point.X - (width / 2),
+            Y = point.Y - (height / 2),
             W = width,
             H = height,
             ZIndex = NextZ(document),
@@ -1326,11 +1557,14 @@ public sealed class FreeformBoard : Grid
 
         if (_tool == FreeformTool.Eraser)
         {
-            if (HitTest(canvas) is { } target)
-            {
-                DeleteObject(target.Id);
-            }
+            _erasing = true;
+            EraseAt(canvas);
+            return;
+        }
 
+        if (_tool == FreeformTool.Ink)
+        {
+            BeginStroke(canvas);
             return;
         }
 
@@ -1353,8 +1587,6 @@ public sealed class FreeformBoard : Grid
                     ImagePickRequested?.Invoke(this, EventArgs.Empty);
                     break;
                 default:
-                    // 画笔走 InkCanvas 的 StrokeCollected，不在这里建对象
-                    AppLog.Info($"[画布] 工具 {FreeformToolCatalog.IdOf(_tool)} 的创建行为在 P1.3 接入");
                     break;
             }
 
@@ -1406,6 +1638,18 @@ public sealed class FreeformBoard : Grid
     public void PointerMove(Point board)
     {
         _lastBoard = board;
+        if (_strokePoints is not null)
+        {
+            AddStrokePoint(ToCanvas(board));
+            return;
+        }
+
+        if (_erasing)
+        {
+            EraseAt(ToCanvas(board));
+            return;
+        }
+
         if (_creating)
         {
             UpdateCreate(board);
@@ -1483,6 +1727,18 @@ public sealed class FreeformBoard : Grid
 
     public void PointerUp()
     {
+        if (_strokePoints is not null)
+        {
+            EndStroke();
+            return;
+        }
+
+        if (_erasing)
+        {
+            _erasing = false;
+            return;
+        }
+
         if (_creating)
         {
             EndCreate(_lastBoard);
@@ -1539,12 +1795,24 @@ public sealed class FreeformBoard : Grid
 
         Focus();
         PointerDown(e.GetPosition(this), Keyboard.Modifiers);
-        if (_panning || _moving || _marquee || _creating)
+        if (_panning || _moving || _marquee || _creating || _strokePoints is not null || _erasing)
         {
-            CaptureMouse();
+            var ok = CaptureMouse();
+            AppLog.Info($"[指针] 画板捕获 {ok} 手势={GestureName()}");
         }
 
         e.Handled = true;
+    }
+
+    private string GestureName()
+    {
+        if (_strokePoints is not null) return "ink";
+        if (_erasing) return "eraser";
+        if (_creating) return "create";
+        if (_panning) return "pan";
+        if (_moving) return "move";
+        if (_marquee) return "marquee";
+        return "none";
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -1553,14 +1821,30 @@ public sealed class FreeformBoard : Grid
         PointerMove(e.GetPosition(this));
     }
 
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        AppLog.Info($"[指针] 画板丢失捕获 手势={GestureName()}");
+    }
+
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
-        var wasActive = _panning || _moving || _marquee;
-        PointerUp();
-        if (wasActive)
+        try
         {
-            ReleaseMouseCapture();
+            PointerUp();
+        }
+        finally
+        {
+            // 任何一次抬手都放掉捕获：画完图形/笔迹却还攥着鼠标，工具栏就再也点不动了。
+            // 放进 finally 是必须的——UI 线程异常被 App 的 DispatcherUnhandledException 吞掉，
+            // 一旦 PointerUp 中途抛出，下面这行就会被跳过，画板从此吃掉面板上所有点击。
+            if (IsMouseCaptured)
+            {
+                ReleaseMouseCapture();
+                AppLog.Info("[指针] 画板释放捕获");
+            }
+
             e.Handled = true;
         }
     }
@@ -1637,6 +1921,74 @@ public sealed class FreeformBoard : Grid
         }
     }
 
+    /// <summary>工具 → <c>payload.shape</c> 的取值（矩形/圆/线/箭头）。</summary>
+    private static string ShapeName(FreeformTool tool) => tool switch
+    {
+        FreeformTool.Line => "line",
+        FreeformTool.Arrow => "arrow",
+        FreeformTool.Circle => "circle",
+        _ => "rect",
+    };
+
+    private static Shape NewShapeVisual(string shape) => shape switch
+    {
+        "line" => new Line(),
+        "arrow" => new System.Windows.Shapes.Path(),
+        "circle" => new Ellipse { Fill = Brushes.Transparent },
+        _ => new Rectangle { Fill = Brushes.Transparent, RadiusX = 4, RadiusY = 4 },
+    };
+
+    /// <summary>把 (x1,y1)-(x2,y2) 落到具体图形上；预览与最终图元共用这一段。</summary>
+    private static void PositionShape(Shape element, string shape, double x1, double y1, double x2, double y2)
+    {
+        if (element is Line line)
+        {
+            line.X1 = x1;
+            line.Y1 = y1;
+            line.X2 = x2;
+            line.Y2 = y2;
+            return;
+        }
+
+        if (element is System.Windows.Shapes.Path path)
+        {
+            path.Data = BuildArrowGeometry(x1, y1, x2, y2);
+            return;
+        }
+
+        element.Width = Math.Max(1, Math.Abs(x2 - x1));
+        element.Height = Math.Max(1, Math.Abs(y2 - y1));
+        Canvas.SetLeft(element, Math.Min(x1, x2));
+        Canvas.SetTop(element, Math.Min(y1, y2));
+    }
+
+    /// <summary>箭头必须看得出朝向：线 + 两条回折的头部（线本身没有头，两者不能画成一样）。</summary>
+    private static StreamGeometry BuildArrowGeometry(double x1, double y1, double x2, double y2)
+    {
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+        {
+            context.BeginFigure(new Point(x1, y1), false, false);
+            context.LineTo(new Point(x2, y2), true, false);
+            var angle = Math.Atan2(y2 - y1, x2 - x1);
+            const double headLength = 12;
+            const double headSpread = Math.PI / 7;
+            context.BeginFigure(new Point(x2, y2), false, false);
+            context.LineTo(
+                new Point(x2 - (headLength * Math.Cos(angle - headSpread)), y2 - (headLength * Math.Sin(angle - headSpread))),
+                true,
+                false);
+            context.BeginFigure(new Point(x2, y2), false, false);
+            context.LineTo(
+                new Point(x2 - (headLength * Math.Cos(angle + headSpread)), y2 - (headLength * Math.Sin(angle + headSpread))),
+                true,
+                false);
+        }
+
+        geometry.Freeze();
+        return geometry;
+    }
+
     /// <summary>
     /// 图形图元按绝对画布坐标画（不套 <see cref="Wrap"/>）：线段不能用一个矩形框代表，
     /// 端点与走向必须来自 <c>payload</c>。颜色走令牌名，换色板自动跟随。
@@ -1648,58 +2000,12 @@ public sealed class FreeformBoard : Grid
         var y1 = Parse(item.Get("y1"), item.Y);
         var x2 = Parse(item.Get("x2"), item.X + item.W);
         var y2 = Parse(item.Get("y2"), item.Y + item.H);
-        var width = Math.Max(1, Math.Abs(x2 - x1));
-        var height = Math.Max(1, Math.Abs(y2 - y1));
 
-        Shape element;
-        switch (shape)
-        {
-            case "line":
-                element = new Line { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2 };
-                break;
-            case "arrow":
-                // 箭头必须看得出朝向：线 + 两条回折的头部（线本身没有头，两者不能画成一样）
-                var geometry = new StreamGeometry();
-                using (var context = geometry.Open())
-                {
-                    context.BeginFigure(new Point(x1, y1), false, false);
-                    context.LineTo(new Point(x2, y2), true, false);
-                    var angle = Math.Atan2(y2 - y1, x2 - x1);
-                    const double headLength = 12;
-                    const double headSpread = Math.PI / 7;
-                    context.BeginFigure(new Point(x2, y2), false, false);
-                    context.LineTo(
-                        new Point(x2 - (headLength * Math.Cos(angle - headSpread)), y2 - (headLength * Math.Sin(angle - headSpread))),
-                        true,
-                        false);
-                    context.BeginFigure(new Point(x2, y2), false, false);
-                    context.LineTo(
-                        new Point(x2 - (headLength * Math.Cos(angle + headSpread)), y2 - (headLength * Math.Sin(angle + headSpread))),
-                        true,
-                        false);
-                }
+        var element = NewShapeVisual(shape);
+        PositionShape(element, shape, x1, y1, x2, y2);
 
-                geometry.Freeze();
-                element = new System.Windows.Shapes.Path { Data = geometry };
-                break;
-            default:
-                element = shape == "circle"
-                    ? new Ellipse { Width = width, Height = height, Fill = Brushes.Transparent }
-                    : new Rectangle
-                    {
-                        Width = width,
-                        Height = height,
-                        RadiusX = 4,
-                        RadiusY = 4,
-                        Fill = Brushes.Transparent,
-                    };
-                Canvas.SetLeft(element, Math.Min(x1, x2));
-                Canvas.SetTop(element, Math.Min(y1, y2));
-                break;
-        }
-
-        element.StrokeThickness = 2;
-        element.SetResourceReference(Shape.StrokeProperty, "BorderActive");
+        element.StrokeThickness = Math.Clamp(Parse(item.Get("strokeWidth"), 2), 1, 16);
+        ApplyStrokeColor(element, item.Get("color"));
         if (string.Equals(item.Get("dash"), "1", StringComparison.Ordinal))
         {
             element.StrokeDashArray = new DoubleCollection { 4, 3 };
@@ -1709,8 +2015,23 @@ public sealed class FreeformBoard : Grid
         return element;
     }
 
-    private static double Parse(string? text, double fallback) =>
-        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : fallback;
+    /// <summary>图形描边：`accent` 跟随色板（DynamicResource），自定义色存 #RRGGBB。</summary>
+    private void ApplyStrokeColor(Shape element, string? key)
+    {
+        var effective = string.IsNullOrWhiteSpace(key) ? "accent" : key.Trim();
+        if (effective.Equals("accent", StringComparison.OrdinalIgnoreCase))
+        {
+            element.SetResourceReference(Shape.StrokeProperty, "Accent");
+            return;
+        }
+
+        var color = ParseColor(effective);
+        element.Stroke = color == Colors.Transparent
+            ? new SolidColorBrush(Colors.White)
+            : new SolidColorBrush(color);
+    }
+
+    private static double Parse(string? text, double fallback) =>        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : fallback;
 
     private static (int Width, int Height) ReadNaturalSize(string path)
     {
