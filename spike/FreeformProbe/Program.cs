@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -144,6 +144,9 @@ internal static class Program
 
         // ⑭ 0.7.1 现场排查：视口 offset 让画布原点落在可视区下方时，上半截的笔迹到底渲不渲出来
         InkOffscreenChecks();
+
+        // ⑮ 0.7.1 第二批实机反馈：笔色被背景带走 / 橡皮容差 / 工具光标
+        ToolingChecks();
 
         Console.WriteLine(_failed == 0 ? "PROBE PASS" : $"PROBE FAIL ({_failed})");
         return _failed == 0 ? 0 : 1;
@@ -997,6 +1000,66 @@ internal static class Program
         Check("橡皮擦掉下半截笔迹（对照）", document.Objects.Count == bottomObjs.Count - 1,
             $"before={bottomObjs.Count} after={document.Objects.Count}");
         board.Tool = FreeformTool.Ink;
+    }
+
+    /// <summary>
+    /// 0.7.1 第二批实机反馈：①换背景色把画笔颜色一起改了、颜色面板点了没反应；
+    /// ②橡皮判定范围太小，细线几乎点不中；③笔/橡皮/缩放没有工具专属光标。
+    /// </summary>
+    private static void ToolingChecks()
+    {
+        var document = new CanvasDocument();
+        var board = new FreeformBoard { Width = 800, Height = 600 };
+        board.Attach(document, () => { }, null);
+
+        var original = Application.Current.Resources["Accent"];
+        Application.Current.Resources["Accent"] = new SolidColorBrush(Colors.DimGray);
+        board.SetStrokeWidth(3);
+        Check("默认笔色落成具体色值（不再保存 accent）", board.ColorKey == "#696969", $"key={board.ColorKey}");
+
+        Application.Current.Resources["Accent"] = new SolidColorBrush(Colors.Red);
+        board.SetStrokeWidth(4);
+        Check(
+            "换强调色不改已经拿在手里的笔色",
+            board.ColorKey == "#696969" && board.StrokeColor == Colors.DimGray,
+            $"key={board.ColorKey} color={board.StrokeColor}");
+
+        board.SetColorKey("accent");
+        Application.Current.Resources["Accent"] = new SolidColorBrush(Colors.Blue);
+        board.SetStrokeWidth(5);
+        Check(
+            "显式选了「跟随色板」才继续跟",
+            board.ColorKey == "accent" && board.StrokeColor == Colors.Transparent,
+            $"key={board.ColorKey} color={board.StrokeColor}");
+        Application.Current.Resources["Accent"] = original;
+
+        // 橡皮容差：缩放 1 时 12 DIP 容差 = 12 画布单位
+        var eraserDocument = new CanvasDocument();
+        var eraserBoard = new FreeformBoard { Width = 800, Height = 600 };
+        eraserBoard.Attach(eraserDocument, () => { }, null);
+        eraserDocument.Objects.Add(MakeText("e1", 200, 200, 80, 40, "E"));
+        eraserBoard.Rebuild();
+        eraserBoard.Tool = FreeformTool.Eraser;
+        eraserBoard.PointerDown(new Point(192, 220), ModifierKeys.None);
+        eraserBoard.PointerUp();
+        Check("橡皮擦掉边框外 8 DIP 的目标", eraserDocument.Objects.Count == 0, $"objects={eraserDocument.Objects.Count}");
+
+        eraserDocument.Objects.Add(MakeText("e2", 200, 200, 80, 40, "E"));
+        eraserBoard.Rebuild();
+        eraserBoard.PointerDown(new Point(150, 220), ModifierKeys.None);
+        eraserBoard.PointerUp();
+        Check("橡皮不会擦到 50 DIP 外的目标", eraserDocument.Objects.Count == 1, $"objects={eraserDocument.Objects.Count}");
+
+        Check("笔工具有专属笔尖光标", !ReferenceEquals(ToolCursors.Pen, Cursors.Cross), ToolCursors.Pen.ToString());
+        Check("橡皮工具有专属橡皮光标", !ReferenceEquals(ToolCursors.Eraser, Cursors.Cross), ToolCursors.Eraser.ToString());
+        Check("缩放工具有专属放大镜光标", !ReferenceEquals(ToolCursors.Zoom, Cursors.Cross), ToolCursors.Zoom.ToString());
+
+        eraserBoard.Tool = FreeformTool.Eraser;
+        Check("切到橡皮后控件光标跟着换", ReferenceEquals(eraserBoard.Cursor, ToolCursors.Eraser), eraserBoard.Cursor?.ToString() ?? "<null>");
+        eraserBoard.Tool = FreeformTool.Ink;
+        Check("切到画笔后控件光标跟着换", ReferenceEquals(eraserBoard.Cursor, ToolCursors.Pen), eraserBoard.Cursor?.ToString() ?? "<null>");
+        eraserBoard.Tool = FreeformTool.Text;
+        Check("文本工具仍是 I 形光标", ReferenceEquals(eraserBoard.Cursor, Cursors.IBeam), eraserBoard.Cursor?.ToString() ?? "<null>");
     }
 
     private static void WriteVisualPng(string path, Visual visual, int width, int height)

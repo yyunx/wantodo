@@ -119,6 +119,12 @@ public sealed class FreeformBoard : Grid
     /// <summary>当前画的颜色键（`accent` 或 `#RRGGBB`）；笔和图形共用（C8）。</summary>
     public string ColorKey { get; private set; } = "accent";
 
+    /// <summary>
+    /// 用户是否主动选了「跟随色板强调色」。默认的 `accent` 只是一次快照，
+    /// 不然换主题或换背景色会把正在用的画笔颜色一起改掉。
+    /// </summary>
+    private bool _followPalette;
+
     /// <summary>图形线宽（DIP）；跟画笔共用一个粗细档位。</summary>
     public double ShapeWidth { get; private set; } = 2;
 
@@ -127,6 +133,7 @@ public sealed class FreeformBoard : Grid
     {
         var normalized = string.IsNullOrWhiteSpace(key) ? "accent" : key.Trim();
         ColorKey = normalized.Equals("accent", StringComparison.OrdinalIgnoreCase) ? "accent" : normalized;
+        _followPalette = ColorKey == "accent";
         StrokeColor = ParseColor(ColorKey);
         StrokeWidth = Math.Clamp(StrokeWidth, 1, 24);
         ShapeWidth = Math.Clamp(StrokeWidth, 1, 16);
@@ -482,6 +489,7 @@ public sealed class FreeformBoard : Grid
     /// </summary>
     private void UpdateInkLayer()
     {
+        PinPaletteColorIfNeeded();
         _ink.IsHitTestVisible = false;
         _ink.EditingMode = InkCanvasEditingMode.None;
         var width = Math.Clamp(StrokeWidth, 1, 24);
@@ -494,6 +502,27 @@ public sealed class FreeformBoard : Grid
             FitToCurve = true,
             StylusTip = StylusTip.Ellipse,
         };
+    }
+
+    /// <summary>
+    /// 默认笔色取「当时的强调色」快照，之后不再跟着色板走：
+    /// 换主题/换背景色只该改背景，不该把已经在手里的画笔颜色也改掉。
+    /// 只有用户主动点了「跟随色板强调色」（<see cref="_followPalette"/>）才继续跟。
+    /// </summary>
+    private void PinPaletteColorIfNeeded()
+    {
+        if (_followPalette || StrokeColor != Colors.Transparent)
+        {
+            return;
+        }
+
+        if (TryFindResource("Accent") is not SolidColorBrush brush)
+        {
+            return;
+        }
+
+        StrokeColor = brush.Color;
+        ColorKey = $"#{brush.Color.R:X2}{brush.Color.G:X2}{brush.Color.B:X2}";
     }
 
     private Color ResolveStrokeColor()
@@ -809,6 +838,7 @@ public sealed class FreeformBoard : Grid
     /// <summary>按下：起一个新笔画，先挂在墨层上实时显示，抬手再落模型。</summary>
     private void BeginStroke(Point canvas)
     {
+        PinPaletteColorIfNeeded();
         _strokePoints = new StylusPointCollection { new StylusPoint(canvas.X, canvas.Y) };
         var width = Math.Clamp(StrokeWidth, 1, 24);
         var attributes = new DrawingAttributes
@@ -861,9 +891,13 @@ public sealed class FreeformBoard : Grid
     }
 
     /// <summary>橡皮：按住拖过就连续擦（C5），按画布坐标命中。</summary>
+    /// <summary>橡皮判定半径（屏幕 DIP）；画布单位按当前缩放换算。</summary>
+    private const double EraserTolerance = 12;
+
     private void EraseAt(Point canvas)
     {
-        if (HitTest(canvas) is { } target)
+        var tolerance = EraserTolerance / Math.Max(0.0001, _scale.ScaleX);
+        if (HitTest(canvas, tolerance) is { } target)
         {
             DeleteObject(target.Id);
         }
@@ -874,6 +908,7 @@ public sealed class FreeformBoard : Grid
     /// <summary>拖动式创建（矩形/线/箭头）：按下记起点，移动画预览，抬起落模型。</summary>
     private void BeginCreate(Point board, FreeformTool tool)
     {
+        PinPaletteColorIfNeeded();
         _creating = true;
         _createStart = ToCanvas(board);
         var shape = ShapeName(tool);
@@ -1228,8 +1263,11 @@ public sealed class FreeformBoard : Grid
 
     // ---- 命中与选择 ---------------------------------------------------------
 
-    /// <summary>画布坐标下点中了哪个图元（取 Z 最高的那个）。</summary>
-    private CanvasObject? HitTest(Point canvasPoint)
+    /// <summary>
+    /// 画布坐标下点中了哪个图元（取 Z 最高的那个）。<paramref name="tolerance"/>
+    /// 是画布单位的外扩量：橡皮需要「差一点也算擦到」，否则细线几乎点不中。
+    /// </summary>
+    private CanvasObject? HitTest(Point canvasPoint, double tolerance = 0)
     {
         var document = _document;
         if (document is null)
@@ -1237,11 +1275,12 @@ public sealed class FreeformBoard : Grid
             return null;
         }
 
+        var pad = Math.Max(0, tolerance);
         CanvasObject? hit = null;
         foreach (var item in document.Objects.Where(Matches))
         {
-            if (canvasPoint.X >= item.X && canvasPoint.X <= item.X + item.W &&
-                canvasPoint.Y >= item.Y && canvasPoint.Y <= item.Y + item.H)
+            if (canvasPoint.X >= item.X - pad && canvasPoint.X <= item.X + item.W + pad &&
+                canvasPoint.Y >= item.Y - pad && canvasPoint.Y <= item.Y + item.H + pad)
             {
                 if (hit is null || item.ZIndex >= hit.ZIndex)
                 {
@@ -1872,14 +1911,22 @@ public sealed class FreeformBoard : Grid
 
     private void ApplyCursor()
     {
-        Cursor = _panning || _spaceHeld || _tool == FreeformTool.Pan
-            ? Cursors.Hand
-            : _tool switch
-            {
-                FreeformTool.Text => Cursors.IBeam,
-                FreeformTool.Select => Cursors.Arrow,
-                _ => Cursors.Cross,
-            };
+        // 每个工具一个光标：笔是笔尖、橡皮是橡皮、缩放是放大镜，别一律十字。
+        if (_panning || _spaceHeld || _tool == FreeformTool.Pan)
+        {
+            Cursor = Cursors.Hand;
+            return;
+        }
+
+        Cursor = _tool switch
+        {
+            FreeformTool.Text => Cursors.IBeam,
+            FreeformTool.Select => Cursors.Arrow,
+            FreeformTool.Ink => ToolCursors.Pen,
+            FreeformTool.Eraser => ToolCursors.Eraser,
+            FreeformTool.Zoom => ToolCursors.Zoom,
+            _ => Cursors.Cross,
+        };
     }
 
     // ---- 渲染 ---------------------------------------------------------------

@@ -396,6 +396,9 @@ public partial class TopPanelWindow : Window
             swatch.MouseLeftButtonUp += (_, _) =>
             {
                 ApplyStrokeStyle(key, FreeformBoard.StrokeWidth);
+                // 面板是自己关的（不是用户再点一下开关），开关状态要跟着回去，
+                // 否则下一次点「色」只会把它关掉，看起来像「点了没反应」。
+                ToolColor.IsChecked = false;
                 ColorPopup.IsOpen = false;
             };
             ColorSwatches.Children.Add(swatch);
@@ -415,6 +418,7 @@ public partial class TopPanelWindow : Window
             button.Click += (_, _) =>
             {
                 ApplyStrokeStyle(FreeformBoard.ColorKey, width);
+                ToolColor.IsChecked = false;
                 ColorPopup.IsOpen = false;
             };
             WidthChoices.Children.Add(button);
@@ -478,6 +482,12 @@ public partial class TopPanelWindow : Window
 
     /// <summary>列选择下拉是否打开：打开时点下拉项会被钩子误判成「点面板外」。</summary>
     public bool IsPickerOpen => ColumnPicker.IsDropDownOpen;
+
+    /// <summary>
+    /// 任何 Popup 开着都算：Popup 靠「鼠标捕获」判定外部点击，钩子要是这时候
+    /// 把捕获清掉，颜色面板会在按下的瞬间自己关掉，色块永远收不到点击。
+    /// </summary>
+    public bool IsAnyPopupOpen => ColorPopup.IsOpen || ColumnPicker.IsDropDownOpen;
 
     /// <summary>
     /// 面板看得见、点却点不动时，最常见的原因是它被别的普通窗口压住了（面板不是置顶窗口）。

@@ -176,11 +176,15 @@ public sealed class TopEdgePanelService : IDisposable
         var captured = System.Windows.Input.Mouse.Captured;
         var inside = _panel.ContainsScreenPoint(x, y);
         AppLog.Info($"[指针] 全局按下 screen=({x},{y}) 面板内={inside} 捕获={captured?.GetType().Name ?? "无"} 窗口={NativeMethods.DescribeWindowAt(x, y)}");
-        if (captured is not null)
+        if (captured is not null && !_panel.IsAnyPopupOpen)
         {
             // 自愈：钩子先于 WPF 路由，此刻还挂着的捕获一定是上一轮手势泄漏来的。
             // 不放掉它，这一下点击就被那个元素吞掉；画板在矩形工具下又会把吞掉的点击
             // 当成零尺寸图形静默丢弃，于是「工具栏点不动」且日志一片空白。
+            //
+            // 但 Popup（颜色面板/列选择）正是靠捕获来判定「点了外面」的：
+            // 这时候清捕获等于替用户点了一下外面，面板会在按下的瞬间关掉，
+            // 色块永远收不到那一次点击。
             System.Windows.Input.Mouse.Capture(null);
             AppLog.Warn($"[指针] 释放泄漏的鼠标捕获（{captured.GetType().Name}）");
         }
@@ -221,9 +225,9 @@ public sealed class TopEdgePanelService : IDisposable
             }
         }
 
-        // 下拉框的弹出层是独立 HWND，点它里面的选项会落在面板矩形外；
-        // 不能因为这一下把整个面板收起来，否则选列等于关窗。
-        if (_panel.IsPickerOpen)
+        // 下拉框/颜色面板的弹出层是独立 HWND，点它里面的选项会落在面板矩形外；
+        // 不能因为这一下把整个面板收起来，否则选列、改色等于关窗。
+        if (_panel.IsAnyPopupOpen)
         {
             return;
         }
