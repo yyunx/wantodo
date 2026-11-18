@@ -132,10 +132,10 @@
                                 <Border DockPanel.Dock="Left" Padding="2" CornerRadius="8"
                                         Background="{DynamicResource BorderSubtle}">
                                     <StackPanel Orientation="Horizontal">
-                                        <ToggleButton x:Name="SurfaceStructuredButton" Content="结构化"
+                                        <ToggleButton x:Name="SurfaceStructuredButton" Content="卡片式"
                                                       Style="{StaticResource SurfaceSegment}"
                                                       Click="OnSurfaceButtonClick" />
-                                        <ToggleButton x:Name="SurfaceFreeformButton" Content="自由"
+                                        <ToggleButton x:Name="SurfaceFreeformButton" Content="画布"
                                                       Style="{StaticResource SurfaceSegment}"
                                                       Click="OnSurfaceButtonClick" />
                                     </StackPanel>
@@ -206,8 +206,18 @@
                                                           ToolTip="画笔（B）" Click="OnToolClick" />
                                             <ToggleButton x:Name="ToolEraser" Content="擦" Tag="eraser" Style="{StaticResource ToolToggle}"
                                                           ToolTip="橡皮（E，按住拖可连续擦）" Click="OnToolClick" />
-                                            <ToggleButton x:Name="ToolColor" Content="色" Style="{StaticResource ToolToggle}"
-                                                          ToolTip="线条颜色与粗细（对笔、线、箭头、矩形、圆生效）" Click="OnToolColorClick" />
+                                            <ToggleButton x:Name="ToolColor" Style="{StaticResource ToolToggle}"
+                                                          ToolTip="线条颜色与粗细（对笔、线、箭头、矩形、圆生效）" Click="OnToolColorClick">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <!-- 当前画笔颜色：色块 + 十六进制，换色/换主题后即时刷新 -->
+                                                    <Border x:Name="PenColorSwatch" Width="12" Height="12"
+                                                            CornerRadius="6" VerticalAlignment="Center"
+                                                            BorderThickness="1" Margin="0,0,4,0"
+                                                            BorderBrush="{DynamicResource BorderActive}" />
+                                                    <TextBlock x:Name="PenColorLabel" Text="色" VerticalAlignment="Center"
+                                                               FontSize="11" />
+                                                </StackPanel>
+                                            </ToggleButton>
                                             <Popup x:Name="ColorPopup" PlacementTarget="{Binding ElementName=ToolColor}"
                                                    Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
                                                    PopupAnimation="Fade">

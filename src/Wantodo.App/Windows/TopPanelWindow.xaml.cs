@@ -75,6 +75,10 @@ public partial class TopPanelWindow : Window
         ApplyMode();
         ApplySurface();
         BuildPaletteDots();
+        // 工具条上「色」按钮要实时显示手里这支笔的颜色（含第一次落笔把 accent 快照成具体色值那次）。
+        FreeformBoard.StrokeStyleChanged += (_, _) => RefreshPenColorSwatch();
+        Appearance.ThemeService.Applied += RefreshPenColorSwatch;
+        RefreshPenColorSwatch();
 
         // 面板也要材质：Prepare 装 WindowChrome 并把 Background 置空，SourceInitialized 里再调 DWM。
         GlassSurface.Prepare(this);
@@ -102,7 +106,6 @@ public partial class TopPanelWindow : Window
     }
 
     private bool IsCanvasMode => string.Equals(_viewModel.Model.PanelMode, Board.CanvasPanelMode, StringComparison.OrdinalIgnoreCase);
-
     /// <summary>桌面版（布局宿主可见）时才有分隔条/栏头拖动可以命中。</summary>
     public bool IsDockMode => !IsCanvasMode;
 
@@ -444,6 +447,26 @@ public partial class TopPanelWindow : Window
         FreeformBoard.SetColorKey(key);
         FreeformBoard.SetStrokeWidth(width);
         AppLog.Info($"[画布] 颜色={key} 粗细={width:0} DIP");
+        RefreshPenColorSwatch();
+    }
+
+    /// <summary>
+    /// 「色」按钮上的当前画笔颜色：色块 + <c>#RRGGBB</c>。
+    /// 笔还在「跟随色板」时显示解析后的实际色值，跟所见即所得一致。
+    /// </summary>
+    private void RefreshPenColorSwatch()
+    {
+        var color = FreeformBoard.StrokeColor;
+        if (color == Colors.Transparent)
+        {
+            color = (TryFindResource("Accent") as SolidColorBrush)?.Color ?? Colors.White;
+        }
+
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        PenColorSwatch.Background = brush;
+        PenColorLabel.Text = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        ToolColor.ToolTip = $"当前画笔颜色 #{color.R:X2}{color.G:X2}{color.B:X2} · 粗细 {FreeformBoard.StrokeWidth:0} DIP（点击换色/粗细）";
     }
 
     private void OnZoomIn(object sender, RoutedEventArgs e)
@@ -489,6 +512,28 @@ public partial class TopPanelWindow : Window
     /// </summary>
     public bool IsAnyPopupOpen => ColorPopup.IsOpen || ColumnPicker.IsDropDownOpen;
 
+    private int _modalDepth;
+
+    /// <summary>
+    /// 模态对话框（新建栏目、计时设置、选图）正开着。对话框是独立窗口，
+    /// 点它里面的按钮落在面板矩形外；钩子若照常处理，会把面板当成「点了外面」收起来，
+    /// 用户看到的就是「新建栏目点了没反应」。
+    /// </summary>
+    public bool IsModalOpen => _modalDepth > 0;
+
+    private bool ShowModal(System.Windows.Window dialog)
+    {
+        _modalDepth++;
+        try
+        {
+            return dialog.ShowDialog() == true;
+        }
+        finally
+        {
+            _modalDepth--;
+        }
+    }
+
     /// <summary>
     /// 面板看得见、点却点不动时，最常见的原因是它被别的普通窗口压住了（面板不是置顶窗口）。
     /// 每次在面板范围内按下都把自己提回非置顶窗口的最上层，下一次点击就能落到面板上。
@@ -531,7 +576,7 @@ public partial class TopPanelWindow : Window
     private void OnCanvasAddTimer(object sender, RoutedEventArgs e)
     {
         var dialog = new Dialogs.TimerSetupDialog(TimerMode.Countdown, CanvasClock.DefaultCountdownSeconds) { Owner = this };
-        if (dialog.ShowDialog() != true)
+        if (!ShowModal(dialog))
         {
             return;
         }
@@ -572,7 +617,17 @@ public partial class TopPanelWindow : Window
             Title = "选择图片",
             Filter = "图片|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|所有文件|*.*",
         };
-        return dialog.ShowDialog(this) == true ? dialog.FileName : null;
+
+        // 系统模态选图窗口：打开期间不能被钩子当成「点了面板外面」。
+        _modalDepth++;
+        try
+        {
+            return dialog.ShowDialog(this) == true ? dialog.FileName : null;
+        }
+        finally
+        {
+            _modalDepth--;
+        }
     }
 
     /// <summary>自由表面插入图片失败：宿主只负责报错与刷新状态行。</summary>
@@ -992,8 +1047,9 @@ public partial class TopPanelWindow : Window
         {
             Owner = this,
         };
-        if (dialog.ShowDialog() != true)
+        if (!ShowModal(dialog))
         {
+            AppLog.Info("[卡片] 新建栏目：对话框取消");
             return null;
         }
 
@@ -1001,6 +1057,7 @@ public partial class TopPanelWindow : Window
         CanvasBoard.ColumnCreatorTitle = string.IsNullOrWhiteSpace(dialog.ColumnTitle)
             ? ColumnNameDialog.DefaultName
             : dialog.ColumnTitle;
+        AppLog.Info($"[卡片] 新建栏目 名字={CanvasBoard.ColumnCreatorTitle} id={id ?? "<null>"}");
         return id;
     }
 

@@ -175,8 +175,13 @@ public sealed class TopEdgePanelService : IDisposable
         // 钩子在事件路由之前跑，是唯一能看到每一次真实按下的地方。
         var captured = System.Windows.Input.Mouse.Captured;
         var inside = _panel.ContainsScreenPoint(x, y);
-        AppLog.Info($"[指针] 全局按下 screen=({x},{y}) 面板内={inside} 捕获={captured?.GetType().Name ?? "无"} 窗口={NativeMethods.DescribeWindowAt(x, y)}");
-        if (captured is not null && !_panel.IsAnyPopupOpen)
+        // 弹出层（下拉框/颜色面板/右键菜单/ToolTip）与模态对话框都靠捕获判定「点了外面」，
+        // 这一下很可能正落在它自己的选项上：既不能清捕获，也不能当成「点了面板外」。
+        // 待办卡里的栏目下拉是 WPF 临时建的 PopupRoot，不属于面板自己的两个 Popup，
+        // 只能靠「捕获者是不是弹出层」来认。
+        var popupUp = _panel.IsAnyPopupOpen || _panel.IsModalOpen || PopupCapture.IsPopup(captured);
+        AppLog.Info($"[指针] 全局按下 screen=({x},{y}) 面板内={inside} 捕获={captured?.GetType().Name ?? "无"} 弹出层={popupUp} 窗口={NativeMethods.DescribeWindowAt(x, y)}");
+        if (captured is not null && !popupUp)
         {
             // 自愈：钩子先于 WPF 路由，此刻还挂着的捕获一定是上一轮手势泄漏来的。
             // 不放掉它，这一下点击就被那个元素吞掉；画板在矩形工具下又会把吞掉的点击
@@ -227,7 +232,7 @@ public sealed class TopEdgePanelService : IDisposable
 
         // 下拉框/颜色面板的弹出层是独立 HWND，点它里面的选项会落在面板矩形外；
         // 不能因为这一下把整个面板收起来，否则选列、改色等于关窗。
-        if (_panel.IsAnyPopupOpen)
+        if (popupUp || PopupCapture.IsPopup(System.Windows.Input.Mouse.Captured))
         {
             return;
         }

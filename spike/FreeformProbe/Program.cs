@@ -1,12 +1,14 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Ink;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Wantodo.App.Controls;
+using Wantodo.App.Windows;
 using Wantodo.Core;
 
 namespace FreeformProbe;
@@ -1060,6 +1062,42 @@ internal static class Program
         Check("切到画笔后控件光标跟着换", ReferenceEquals(eraserBoard.Cursor, ToolCursors.Pen), eraserBoard.Cursor?.ToString() ?? "<null>");
         eraserBoard.Tool = FreeformTool.Text;
         Check("文本工具仍是 I 形光标", ReferenceEquals(eraserBoard.Cursor, Cursors.IBeam), eraserBoard.Cursor?.ToString() ?? "<null>");
+
+        StyleEventChecks();
+        PopupChecks();
+    }
+
+    /// <summary>工具栏那支笔的颜色要跟着变：SetColorKey/SetStrokeWidth 必须通知宿主。</summary>
+    private static void StyleEventChecks()
+    {
+        var board = new FreeformBoard { Width = 800, Height = 600 };
+        var fired = 0;
+        board.StrokeStyleChanged += (_, _) => fired++;
+
+        board.SetColorKey("#E5484D");
+        var afterColor = fired;
+        Check("换笔色会通知宿主刷新色块", afterColor >= 1, $"fired={afterColor}");
+
+        board.SetStrokeWidth(5);
+        Check("换粗细也会通知宿主", fired > afterColor, $"fired={fired}");
+
+        // 同一颜色重复设置不该再刷：ToolColor 的开关状态会被无意义地重置。
+        var before = fired;
+        board.SetColorKey("#E5484D");
+        Check("重复设同一颜色不再通知", fired == before, $"before={before} after={fired}");
+    }
+
+    /// <summary>待办卡的栏目下拉是 WPF 临时建的 PopupRoot：钩子必须认出来，否则会把它关掉。</summary>
+    private static void PopupChecks()
+    {
+        Check("捕获为空时不算弹出层", !PopupCapture.IsPopup(null), "null");
+
+        var popup = new Popup();
+        Check("真正的 Popup 算弹出层", PopupCapture.IsPopup(popup), popup.GetType().Name);
+
+        // PopupRoot 是 WPF 内部类型，只能用类型名认：这里拿不到实例，直接验判据函数对它类型名的判断。
+        Check("类型名判据能吃 PopupRoot 这类内部类型", PopupCapture.LooksLikePopupTypeName("PopupRoot"), "PopupRoot");
+        Check("普通控件类型名不算弹出层", !PopupCapture.LooksLikePopupTypeName("FreeformBoard"), "FreeformBoard");
     }
 
     private static void WriteVisualPng(string path, Visual visual, int width, int height)

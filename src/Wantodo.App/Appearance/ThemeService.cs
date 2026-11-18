@@ -12,6 +12,13 @@ namespace Wantodo.App.Appearance;
 /// </summary>
 public static class ThemeService
 {
+    /// <summary>
+    /// 资源换完一批之后的通知。XAML 里用 DynamicResource 的元素会自己刷新；
+    /// 程序化建出来的元素（卡片、图元）拿到的是 <c>FindResource</c> 的快照画刷，
+    /// 必须靠这个事件重建一次才能适配新主题（用户反馈：换背景后卡片要等下一次操作才变色）。
+    /// </summary>
+    public static event Action? Applied;
+
     public static void Apply(Board board)
     {
         var colors = ThemePalette.For(
@@ -99,6 +106,8 @@ public static class ThemeService
         resources[ThemeResourceKeys.GlassControlBrush] = GlassState.Enabled
             ? Brush(colors.SurfaceCard, 0.86)
             : Brush(colors.CardBackground);
+
+        Applied?.Invoke();
     }
 
     public static SolidColorBrush Brush(Rgb color) => Brush(color, 1);

@@ -89,6 +89,20 @@ public sealed class CanvasBoard : Canvas
         _empty.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
         Canvas.SetLeft(_empty, 20);
         Canvas.SetTop(_empty, 14);
+
+        // 卡片的底色/描边/文字色都是建卡时用 FindResource 抓的快照画刷，换主题不会自己变。
+        // 不重建就会出现「换了背景色，卡片还是旧颜色，删掉一张卡之后才全部刷新」。
+        Appearance.ThemeService.Applied += OnThemeApplied;
+    }
+
+    private void OnThemeApplied()
+    {
+        if (!IsLoaded || _document is null)
+        {
+            return;
+        }
+
+        Rebuild();
     }
 
     public CanvasDocument Document => _document;
@@ -821,6 +835,11 @@ public sealed class CanvasBoard : Canvas
         combo.SelectedItem = combo.Items.OfType<ColumnChoice>()
             .FirstOrDefault(c => string.Equals(c.Id, columnId, StringComparison.Ordinal));
 
+        // 用户报过「选栏目、新建栏目点了没反应」：下拉是 WPF 临时建的 PopupRoot，
+        // 打点才知道它到底有没有打开、选项有没有被选中。
+        combo.DropDownOpened += (_, _) => AppLog.Info($"[卡片] 待办卡栏目下拉打开 选项={combo.Items.Count}");
+        combo.DropDownClosed += (_, _) => AppLog.Info("[卡片] 待办卡栏目下拉关闭");
+
         // 没选栏目时 ComboBox 会显示成一块空白（上一版用户截图里就是这样）。垫一层占位字，
         // 选中后隐藏；不影响下拉，也不吃点击。
         var placeholder = new TextBlock
@@ -978,6 +997,7 @@ public sealed class CanvasBoard : Canvas
             }
 
             string? targetId = choice.Id;
+            AppLog.Info($"[卡片] 待办卡 选择={choice.Id} 新建={choice.IsCreateNew} 卡={item.Id}");
             if (choice.IsCreateNew)
             {
                 targetId = ColumnCreator?.Invoke(null);
@@ -1538,6 +1558,36 @@ public sealed class CanvasBoard : Canvas
         return false;
     }
 
+    /// <summary>
+    /// 这次按下来自卡片内部的交互控件（下拉框、滚动条、勾选框、按钮）而不是卡片本体。
+    /// 卡片不能把它当成拖动起点，否则内部的控件永远收不到点击。
+    /// </summary>
+    private static bool InControl(object? source)
+    {
+        var current = source as DependencyObject;
+        while (current is not null)
+        {
+            if (current is System.Windows.Controls.Primitives.ButtonBase
+                or System.Windows.Controls.Primitives.ScrollBar
+                or System.Windows.Controls.Primitives.TextBoxBase
+                or ComboBox
+                or ListBox)
+            {
+                return true;
+            }
+
+            // 走到卡片本体（Border 且 Tag 是 CanvasItem）就停：再往上是画板，不该拦。
+            if (current is Border { Tag: CanvasItem })
+            {
+                return false;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
+    }
+
     private static string KindLabel(string kind) => kind switch
     {
         "todo" => "待办",
@@ -1602,7 +1652,10 @@ public sealed class CanvasBoard : Canvas
             return;
         }
 
-        if (e.OriginalSource is Button || InTextBox(e.OriginalSource))
+        // 卡内控件自己处理点击：按钮、输入框、栏目下拉（待办卡）。
+        // 这里少放行一个，卡片就会把这一下抢去当拖动起点并抓走鼠标，
+        // 用户看到的就是「选栏目、新建栏目点了没反应」。
+        if (e.OriginalSource is Button || InTextBox(e.OriginalSource) || InControl(e.OriginalSource))
         {
             return;
         }

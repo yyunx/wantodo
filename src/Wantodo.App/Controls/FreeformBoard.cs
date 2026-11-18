@@ -132,20 +132,37 @@ public sealed class FreeformBoard : Grid
     public void SetColorKey(string? key)
     {
         var normalized = string.IsNullOrWhiteSpace(key) ? "accent" : key.Trim();
-        ColorKey = normalized.Equals("accent", StringComparison.OrdinalIgnoreCase) ? "accent" : normalized;
+        var next = normalized.Equals("accent", StringComparison.OrdinalIgnoreCase) ? "accent" : normalized;
+        PinPaletteColorIfNeeded();
+        if (next == ColorKey)
+        {
+            // 同一个颜色重复设置：工具栏那支笔的颜色显示与开关状态不该被无意义地重置。
+            return;
+        }
+
+        ColorKey = next;
         _followPalette = ColorKey == "accent";
         StrokeColor = ParseColor(ColorKey);
         StrokeWidth = Math.Clamp(StrokeWidth, 1, 24);
         ShapeWidth = Math.Clamp(StrokeWidth, 1, 16);
         UpdateInkLayer();
+        StrokeStyleChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>设置粗细（1–24 DIP），图形线宽跟着走同一档。</summary>
     public void SetStrokeWidth(double width)
     {
-        StrokeWidth = Math.Clamp(width, 1, 24);
+        var next = Math.Clamp(width, 1, 24);
+        PinPaletteColorIfNeeded();
+        if (Math.Abs(next - StrokeWidth) < 0.001)
+        {
+            return;
+        }
+
+        StrokeWidth = next;
         ShapeWidth = Math.Clamp(StrokeWidth, 1, 16);
         UpdateInkLayer();
+        StrokeStyleChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private static Color ParseColor(string key)
@@ -237,6 +254,22 @@ public sealed class FreeformBoard : Grid
         menu.Items.Add(delete);
         menu.Opened += (_, _) => delete.IsEnabled = _selected.Count > 0;
         ContextMenu = menu;
+
+        // 换主题/换背景色之后必须重画一次：图元里的画刷是建的时候用 FindResource 抓的快照，
+        // 不重建就一直停在旧颜色上（用户看到的是「换了背景，图元/卡片要等下一次操作才适配」）。
+        Appearance.ThemeService.Applied += OnThemeApplied;
+    }
+
+    private void OnThemeApplied()
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        Rebuild();
+        UpdateInkLayer();
+        ApplyCursor();
     }
 
     /// <summary>右键菜单用：把当前表面的图元全选（笔迹层不算，笔迹只能单点选）。</summary>
@@ -334,6 +367,12 @@ public sealed class FreeformBoard : Grid
     public event EventHandler? ViewportChanged;
 
     public event EventHandler? SelectionChanged;
+
+    /// <summary>
+    /// 画笔颜色或粗细变了。工具条第「色」按钮上的色块靠它显示「现在手里是什么颜色」，
+    /// 包括第一次落笔把 accent 快照成具体色值时的那一次变化。
+    /// </summary>
+    public event EventHandler? StrokeStyleChanged;
 
     /// <summary>图片工具点下去时触发：文件对话框由宿主开，落位点记在 <see cref="PendingImagePoint"/>。</summary>
     public event EventHandler? ImagePickRequested;
@@ -523,6 +562,7 @@ public sealed class FreeformBoard : Grid
 
         StrokeColor = brush.Color;
         ColorKey = $"#{brush.Color.R:X2}{brush.Color.G:X2}{brush.Color.B:X2}";
+        StrokeStyleChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private Color ResolveStrokeColor()
